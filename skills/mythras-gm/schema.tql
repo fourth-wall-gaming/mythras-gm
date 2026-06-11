@@ -1,0 +1,144 @@
+define
+
+# =============================================================================
+# mythras-gm namespace schema (myth-)
+# Gamesmaster system for Mythras Imperative: persistent campaigns, characters,
+# encounters, and worldbuilding in TypeDB.
+#
+# Design notes:
+# - Character sheets store structured stat blocks as JSON string attributes
+#   (characteristics, skills, hit locations, equipment). The CLI is the only
+#   writer and enforces consistency; TypeDB provides identity, relations,
+#   and campaign persistence.
+# - Rich narrative text (backstory, location descriptions, event narration)
+#   lives in the inherited `content` attribute.
+# - myth-campaign is an alh-collection; everything in a campaign is linked
+#   via myth-campaign-membership.
+# =============================================================================
+
+# =============================================================================
+# ATTRIBUTES
+# =============================================================================
+
+# Character sheet
+attribute myth-char-type, value string;            # pc | npc | creature
+attribute myth-status, value string;               # active | dead | retired | template
+attribute myth-characteristics-json, value string; # {"STR":11,"CON":12,...}
+attribute myth-attributes-json, value string;      # {"action_points":2,"damage_mod":"+1d2",...}
+attribute myth-skills-json, value string;          # {"Athletics":56,"Flight":72,...}
+attribute myth-hit-locations-json, value string;   # [{"name":"Head","range":[19,20],"ap":2,"hp":5,"current_hp":5},...]
+attribute myth-equipment-json, value string;       # [{"name":"Wingspear","damage":"1d8+1","size":"M"},...]
+attribute myth-passions-json, value string;        # {"Loyalty to the Murmuration":62,...}
+attribute myth-combat-styles-json, value string;   # {"Warden Skirmisher":58,...}
+attribute myth-fatigue, value string;              # Fresh | Winded | Tired | ...
+attribute myth-luck-current, value integer;
+attribute myth-magic-current, value integer;
+attribute myth-experience-rolls, value integer;    # banked experience rolls
+
+# Campaign / session
+attribute myth-game-date, value string;            # in-world calendar date
+attribute myth-current-scene, value string;        # short pointer to where play is
+attribute myth-session-number, value integer;
+
+# Encounter
+attribute myth-encounter-status, value string;     # active | resolved
+attribute myth-round, value integer;
+attribute myth-combatants-json, value string;      # [{"id":"...","name":"...","initiative":14,"ap":2,"conditions":[]},...]
+
+# World
+attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
+attribute myth-event-type, value string;           # scene | combat | skill-roll | decision | gm-note | session-start | session-end
+
+# =============================================================================
+# RELATIONS (before entities so role names resolve in plays clauses)
+# =============================================================================
+
+relation myth-campaign-membership,
+    relates campaign,
+    relates element;
+
+relation myth-presence,
+    relates located,
+    relates location;
+
+relation myth-participation,
+    relates encounter,
+    relates combatant;
+
+relation myth-event-involvement,
+    relates event,
+    relates participant;
+
+relation myth-faction-membership,
+    relates faction,
+    relates member;
+
+relation myth-template-instance,
+    relates template,
+    relates instance;
+
+# =============================================================================
+# ENTITIES
+# =============================================================================
+
+entity myth-campaign sub alh-collection,
+    owns myth-game-date,
+    owns myth-current-scene,
+    owns myth-session-number,
+    plays myth-campaign-membership:campaign;
+
+entity myth-character sub alh-domain-thing,
+    owns myth-char-type,
+    owns myth-status,
+    owns myth-characteristics-json,
+    owns myth-attributes-json,
+    owns myth-skills-json,
+    owns myth-hit-locations-json,
+    owns myth-equipment-json,
+    owns myth-passions-json,
+    owns myth-combat-styles-json,
+    owns myth-fatigue,
+    owns myth-luck-current,
+    owns myth-magic-current,
+    owns myth-experience-rolls,
+    plays myth-campaign-membership:element,
+    plays myth-presence:located,
+    plays myth-participation:combatant,
+    plays myth-event-involvement:participant,
+    plays myth-faction-membership:member,
+    plays myth-template-instance:instance;
+
+entity myth-creature-template sub alh-domain-thing,
+    owns myth-characteristics-json,
+    owns myth-attributes-json,
+    owns myth-skills-json,
+    owns myth-hit-locations-json,
+    owns myth-equipment-json,
+    owns myth-combat-styles-json,
+    plays myth-campaign-membership:element,
+    plays myth-template-instance:template;
+
+entity myth-location sub alh-domain-thing,
+    owns myth-location-type,
+    plays myth-campaign-membership:element,
+    plays myth-presence:location,
+    plays myth-event-involvement:participant;
+
+entity myth-faction sub alh-domain-thing,
+    plays myth-campaign-membership:element,
+    plays myth-faction-membership:faction,
+    plays myth-event-involvement:participant;
+
+entity myth-encounter sub alh-domain-thing,
+    owns myth-encounter-status,
+    owns myth-round,
+    owns myth-combatants-json,
+    plays myth-campaign-membership:element,
+    plays myth-participation:encounter,
+    plays myth-event-involvement:participant;
+
+entity myth-game-event sub alh-note,
+    owns myth-event-type,
+    owns myth-session-number,
+    plays myth-campaign-membership:element,
+    plays myth-event-involvement:event;

@@ -1,0 +1,10 @@
+name: gamemaster
+version: 0.1.0
+description: Tabletop RPG Gamesmaster running persistent Mythras Imperative campaigns with TypeDB-backed state. Includes the original Veilwrack sky-realm setting.
+skills:
+  - mythras-gm
+  - typedb-notebook
+tags:
+  - rpg
+  - games
+  - mythras
