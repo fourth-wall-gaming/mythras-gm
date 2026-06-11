@@ -111,5 +111,6 @@ future session's GM (you, with no memory of today) will rely on it.
 | `setting/veilwrack.md` | Player-facing setting guide |
 | `setting/gm-secrets.md` | GM-only truth, campaign arc, NPC list |
 | `setting/bestiary.md` | Stat blocks (mirrored as DB templates) |
+| `setting/alar-options.md` | Careers, Windworking spells, racial abilities, aerial movement, gear |
 | `setting/seed_veilwrack.sh` | One-shot campaign seeder |
 | `schema.tql` | TypeDB myth- namespace |
