@@ -67,6 +67,11 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   just enough that a novelization could be written from it later, and no
   more — embellishment belongs in the novelization layer and must never be
   written back into the journal or lore.
+- **Dialogue is the priority content of a narrative.** Record what was
+  actually said — quote the key lines verbatim (NPC and PC both) in
+  `--narrative`. Spoken words outrank scenery: extra description is
+  unimportant, but a line said at the table is a fact of play and should
+  survive in the record.
 - **Session boundaries:** open with `log-event --type session-start`, close
   with `--type session-end` plus a summary narrative, bump
   the campaign session number, and award 1-3 experience rolls.
