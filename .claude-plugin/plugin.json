@@ -1,0 +1,20 @@
+{
+  "name": "mythras-gm",
+  "display_name": "Mythras Imperative Gamesmaster",
+  "description": "Run persistent tabletop RPG campaigns as Gamesmaster using Mythras Imperative rules, with all game state in TypeDB. Includes dice engine, combat resolution, character generation, campaign publishing, and worldbuilding persistence.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Fourth Wall Gaming",
+    "url": "https://github.com/fourth-wall-gaming"
+  },
+  "repository": "https://github.com/fourth-wall-gaming/mythras-gm",
+  "homepage": "https://github.com/fourth-wall-gaming/mythras-gm",
+  "license": "MIT",
+  "requires": {
+    "plugins": ["alhazen-core"],
+    "system": {
+      "bins": ["uv", "docker"],
+      "description": "Run /alhazen-core:init first to set up TypeDB and base schema"
+    }
+  }
+}

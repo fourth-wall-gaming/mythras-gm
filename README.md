@@ -61,16 +61,55 @@ factions, a five-act campaign arc, and a bestiary — published in full at
 [fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
 and loadable into TypeDB with one command.
 
-## Quick start
+## Install as Claude Code Plugin
 
-Prereqs: Python 3.12+, `typedb-driver>=3.8.0`, a running TypeDB 3.x server.
+The fastest way to play. Requires [Claude Code](https://claude.ai/code)
+v1.0.33+, Docker, and [uv](https://docs.astral.sh/uv/).
+
+### Step 1: Install the alhazen-core infrastructure plugin
+
+mythras-gm stores all game state in TypeDB. The `alhazen-core` plugin
+handles TypeDB startup and provides the base schema that mythras-gm extends.
+
+```
+/plugin marketplace add sciknow-io/alhazen-skill-examples
+/plugin install alhazen-core@alhazen-skills
+/alhazen-core:init
+```
+
+### Step 2: Install mythras-gm
+
+```
+/plugin marketplace add fourth-wall-gaming/mythras-gm
+/plugin install mythras-gm
+```
+
+The plugin's SessionStart hook auto-loads the myth- namespace schema
+into TypeDB on every new session.
+
+### Step 3 (optional): Load a campaign setting
+
+```bash
+git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
+```
+
+Then tell Claude: *"Import the Veilwrack campaign from ~/veilwrack-campaign"*
+
+Or create a fresh campaign: just say *"Create a new Mythras campaign"*
+and the GM will walk you through worldbuilding and character creation.
+
+## Quick start (standalone)
+
+For use without Claude Code. Prereqs: Python 3.11+, `typedb-driver>=3.8.0`,
+a running TypeDB 3.x server with the
+[alhazen-core](https://github.com/sciknow-io/alhazen-skill-examples/tree/main/skills/core/alhazen-core)
+base schema loaded.
 
 ```bash
 # environment (defaults shown)
 export TYPEDB_HOST=localhost TYPEDB_PORT=1729 TYPEDB_DATABASE=alhazen_notebook
 
-# 1. load the schema (requires the alhazen-core base schema, or adapt
-#    the alh-* supertypes to your own)
+# 1. load the myth- namespace schema
 python - <<'PY'
 from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
 driver = TypeDB.driver("localhost:1729", Credentials("admin","password"),
@@ -82,13 +121,14 @@ PY
 
 # 2. load the Veilwrack campaign
 git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
-python skills/mythras-gm/mythras_gm.py import-campaign \
-  --path veilwrack-campaign --new-ids
+uv run --project skills/mythras-gm python skills/mythras-gm/mythras_gm.py \
+  import-campaign --path veilwrack-campaign --new-ids
 
 # 3. make a character and play
-python skills/mythras-gm/mythras_gm.py create-character \
-  --campaign <id> --name "Kithrel of the Moult" --roll --type pc
-python skills/mythras-gm/mythras_gm.py get-context --campaign <id>
+uv run --project skills/mythras-gm python skills/mythras-gm/mythras_gm.py \
+  create-character --campaign <id> --name "Kithrel of the Moult" --roll --type pc
+uv run --project skills/mythras-gm python skills/mythras-gm/mythras_gm.py \
+  get-context --campaign <id>
 ```
 
 Or, inside Skillful-Alhazen, register in `skills-registry.yaml` and say
