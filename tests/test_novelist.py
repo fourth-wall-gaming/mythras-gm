@@ -128,3 +128,67 @@ def test_missing_tools_reports_brew_hints():
     msgs = nov.missing_tools(path="/nonexistent")
     assert any("pandoc" in m and "brew install pandoc" in m for m in msgs)
     assert any("typst" in m and "brew install typst" in m for m in msgs)
+
+
+# --- extract (requires TypeDB; skipped when down) -------------------------------
+
+def _typedb_up():
+    """Check TypeDB reachability in a subprocess to isolate native-driver crashes."""
+    import subprocess
+    script = (
+        "import mythras_gm as gm;"
+        "d = gm.get_driver();"
+        "d.databases.all();"
+        "d.close();"
+        "print('ok')"
+    )
+    cli_dir = os.path.join(os.path.dirname(__file__), "..", "skills", "mythras-gm")
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=5,
+            cwd=cli_dir,
+        )
+        return r.returncode == 0 and "ok" in r.stdout
+    except Exception:
+        return False
+
+
+TYPEDB_UP = _typedb_up()
+
+
+@pytest.mark.skipif(not TYPEDB_UP, reason="TypeDB not reachable")
+def test_extract_unknown_campaign_fails(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        nov.fetch_campaign_data("no-such-campaign-id")
+    assert "not found" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not TYPEDB_UP, reason="TypeDB not reachable")
+def test_extract_seeded_campaign(tmp_path):
+    """Seed a throwaway campaign via the GM CLI, then extract it."""
+    import json
+    import subprocess
+    cli = os.path.join(os.path.dirname(__file__), "..", "skills", "mythras-gm", "mythras_gm.py")
+
+    def run(*args):
+        r = subprocess.run([sys.executable, cli, *args], capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+        return json.loads(r.stdout)
+
+    camp = run("create-campaign", "--name", "ztest-novelist")["id"]
+    run("log-event", "--campaign", camp, "--type", "scene",
+        "--summary", "First scene", "--narrative", "It begins.", "--session", "1")
+    run("log-event", "--campaign", camp, "--type", "combat", "--summary", "Second scene")
+    run("add-lore", "--campaign", camp, "--title", "Open Secret",
+        "--category", "history", "--narrative", "Everyone knows.", "--visibility", "player")
+    run("add-lore", "--campaign", camp, "--title", "Hidden Truth",
+        "--category", "history", "--narrative", "Nobody knows.", "--visibility", "gm")
+
+    campaign, events, chars, locs, facs, lore = nov.fetch_campaign_data(camp)
+    assert campaign["name"] == "ztest-novelist"
+    assert [e["summary"] for e in events] == ["First scene", "Second scene"]
+    assert events[0]["narrative"] == "It begins."
+    assert events[0]["session"] == 1
+    names = [l["name"] for l in lore]
+    assert "Open Secret" in names and "Hidden Truth" not in names

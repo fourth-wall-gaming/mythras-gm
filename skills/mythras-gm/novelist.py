@@ -125,3 +125,105 @@ def missing_tools(path=None):
     return [f"{tool} not found -- install with: {hint}"
             for tool, hint in TOOL_HINTS.items()
             if shutil.which(tool, path=path) is None]
+
+
+# ---------------------------------------------------------------------------
+# TypeDB extraction
+# ---------------------------------------------------------------------------
+
+def _members(driver, campaign_id, etype, extra_attrs):
+    """Campaign members of one type with id+name plus optional extra attrs.
+
+    extra_attrs: list of (typedb_attr, output_key). Optional attributes must be
+    fetched one query at a time in TypeDB 3.x (absent attr in fetch = error).
+    """
+    cid = gm.escape_string(campaign_id)
+    rows = gm._fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{cid}";
+          (campaign: $camp, element: $x) isa myth-campaign-membership;
+          $x isa {etype}, has id $i, has name $n;
+        fetch {{ "id": $i, "name": $n }};''')
+    result = []
+    for r in rows:
+        d = dict(r)
+        for attr, key in extra_attrs:
+            v = gm._fetch(driver, f'''
+                match $x isa {etype}, has id "{gm.escape_string(d["id"])}", has {attr} $v;
+                fetch {{ "v": $v }};''')
+            d[key] = v[0]["v"] if v else None
+        result.append(d)
+    return result
+
+
+def fetch_campaign_data(campaign_id):
+    """Everything the novelization needs: (campaign, events, chars, locs, factions, lore)."""
+    cid = gm.escape_string(campaign_id)
+    with gm.get_driver() as driver:
+        camp = gm._fetch(driver, f'''
+            match $c isa myth-campaign, has id "{cid}";
+            fetch {{ "id": $c.id, "name": $c.name }};''')
+        if not camp:
+            gm.fail(f"campaign not found: {campaign_id}")
+        campaign = dict(camp[0])
+
+        events = [dict(r) for r in gm._fetch(driver, f'''
+            match
+              $camp isa myth-campaign, has id "{cid}";
+              (campaign: $camp, element: $e) isa myth-campaign-membership;
+              $e isa myth-game-event, has id $i, has description $d,
+                 has myth-event-type $t, has created-at $ts;
+            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')]
+        events.sort(key=lambda e: (str(e["at"]), e["id"]))
+        for e in events:
+            eid = gm.escape_string(e["id"])
+            for attr, key in (("content", "narrative"), ("myth-session-number", "session")):
+                v = gm._fetch(driver, f'''
+                    match $e isa myth-game-event, has id "{eid}", has {attr} $v;
+                    fetch {{ "v": $v }};''')
+                e[key] = v[0]["v"] if v else None
+            e["participants"] = [dict(p) for p in gm._fetch(driver, f'''
+                match
+                  $e isa myth-game-event, has id "{eid}";
+                  (event: $e, participant: $p) isa myth-event-involvement;
+                  $p has id $pi, has name $pn;
+                fetch {{ "id": $pi, "name": $pn }};''')]
+
+        characters = _members(driver, campaign_id, "myth-character",
+                              [("description", "description"), ("content", "content")])
+        locations = _members(driver, campaign_id, "myth-location",
+                             [("description", "description"), ("content", "content")])
+        factions = _members(driver, campaign_id, "myth-faction",
+                            [("description", "description"), ("content", "content")])
+        lore = filter_player_lore(
+            _members(driver, campaign_id, "myth-lore",
+                     [("description", "description"), ("content", "content"),
+                      ("myth-lore-visibility", "visibility")]))
+    return campaign, events, characters, locations, factions, lore
+
+
+def cmd_extract(args):
+    campaign, events, chars, locs, facs, lore = fetch_campaign_data(args.campaign)
+    if not events:
+        gm.fail("campaign has no journal events -- play some sessions first")
+    slug = slugify(campaign["name"])
+    mdir = args.out or os.path.join(os.getcwd(), "novels", slug)
+    os.makedirs(os.path.join(mdir, "chapters"), exist_ok=True)
+
+    with open(os.path.join(mdir, "source.md"), "w", encoding="utf-8") as fh:
+        fh.write(render_source_md(campaign, events, chars, locs, facs, lore))
+
+    book_path = os.path.join(mdir, "book.yaml")
+    if os.path.exists(book_path):
+        with open(book_path, encoding="utf-8") as fh:
+            book = yaml.safe_load(fh) or {}
+    else:
+        book = {"title": campaign["name"], "author": "Fourth Wall Gaming",
+                "slug": slug, "campaign_id": campaign["id"],
+                "style": None, "status": "outline-pending"}
+    book["high_water_mark"] = events[-1]["id"]
+    with open(book_path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(book, fh, sort_keys=False, allow_unicode=True)
+
+    gm.out({"success": True, "manuscript": os.path.abspath(mdir),
+            "events": len(events), "high_water_mark": book["high_water_mark"]})
