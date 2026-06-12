@@ -133,6 +133,106 @@ ENTRIES = [
     ("GM Secrets: The Truth, the Arc, the NPCs", "gm-secret", "gm",
      "Why the wind is dying, the Founding Compact, the Quieting, the Unsung, the five-act campaign arc, and the NPC quick list. NEVER reveal directly.",
      whole("gm-secrets.md")),
+
+    # --- The expanded worldbook (added 1001 A.S. edition) -------------------
+    # Geography & politics
+    ("The Shape of the World: Altitude Bands", "geography", "player",
+     "The five altitude bands - Glare, Reach, Shade, Root-Dark, Undermist - and the charted lanes vs the open Wrack.",
+     section("geography.md", "The Shape of the World")),
+    ("The Great Polities", "politics", "player",
+     "Crown Dominion, the Moult, Carrowspar Synod, Veyl Reefs, Brightgyre Compact - governments, rulers, and how each holds power.",
+     section("geography.md", "The Great Polities")),
+    ("Lesser Powers and Places", "geography", "player",
+     "Lanternfall, Greywake, the Spindles, Hollow Vesse, and the lane-shrine network.",
+     section("geography.md", "Lesser Powers and Places")),
+    ("How Power Works in the Veilwrack", "politics", "player",
+     "The four currencies of power: lift, lanes, the Record, and the funeral right.",
+     section("geography.md", "How Power Actually Works")),
+    ("Distances and Travel", "geography", "player",
+     "Wind-days, the major routes table, off-lane and night flying, cargo barges.",
+     section("geography.md", "Distances and Travel")),
+    # History
+    ("A History of the Veilwrack", "history", "player",
+     "The full chronicle 0-1001 A.S.: the Elder Sky, the Hole in the Record, the Settling, Charter Wars, Marrow Rush, Long Calm, Stilling Age - plus the Skeptic's Chronology.",
+     whole("history.md")),
+    # Upbringings (character background catechisms)
+    ("What My Mother Told Me (Vael)", "upbringing", "player",
+     "The Vael childhood catechism: the herd, the hoofprints of the dead, why we carry, how to regard the other kindreds.",
+     section("upbringings.md", "What My Mother Told Me (a Vael childhood, the Moult)")),
+    ("What My Father Told Me (Roak)", "upbringing", "player",
+     "The Roak childhood catechism: the missing first pages, nothing recorded is wholly dead, completing the Record.",
+     section("upbringings.md", "What My Father Told Me (a Roak childhood, Suruveil's Crown)")),
+    ("What My Priest Told Me (Ossuin)", "upbringing", "player",
+     "The Ossuin childhood catechism: the world as exhalation, death as installment, keeping the door.",
+     section("upbringings.md", "What My Priest Told Me (an Ossuin childhood, Carrowspar)")),
+    ("What My Chief Told Me (the Roostless)", "upbringing", "player",
+     "The Spindles childhood catechism: a secondhand world, the Thread-book, catching what falls.",
+     section("upbringings.md", "What My Chief Told Me (a Spindles childhood, the roostless)")),
+    # Organizations (GM - each contains stated vs actual aims and hooks)
+    ("Organization: The Gale Wardens", "organization", "gm",
+     "PC patron org: ranks Tail to Warden-Marshal, benefits, the Acceleration Map, the Causists.",
+     section("organizations.md", "1. The Gale Wardens")),
+    ("Organization: The Spirarchy and Crown Agents", "organization", "gm",
+     "The state church and its secret service: ranks, benefits, what Velute actually protects.",
+     section("organizations.md", "2. The Spirarchy of Suruveil's Crown (and the Crown Agents)")),
+    ("Organization: The Quillate", "organization", "gm",
+     "Archive-guild ranks and benefits; the deliberately cut hole; Orrocan's self-filling stacks.",
+     section("organizations.md", "3. The Quillate")),
+    ("Organization: The Deepway", "organization", "gm",
+     "The funeral order: ranks, universal safe-conduct, and the real reason diving stopped.",
+     section("organizations.md", "4. The Deepway (the Ossuin priesthood)")),
+    ("Organization: The Lane-Shrine Cantorate", "organization", "gm",
+     "The windlane religion: shrine neutrality, and the lane-songs as a 900-year record of the Breath's decline.",
+     section("organizations.md", "5. The Lane-Shrine Cantorate")),
+    ("Organization: The Marrower Combine", "organization", "gm",
+     "The lift cartel: ranks, the burned sink-data, Brell Coinfeather's insurance copy.",
+     section("organizations.md", "6. The Marrower Combine")),
+    ("Organization: The Hushed Choir", "organization", "gm",
+     "The Stilling cult: outer creed, the Sotto Voce's two practical secrets, ranks to the Quieted.",
+     section("organizations.md", "7. The Hushed Choir")),
+    ("Organization: The Featherwrights' Guild", "organization", "gm",
+     "The artisan league: wing-surgeons, the Fallen Fund, and the actuarial tables that know too much.",
+     section("organizations.md", "8. The Featherwrights' Benevolent Guild")),
+    ("Using Organizations in Play", "organization", "gm",
+     "GM guidance: memberships at creation, rank advancement as story, benefits with handles, cross-loyalties.",
+     section("organizations.md", "Using Organizations in Play")),
+    # Antagonists (GM)
+    ("Antagonists and Opposition Structure", "gm-guide", "gm",
+     "Five opposition tiers (world, predators, human, institutional, mythic), recurring villains, clocks, and the rules for running adversity.",
+     whole("antagonists.md")),
+    # Natural philosophy
+    ("Natural Philosophy: The Quillate Consensus", "natural-philosophy", "player",
+     "The plausible physics: the planet, buoyant bone, the Undermist, and the Vital Circulation Hypothesis - the one biological miracle.",
+     section("natural-philosophy.md", "The Quillate Consensus (player-facing)")),
+    ("Natural Philosophy: GM Appendix", "natural-philosophy", "gm",
+     "GM only: closing the loop between the Vital Circulation Hypothesis and the campaign secret; rulings stance.",
+     section("natural-philosophy.md", "GM Appendix: closing the loop (GM only)")),
+    # Daily life
+    ("The Calendar and the Festivals", "daily-life", "player",
+     "Four wind-seasons, the nine-day week, First Lift, Tanksfull, the Patching, Lastlight, millennium dread.",
+     section("life-aloft.md", "The Calendar and the Festivals")),
+    ("Alar Names", "daily-life", "player",
+     "Naming customs of the Vael, Roak, Ossuin, and the roostless.",
+     section("life-aloft.md", "Names")),
+    ("Law and Justice", "daily-life", "player",
+     "Sky Law and the three fall-crimes; Crown, Moult, and Reef legal cultures.",
+     section("life-aloft.md", "Law and Justice")),
+    ("Money and Daily Economy", "daily-life", "player",
+     "Lacquer-scrip, lane-favors, mist-pearls; wages, prices, and what people actually eat.",
+     section("life-aloft.md", "Money and Daily Economy")),
+    ("Living on a Spire", "daily-life", "player",
+     "The vertical city: crown to root-line, flight-wells, roosts, and who sleeps where.",
+     section("life-aloft.md", "Living on a Spire")),
+    ("Etiquette Worth Knowing", "daily-life", "player",
+     "Greetings, gifts of lift, primaries, singing, speaking of the dead, and 'may your air move'.",
+     section("life-aloft.md", "Etiquette Worth Knowing")),
+    ("Rumors Current in 1001 A.S.", "gm-guide", "gm",
+     "Six table-ready rumors with true/false annotations for the GM.",
+     section("life-aloft.md", "Rumors Current in 1001 A.S. (table seed)")),
+    # Character creation
+    ("Character Creation and Roleplay Guide", "character-creation", "player",
+     "The full table procedure: concept, characteristics, culture, career, combat style, Windworking, organizations, passions, roleplay guidelines, development, and company frames.",
+     whole("character-creation.md")),
 ]
 
 
@@ -141,7 +241,24 @@ def main():
     ap.add_argument("--campaign", required=True)
     args = ap.parse_args()
 
+    # Idempotency: skip entries whose title already exists in the campaign.
+    res = subprocess.run(
+        [sys.executable, CLI, "list-lore", "--campaign", args.campaign],
+        capture_output=True, text=True)
+    try:
+        existing_payload = json.loads(res.stdout.strip().splitlines()[-1])
+        existing = {e["title"] for e in existing_payload.get("lore", [])}
+    except Exception:
+        print(f"FAILED to list existing lore:\n{res.stdout}\n{res.stderr}",
+              file=sys.stderr)
+        sys.exit(1)
+
+    skipped = 0
     for title, category, visibility, summary, content in ENTRIES:
+        if title in existing:
+            skipped += 1
+            print(f"  = (exists) {title}")
+            continue
         cmd = [sys.executable, CLI, "add-lore",
                "--campaign", args.campaign,
                "--title", title,
@@ -159,7 +276,7 @@ def main():
             print(f"FAILED: {title}: {payload}", file=sys.stderr)
             sys.exit(1)
         print(f"  + [{category}/{visibility}] {title} -> {payload['id']}")
-    print("Lore seeding complete.")
+    print(f"Lore seeding complete ({skipped} already present, skipped).")
 
 
 if __name__ == "__main__":
