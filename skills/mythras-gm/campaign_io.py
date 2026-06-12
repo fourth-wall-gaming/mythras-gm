@@ -369,6 +369,38 @@ def export_campaign(campaign_id, outdir):
         + (f" — {f['description']}" if f.get("description") else "")
         for f in faction_records) or "none"
 
+    novels_row = ""
+    novels_section = ""
+    novels_dir = os.path.join(outdir, "novels")
+    if os.path.isdir(novels_dir):
+        novel_entries = []
+        for slug in sorted(os.listdir(novels_dir)):
+            book_yaml = os.path.join(novels_dir, slug, "book.yaml")
+            if not os.path.isfile(book_yaml):
+                continue
+            meta = {}
+            for line in open(book_yaml):
+                if ":" in line:
+                    k, _, v = line.partition(":")
+                    meta[k.strip()] = v.strip().strip("'\"")
+            pdf_rel = f"novels/{slug}/{slug}.pdf"
+            link = (pdf_rel if os.path.isfile(os.path.join(outdir, pdf_rel))
+                    else f"novels/{slug}/")
+            entry = (f"- [{meta.get('title', slug)}]({link}) — "
+                     f"{slug.replace('-', ' ').title()}'s run")
+            if meta.get("style"):
+                entry += f", in the style of {meta['style'].title()}"
+            novel_entries.append(entry)
+        if novel_entries:
+            novels_row = ("\n| `novels/` | Novelizations of actual play, "
+                          "one directory per protagonist/party |")
+            novels_section = ("\n## Novels\n\n"
+                              "Actual play at the table, retold as fiction — "
+                              "one play session per chapter, drafted from the "
+                              "campaign journal via the mythras-gm "
+                              "novelization workflow.\n\n"
+                              + "\n".join(novel_entries) + "\n")
+
     setting_note = ""
     if os.path.isdir(os.path.join(outdir, "setting")):
         setting_note = ("\nThe canonical full-prose worldbook sources live in "
@@ -404,7 +436,7 @@ campaign format (v{FORMAT_VERSION}).
 | `locations/` | Places (markdown + frontmatter) |
 | `factions/` | Factions and organizations (markdown + frontmatter) |
 | `encounters/` | Combat encounter state (JSON) |
-| `journal/` | The campaign event log (JSON) |
+| `journal/` | The campaign event log (JSON) |{novels_row}
 {setting_note}
 ## The worldbook (lore index)
 
@@ -417,7 +449,7 @@ campaign format (v{FORMAT_VERSION}).
 ## Factions
 
 {factions_section}
-
+{novels_section}
 ## Loading this campaign
 
 ```bash
