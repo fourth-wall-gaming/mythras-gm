@@ -74,6 +74,8 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 | Record new canon | `add-lore --campaign C --title T --category culture --narrative "..."` |
 | Import sheets (Roll20 JSON) | `import-characters --file chars.json --campaign C [--type npc]` |
 | Export sheets (Roll20 JSON) | `export-characters --campaign C [--type pc] --output out.json` |
+| Publish a campaign (DB → files) | `export-campaign --campaign C --output dir/` |
+| Load a published campaign | `import-campaign --path dir/ [--name N] [--new-ids]` |
 
 `resolve-attack` handles the whole differential roll: attack vs parry/evade,
 special-effect count, damage + damage modifier, hit location, parry size
@@ -120,12 +122,25 @@ what makes the system setting-agnostic: a new campaign is just
 templates — see `setting/seed_veilwrack.sh` + `setting/seed_lore.py` for the
 reference pattern.
 
+## Publishing Campaigns
+
+`export-campaign` serializes an entire campaign to a human-readable file
+tree — markdown (with frontmatter) for lore/locations/factions, JSON for
+characters/templates/encounters/journal, plus a `campaign.yaml` manifest and
+a generated README. Commit that directory to a GitHub repo and the campaign
+is published: browsable on the web, and loadable by anyone with
+`import-campaign --path <dir> --new-ids` (`--new-ids` remaps every entity id
+so the campaign imports cleanly into any database; all relations — presence,
+faction membership, lore links, encounter rosters, event involvement — are
+rebuilt). The round trip is lossless.
+
 ## Files
 
 | File | Purpose |
 |---|---|
 | `mythras_gm.py` | CLI: persistence + resolution (JSON out) |
 | `mythras_engine.py` | Pure rules engine (importable, no I/O) |
+| `campaign_io.py` | Campaign publishing: export/import file trees |
 | `rules/core-mechanics.md` | Skill system, attributes, fatigue, healing, experience |
 | `rules/combat.md` | Combat procedure, special effects, weapons, falling |
 | `rules/magic.md` | SRD Magic & Superpowers frameworks (setting-agnostic) |

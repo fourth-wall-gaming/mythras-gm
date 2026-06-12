@@ -55,6 +55,10 @@ Journal:
         [--session N] [--involves ID,ID,...]
     get-log --campaign ID [--session N] [--type T]
     get-context --campaign ID        # everything needed to resume play
+
+Publishing:
+    export-campaign --campaign ID --output DIR   # DB -> publishable file tree
+    import-campaign --path DIR [--name N] [--new-ids]   # file tree -> DB
 """
 
 from __future__ import annotations
@@ -1211,6 +1215,20 @@ def cmd_get_context(args):
 
 
 # ---------------------------------------------------------------------------
+# Campaign publishing (export / import file trees) -- see campaign_io.py
+# ---------------------------------------------------------------------------
+
+def cmd_export_campaign(args):
+    import campaign_io
+    campaign_io.cmd_export(args)
+
+
+def cmd_import_campaign(args):
+    import campaign_io
+    campaign_io.cmd_import(args)
+
+
+# ---------------------------------------------------------------------------
 # Argparse
 # ---------------------------------------------------------------------------
 
@@ -1430,6 +1448,18 @@ def build_parser():
 
     s = sub.add_parser("get-context")
     s.add_argument("--campaign", required=True)
+
+    s = sub.add_parser("export-campaign",
+                       help="Export a campaign to a publishable file tree")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--output", required=True, help="directory to write")
+
+    s = sub.add_parser("import-campaign",
+                       help="Load a published campaign file tree into the database")
+    s.add_argument("--path", required=True, help="campaign directory")
+    s.add_argument("--name", help="override the campaign name")
+    s.add_argument("--new-ids", action="store_true",
+                   help="remap all entity ids (load alongside the original)")
 
     return p
 
