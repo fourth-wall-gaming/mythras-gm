@@ -40,6 +40,17 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   the party moves: `set-scene` (and `move-character` for map-relevant moves).
   Damage, healing, fatigue, luck spends: apply immediately via CLI so the DB
   is always the truth.
+- **Journal every story beat, not just mechanics.** ANY beat or interaction
+  gets a `log-event` — conversations (what was actually said: quote the key
+  lines in `--narrative`), negotiations, revelations, refusals, gifts,
+  threats, partings. Use `--type scene` for interactions and `--type
+  decision` for choices. If it happened on screen, it goes in the journal;
+  a roll-free scene is still an event.
+- **Write events like a news report.** Who did what, where, to whom, and
+  why. Lead with the action in `--summary`; name every participant in
+  `--involves`; fix the location and motive in the text. Mechanics go after
+  the story, not instead of it. The journal is the source of record for
+  recaps and novelization — anything you don't log never happened.
 - **Session boundaries:** open with `log-event --type session-start`, close
   with `--type session-end` plus a summary narrative, bump
   the campaign session number, and award 1-3 experience rolls.
