@@ -39,6 +39,21 @@ def whole(path):
     return open(os.path.join(HERE, path)).read().strip()
 
 
+def section_until(path, header, stop):
+    """Section starting at `## header`, truncated before `stop` marker."""
+    text = section(path, header)
+    return text.split(stop)[0].strip()
+
+
+def subsection(path, header, start):
+    """The trailing part of a section from the `start` marker onward."""
+    text = section(path, header)
+    idx = text.find(start)
+    if idx < 0:
+        raise SystemExit(f"Marker '{start}' not found in section '{header}' of {path}")
+    return text[idx:].strip()
+
+
 ANATOMY = """## Alar Anatomy and Body Plan
 
 The Alar are winged humanoids with a six-limbed body plan: two legs, two
@@ -93,8 +108,16 @@ ENTRIES = [
      "Ten setting careers in SRD format: Lane Courier, Gale Warden, Quill, Wind-Pilot, Death-Diver, Marrow-Miner, Shrine-Cantor, Windworker, Crown Agent.",
      section("alar-options.md", "Careers")),
     ("Windworking", "magic-system", "player",
-     "The Alar magic (POW+CHA): 12 spells for coaxing the living Breath. Dead inside Stillings. The Breath answers slower every year.",
-     section("alar-options.md", "Windworking (Magic)")),
+     "The Alar magic = the SRD Magic system (POW+CHA, MP-by-roll-result, traits). 17 adapted SRD spells + 10 originals. Dead in Stillings; MP recovers only in living wind.",
+     section_until("alar-options.md", "Windworking (Magic)",
+                   "### Powers (the SRD superpower framework)")),
+    ("Powers of the Touched", "magic-system", "gm",
+     "GM only: the SRD superpowers framework builds the Hushed (Life Support + Silence Aura, heavily Limited) and the leviathan-touched finale option.",
+     subsection("alar-options.md", "Windworking (Magic)",
+                "### Powers (the SRD superpower framework)")),
+    ("Mythras Magic and Powers Rules", "rules-reference", "player",
+     "Setting-agnostic SRD reference: Magic casting economy, spell traits, full SRD spell list, and the Superpowers build framework.",
+     open(os.path.join(HERE, "..", "rules", "magic.md")).read().strip()),
     ("Combat Styles and Traits", "house-rules", "player",
      "Six named Veilwrack combat styles with SRD traits (Warden Skirmisher, Courier's Defense, Stoopwing...).",
      section("alar-options.md", "Combat Style Traits (Veilwrack styles)")),
