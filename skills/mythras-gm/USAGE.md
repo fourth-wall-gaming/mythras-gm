@@ -82,6 +82,11 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 - **Player agency is sacred.** Describe situations, not solutions. NPCs have
   their own goals (see faction narratives in the DB — `get-character`,
   faction `content` fields).
+- **Character knowledge is per-character, not per-campaign.** The journal
+  and rosters are the GM's memory, not the PC's. Before giving a PC a fact,
+  check WHO learned it in the fiction: events another PC played through, or
+  lore the character has no path to, must not surface in their head. When in
+  doubt, trace the fact to a scene this character was present for.
 - **Secrets stay secret.** GM-side material (gm-secrets.md, faction
   narratives, template descriptions) informs your narration but is revealed
   only through play.
