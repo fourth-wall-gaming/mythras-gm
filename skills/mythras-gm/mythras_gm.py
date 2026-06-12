@@ -403,6 +403,95 @@ def _transform_sheet(sheet, char_type):
     }
 
 
+
+def _to_roll20_sheet(c):
+    """Convert a stored character back to the Roll20-upload JSON format
+    (stats/skills as lists of single-key dicts, zero-padded range strings)."""
+    chars = c.get("myth-characteristics-json") or {}
+    skills = dict(c.get("myth-skills-json") or {})
+    styles = c.get("myth-combat-styles-json") or {}
+    extras = c.get("myth-extras-json") or {}
+    spells = c.get("myth-spells-json") or {}
+    attrs = c.get("myth-attributes-json") or {}
+    equipment = c.get("myth-equipment-json") or []
+
+    stat_order = ["STR", "CON", "SIZ", "DEX", "INT", "POW", "CHA"]
+    stats_list = [{k: chars[k]} for k in stat_order if k in chars]
+
+    # Roll20 format carries styles inside skills too
+    merged_skills = dict(skills)
+    merged_skills.update(styles)
+    skills_list = [{k: v} for k, v in merged_skills.items()]
+
+    hit_locations = []
+    for loc in c.get("myth-hit-locations-json") or []:
+        lo, hi = loc.get("range", [1, 20])
+        hit_locations.append({
+            "name": loc["name"],
+            "range": f"{lo:02d}-{hi:02d}",
+            "hp": loc["hp"],
+            "ap": loc.get("ap", 0),
+        })
+
+    weapon_names = [w.get("name", "") for w in equipment if w.get("name")]
+    combat_styles = [{"name": n, "value": v, "weapons": weapon_names}
+                     for n, v in styles.items()] or                     [{"name": "Combat Style", "value": 0, "weapons": weapon_names}]
+
+    ib = attrs.get("initiative_bonus", 0)
+    strike_rank = extras.get("strike_rank", f"{ib}({ib}-0)")
+
+    return {
+        "name": c.get("name", ""),
+        "cult_rank": extras.get("cult_rank", "None"),
+        "stats": stats_list,
+        "skills": skills_list,
+        "folk_spells": spells.get("folk", []),
+        "theism_spells": spells.get("theism", []),
+        "sorcery_spells": spells.get("sorcery", []),
+        "mysticism_spells": spells.get("mysticism", []),
+        "hit_locations": hit_locations,
+        "combat_styles": combat_styles,
+        "attributes": {
+            "action_points": attrs.get("action_points", 2),
+            "damage_modifier": attrs.get("damage_modifier", "+0"),
+            "magic_points": attrs.get("magic_points", 0),
+            "strike_rank": strike_rank,
+            "movement": attrs.get("movement", "6m (20')"),
+        },
+        "notes": c.get("description") or "",
+        "features": extras.get("features", []),
+        "cults": extras.get("cults", []),
+        "spirits": extras.get("spirits", []),
+        "natural_armor": extras.get("natural_armor", False),
+    }
+
+
+def cmd_export_characters(args):
+    """Export characters to the Roll20-upload JSON format."""
+    with get_driver() as driver:
+        if args.id:
+            ids = [args.id]
+        elif args.campaign:
+            rows = _fetch(driver, f'''
+                match
+                  $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+                  (campaign: $camp, element: $c) isa myth-campaign-membership;
+                  $c isa myth-character, has id $i, has myth-char-type $t;
+                fetch {{ "id": $i, "type": $t }};''')
+            ids = [r["id"] for r in rows if not args.type or r["type"] == args.type]
+        else:
+            fail("Provide --id or --campaign")
+        sheets = [_to_roll20_sheet(_load_character(driver, cid)) for cid in ids]
+
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(sheets, f, indent=2)
+        out({"success": True, "exported": [s["name"] for s in sheets],
+             "file": args.output})
+    else:
+        print(json.dumps(sheets, indent=2))
+
+
 def cmd_import_characters(args):
     """Import one or more characters from a Mythras-family JSON sheet file."""
     data = json.load(open(args.file))
@@ -1171,6 +1260,13 @@ def build_parser():
                         "(stats/skills as list-of-dicts or flat dicts)")
     s.add_argument("--campaign")
     s.add_argument("--type", default="pc", choices=["pc", "npc", "creature"])
+
+    s = sub.add_parser("export-characters",
+                       help="Export characters to Roll20-upload JSON format")
+    s.add_argument("--id", help="single character id")
+    s.add_argument("--campaign", help="export all characters in a campaign")
+    s.add_argument("--type", help="filter by pc/npc/creature when exporting a campaign")
+    s.add_argument("--output", help="write to file instead of stdout")
 
     s = sub.add_parser("list-characters")
     s.add_argument("--campaign", required=True)

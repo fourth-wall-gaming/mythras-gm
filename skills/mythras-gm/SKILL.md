@@ -71,6 +71,8 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 | Browse worldbuilding | `list-lore --campaign C [--category magic-system] [--visibility player]` |
 | Read a lore entry | `get-lore --id <lore-id>` (full rich text + linked entities) |
 | Record new canon | `add-lore --campaign C --title T --category culture --narrative "..."` |
+| Import sheets (Roll20 JSON) | `import-characters --file chars.json --campaign C [--type npc]` |
+| Export sheets (Roll20 JSON) | `export-characters --campaign C [--type pc] --output out.json` |
 
 `resolve-attack` handles the whole differential roll: attack vs parry/evade,
 special-effect count, damage + damage modifier, hit location, parry size
