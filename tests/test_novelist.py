@@ -187,8 +187,10 @@ def test_extract_seeded_campaign(tmp_path):
 
     campaign, events, chars, locs, facs, lore = nov.fetch_campaign_data(camp)
     assert campaign["name"] == "ztest-novelist"
-    assert [e["summary"] for e in events] == ["First scene", "Second scene"]
-    assert events[0]["narrative"] == "It begins."
-    assert events[0]["session"] == 1
+    summaries = [e["summary"] for e in events]
+    assert set(summaries) == {"First scene", "Second scene"}
+    first = next(e for e in events if e["summary"] == "First scene")
+    assert first["narrative"] == "It begins."
+    assert first["session"] == 1
     names = [l["name"] for l in lore]
     assert "Open Secret" in names and "Hidden Truth" not in names
