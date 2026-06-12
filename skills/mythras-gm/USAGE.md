@@ -36,6 +36,16 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   be able to audit every outcome from the JSON.
 - **Difficulty grades are your main dial:** veryeasy/easy/standard/hard/
   formidable/herculean. State the grade out loud before rolling.
+- **Narrate every roll as it happens.** Beat-by-beat: state what's being
+  attempted and the grade, run the roll, then immediately render the result
+  in the fiction before resolving the next roll. Never run a chain of rolls
+  silently and summarize afterwards — the player should experience each die
+  as a story beat. Prefix each CLI mechanics call with an `echo` describing
+  the action so the resolution is auditable in the terminal output.
+- **Defense is the player's choice — always ask.** When a PC is attacked,
+  stop and ask whether they parry, evade, or take it (and with what), before
+  calling `resolve-attack`. Never assume `--defense none` or pick a reaction
+  for them; spending a Reactive AP is a player decision like any other.
 - **Persist relentlessly.** After every meaningful scene: `log-event`. When
   the party moves: `set-scene` (and `move-character` for map-relevant moves).
   Damage, healing, fatigue, luck spends: apply immediately via CLI so the DB
