@@ -85,3 +85,43 @@ def render_source_md(campaign, events, characters, locations, factions, lore):
             lines.append(e["narrative"])
         lines.append("")
     return "\n".join(lines) + "\n"
+
+
+def chapter_files(manuscript_dir):
+    """Sorted chapter markdown filenames (not paths)."""
+    cdir = os.path.join(manuscript_dir, "chapters")
+    if not os.path.isdir(cdir):
+        return []
+    return sorted(f for f in os.listdir(cdir) if f.endswith(".md"))
+
+
+def validate_manuscript(manuscript_dir):
+    """Return a list of human-readable problems; empty list means buildable."""
+    errors = []
+    if not os.path.exists(os.path.join(manuscript_dir, "book.yaml")):
+        errors.append("book.yaml missing -- run extract first")
+    files = chapter_files(manuscript_dir)
+    if not files:
+        errors.append("chapters/ is empty -- draft chapters first (see NOVELIZATION.md)")
+        return errors
+    nums = []
+    for f in files:
+        m = re.match(r"(\d+)-.+\.md$", f)
+        if not m:
+            errors.append(f"chapter filename not NN-<slug>.md: {f}")
+        else:
+            nums.append(int(m.group(1)))
+    if nums and sorted(nums) != list(range(1, len(nums) + 1)):
+        errors.append(f"chapter numbering has gaps or duplicates: {sorted(nums)}")
+    for f in files:
+        with open(os.path.join(manuscript_dir, "chapters", f), encoding="utf-8") as fh:
+            if "[TODO" in fh.read():
+                errors.append(f"unresolved [TODO] marker in {f}")
+    return errors
+
+
+def missing_tools(path=None):
+    """Names of required binaries not on PATH, with brew install hints."""
+    return [f"{tool} not found -- install with: {hint}"
+            for tool, hint in TOOL_HINTS.items()
+            if shutil.which(tool, path=path) is None]
