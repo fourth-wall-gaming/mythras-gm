@@ -51,6 +51,12 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   `--involves`; fix the location and motive in the text. Mechanics go after
   the story, not instead of it. The journal is the source of record for
   recaps and novelization — anything you don't log never happened.
+- **Record only what happened in the game — no embellishment.** The journal
+  is a factual record of play, not prose. Quote only lines actually spoken
+  at the table; never invent dialogue, sensory detail, or interiority. Log
+  just enough that a novelization could be written from it later, and no
+  more — embellishment belongs in the novelization layer and must never be
+  written back into the journal or lore.
 - **Session boundaries:** open with `log-event --type session-start`, close
   with `--type session-end` plus a summary narrative, bump
   the campaign session number, and award 1-3 experience rolls.

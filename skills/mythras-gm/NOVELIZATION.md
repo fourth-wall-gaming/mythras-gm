@@ -42,7 +42,9 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
 5. **Canon rules.** Journal events are plot truth -- never contradict them.
    Characters, locations, factions, and player-visible lore give texture.
    You may invent connective tissue: interiority, transitions, minor sensory
-   detail, unnamed bystanders. GM-only lore is excluded from `source.md` and
+   detail, unnamed bystanders. Invention flows one way only: embellishments
+   created for the novel must never be written back into the journal, lore,
+   or any game record. GM-only lore is excluded from `source.md` and
    must never leak into the prose. Leave `[TODO: ...]` markers for anything
    you need the user to decide; `build` refuses to run until they're resolved.
 
