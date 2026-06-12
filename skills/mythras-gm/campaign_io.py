@@ -278,23 +278,29 @@ def export_campaign(campaign_id, outdir):
     counts = {}
 
     used = set()
+    lore_index = []  # (category, name, visibility, relpath) for the README
     for l in lore_entries:
         cat = l.get("myth-lore-category") or "uncategorized"
         slug = _slugify(l["name"], used)
+        vis = l.get("myth-lore-visibility", "player")
         meta = {"id": l["id"], "title": l["name"], "category": cat,
-                "visibility": l.get("myth-lore-visibility", "player"),
+                "visibility": vis,
                 "summary": l.get("description"), "about": l.get("about") or None,
                 "created_at": _ts(l.get("created-at") or gm.get_timestamp())}
         _write(os.path.join(outdir, "lore", cat, slug + ".md"),
                _emit_frontmatter(meta) + "\n\n" + (l.get("content") or ""))
+        lore_index.append((cat, l["name"], vis, f"lore/{cat}/{slug}.md"))
     counts["lore"] = len(lore_entries)
 
     used = set()
     subdir = {"pc": "pcs", "npc": "npcs", "creature": "creatures"}
+    char_index = []  # (type, name, description, relpath)
     for c in characters:
         d = subdir.get(c["type"], "npcs")
-        _write_json(os.path.join(outdir, "characters", d,
-                                 _slugify(c["name"], used) + ".json"), c)
+        slug = _slugify(c["name"], used)
+        _write_json(os.path.join(outdir, "characters", d, slug + ".json"), c)
+        char_index.append((c["type"], c["name"], c.get("description") or "",
+                           f"characters/{d}/{slug}.json"))
     counts["characters"] = len(characters)
 
     used = set()
@@ -331,6 +337,45 @@ def export_campaign(campaign_id, outdir):
     counts["events"] = len(events)
 
     pcs = [c["name"] for c in characters if c["type"] == "pc"]
+
+    # Worldbook index: lore grouped by category
+    by_cat = {}
+    for cat, name, vis, rel in lore_index:
+        by_cat.setdefault(cat, []).append((name, vis, rel))
+    lore_md = []
+    for cat in sorted(by_cat):
+        lore_md.append(f"**{cat}**")
+        for name, vis, rel in by_cat[cat]:
+            mark = " *(GM only)*" if vis == "gm" else ""
+            lore_md.append(f"- [{name}]({rel}){mark}")
+        lore_md.append("")
+    lore_section = "\n".join(lore_md).rstrip()
+
+    # Dramatis personae
+    type_label = {"pc": "Player characters", "npc": "NPCs", "creature": "Creatures"}
+    people_md = []
+    for t in ("pc", "npc", "creature"):
+        group = [(n, d, rel) for ct, n, d, rel in char_index if ct == t]
+        if not group:
+            continue
+        people_md.append(f"**{type_label[t]}**")
+        for n, d, rel in group:
+            people_md.append(f"- [{n}]({rel})" + (f" — {d}" if d else ""))
+        people_md.append("")
+    people_section = "\n".join(people_md).rstrip()
+
+    factions_section = "\n".join(
+        f"- [{f['name']}](factions/{_slugify(f['name'], set())}.md)"
+        + (f" — {f['description']}" if f.get("description") else "")
+        for f in faction_records) or "none"
+
+    setting_note = ""
+    if os.path.isdir(os.path.join(outdir, "setting")):
+        setting_note = ("\nThe canonical full-prose worldbook sources live in "
+                        "[`setting/`](setting/) — see its README for the book "
+                        "list and audience guide. The `lore/` files below are "
+                        "the same material sliced into database-ready entries.\n")
+
     readme = f"""# {camp['name']}
 
 {camp.get('description') or ''}
@@ -348,6 +393,30 @@ campaign format (v{FORMAT_VERSION}).
 | Factions | {counts['factions']} |
 | Encounters | {counts['encounters']} |
 | Journal events | {counts['events']} |
+
+## Repository layout
+
+| Directory | Contents |
+|---|---|
+| `lore/` | The worldbook, one markdown file per entry, grouped by category |
+| `characters/` | PCs, NPCs, and creatures (full sheets + GM narratives, JSON) |
+| `templates/` | Reusable creature/NPC stat blocks (JSON) |
+| `locations/` | Places (markdown + frontmatter) |
+| `factions/` | Factions and organizations (markdown + frontmatter) |
+| `encounters/` | Combat encounter state (JSON) |
+| `journal/` | The campaign event log (JSON) |
+{setting_note}
+## The worldbook (lore index)
+
+{lore_section}
+
+## Dramatis personae
+
+{people_section}
+
+## Factions
+
+{factions_section}
 
 ## Loading this campaign
 
