@@ -3,6 +3,7 @@
 import os
 import shutil
 import sys
+import time
 
 import pytest
 
@@ -179,6 +180,7 @@ def test_extract_seeded_campaign(tmp_path):
     camp = run("create-campaign", "--name", "ztest-novelist")["id"]
     run("log-event", "--campaign", camp, "--type", "scene",
         "--summary", "First scene", "--narrative", "It begins.", "--session", "1")
+    time.sleep(1.1)
     run("log-event", "--campaign", camp, "--type", "combat", "--summary", "Second scene")
     run("add-lore", "--campaign", camp, "--title", "Open Secret",
         "--category", "history", "--narrative", "Everyone knows.", "--visibility", "player")
@@ -187,10 +189,8 @@ def test_extract_seeded_campaign(tmp_path):
 
     campaign, events, chars, locs, facs, lore = nov.fetch_campaign_data(camp)
     assert campaign["name"] == "ztest-novelist"
-    summaries = [e["summary"] for e in events]
-    assert set(summaries) == {"First scene", "Second scene"}
-    first = next(e for e in events if e["summary"] == "First scene")
-    assert first["narrative"] == "It begins."
-    assert first["session"] == 1
+    assert [e["summary"] for e in events] == ["First scene", "Second scene"]
+    assert events[0]["narrative"] == "It begins."
+    assert events[0]["session"] == 1
     names = [l["name"] for l in lore]
     assert "Open Secret" in names and "Hidden Truth" not in names
