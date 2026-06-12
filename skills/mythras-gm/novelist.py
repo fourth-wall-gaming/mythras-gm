@@ -268,27 +268,6 @@ def cmd_build(args):
     gm.out({"success": True, "pdf": os.path.abspath(pdf)})
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-def main():
-    p = argparse.ArgumentParser(description="Campaign journal -> typeset novel PDF")
-    sub = p.add_subparsers(dest="command", required=True)
-
-    s = sub.add_parser("extract", help="TypeDB -> novels/<slug>/source.md + book.yaml")
-    s.add_argument("--campaign", required=True)
-    s.add_argument("--out", help="manuscript dir (default: ./novels/<campaign-slug>/)")
-    s.set_defaults(func=cmd_extract)
-
-    s = sub.add_parser("build", help="chapters/*.md -> PDF")
-    s.add_argument("--manuscript", required=True)
-    s.set_defaults(func=cmd_build)
-
-    args = p.parse_args()
-    args.func(args)
-
-
 def cmd_extract(args):
     campaign, events, chars, locs, facs, lore = fetch_campaign_data(args.campaign)
     if not events:
@@ -314,6 +293,27 @@ def cmd_extract(args):
 
     gm.out({"success": True, "manuscript": os.path.abspath(mdir),
             "events": len(events), "high_water_mark": book["high_water_mark"]})
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    p = argparse.ArgumentParser(description="Campaign journal -> typeset novel PDF")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    s = sub.add_parser("extract", help="TypeDB -> novels/<slug>/source.md + book.yaml")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--out", help="manuscript dir (default: ./novels/<campaign-slug>/)")
+    s.set_defaults(func=cmd_extract)
+
+    s = sub.add_parser("build", help="chapters/*.md -> PDF")
+    s.add_argument("--manuscript", required=True)
+    s.set_defaults(func=cmd_build)
+
+    args = p.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":

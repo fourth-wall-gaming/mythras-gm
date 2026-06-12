@@ -40,7 +40,7 @@
   )
   counter(page).update(1)
 
-  // Chapter openers: new page, drop, centered small-caps title, ornament.
+  // Chapter openers: new page, centered small-caps title, ornament.
   show heading.where(level: 1): it => {
     pagebreak(weak: true)
     v(16%)
