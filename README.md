@@ -19,17 +19,19 @@ skills/mythras-gm/
   mythras_engine.py         Pure rules engine -- no I/O, fully unit-testable
   mythras_gm.py             CLI: 25 commands over TypeDB (JSON in/out)
   schema.tql                TypeDB myth- namespace
+  campaign_io.py            Campaign publishing: export/import file trees
   rules/
     core-mechanics.md       Distilled SRD: checks, grades, opposed rolls, fatigue, healing
     combat.md               Distilled SRD: initiative, action points, special effects, wounds
-  setting/
-    veilwrack.md            THE VEILWRACK -- original sky-realm setting (player-safe)
-    gm-secrets.md           The truth, the campaign arc, the NPCs (GM only)
-    bestiary.md             Stat blocks: Hushed Alar, Stillwight, Sky-Drake...
-    seed_veilwrack.sh       One-shot campaign seeder
+    magic.md                Distilled SRD: Magic & Superpowers frameworks
 agents/gamemaster/
   AGENT.md                  The Gamesmaster persona for Claude
 ```
+
+Campaign settings live in their own repos and load with `import-campaign`.
+The reference campaign is **[The Veilwrack: The Stilling](https://github.com/fourth-wall-gaming/veilwrack-campaign)** —
+a full worldbook (46 lore entries), characters, factions, locations,
+templates, and seed scripts.
 
 ## The rules engine
 
@@ -55,8 +57,9 @@ spires sink, and the **Hushed** walk back out changed. The wind itself is
 dying, and somebody, a thousand years ago, is to blame.
 
 Three kindreds (Vael couriers, Roak archivists, Ossuin death-priests), five
-factions, a five-act campaign arc, and a bestiary — all seeded into TypeDB
-with one script.
+factions, a five-act campaign arc, and a bestiary — published in full at
+[fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
+and loadable into TypeDB with one command.
 
 ## Quick start
 
@@ -77,8 +80,10 @@ with driver.transaction("alhazen_notebook", TransactionType.SCHEMA) as tx:
     tx.commit()
 PY
 
-# 2. seed the Veilwrack campaign
-bash skills/mythras-gm/setting/seed_veilwrack.sh
+# 2. load the Veilwrack campaign
+git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
+python skills/mythras-gm/mythras_gm.py import-campaign \
+  --path veilwrack-campaign --new-ids
 
 # 3. make a character and play
 python skills/mythras-gm/mythras_gm.py create-character \
@@ -114,8 +119,10 @@ Or, inside Skillful-Alhazen, register in `skills-registry.yaml` and say
 
 ## Licensing
 
-- **Code and original setting content** (the Veilwrack, all `setting/` files,
-  the engine and CLI): MIT License (see LICENSE).
+- **Code** (the engine, CLI, and rules distillations): MIT License (see
+  LICENSE). The Veilwrack setting content lives in
+  [veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
+  under the same terms.
 - **Game mechanics** are based on the *Mythras Imperative* SRD and are used
   under the **ORC License**. ORC Notice:
 

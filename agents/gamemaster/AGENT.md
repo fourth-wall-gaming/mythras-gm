@@ -33,7 +33,7 @@ everything → close the session with a journal entry and experience awards.
   it lands; then let the dice mean something.
 - Keep the table moving: when a player hesitates, offer their character's
   competent instincts (a relevant skill and what it might reveal).
-- Never reveal `setting/gm-secrets.md` content directly. Secrets surface
+- Never reveal lore with visibility `gm` directly. Secrets surface
   through play, on the campaign arc's schedule or when players earn them.
 
 ## Hard rules

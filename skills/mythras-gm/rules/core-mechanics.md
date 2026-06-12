@@ -19,7 +19,7 @@ Seven characteristics define every character:
 | CHA | Presence and personality | socially inert |
 
 Generation: 3d6 for STR, CON, DEX, POW, CHA; 2d6+6 for SIZ and INT.
-(For Alar avians in the Veilwrack setting, see setting/bestiary.md for racial mods.)
+(Setting-specific species apply racial mods from their campaign's lore/bestiary.)
 
 ## Derived Attributes
 
@@ -95,15 +95,14 @@ Influence CHA×2 · Insight INT+POW · Locale INT×2 · Native Tongue INT+CHA+40
 Perception INT+POW · Ride DEX+POW · Sing POW+CHA · Stealth DEX+INT ·
 Swim STR+CON · Unarmed STR+DEX · Willpower POW×2
 
-In the Veilwrack setting, **Flight (STR+DEX)** replaces Swim as a standard skill
-for Alar, and **Ride** is rarely used. Use Flight for aerial maneuvers, racing,
-carrying loads aloft, and flying in turbulence.
+Settings may swap standard skills (e.g. the Veilwrack campaign replaces Swim
+with **Flight (STR+DEX)** for its avian species) — see the campaign's lore.
 
 Professional skills (selected): Acrobatics STR+DEX, Acting CHA×2, Commerce INT+CHA,
 Courtesy INT+CHA, Craft DEX+INT, Healing INT+POW, Lore INT×2, Navigation INT+POW,
 Oratory POW+CHA, Survival CON+POW, Track INT+CON, Musicianship DEX+CHA,
 Lockpicking DEX×2, Mechanisms DEX+INT, Sleight DEX+CHA, Streetwise POW+CHA,
-Magic POW+CHA (called **Windworking** in Veilwrack).
+Magic POW+CHA (settings may rename it).
 
 ### Opposed Rolls
 
@@ -144,8 +143,8 @@ Fresh → Winded (skills Hard) → Tired (Hard, -1m move) → Wearied (Formidabl
 Debilitated (Herculean, -6 init, -2 AP) → Incapacitated → Semi-Conscious →
 Comatose → Dead. Recovery = period/HealingRate (15min for Winded up to 24h+).
 
-**Veilwrack note:** flight in still air is exhausting — see setting docs;
-Stilled-air zones force Flight rolls each round or accrue Fatigue.
+Settings may add environmental Fatigue rules (e.g. exhausting flight
+conditions) — see the campaign's lore entries.
 
 ## Healing
 

@@ -18,7 +18,9 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 ## Session Startup (ALWAYS do this first)
 
 1. `list-campaigns` — find the campaign (or `create-campaign` for a new one;
-   for the bundled setting run `bash skills/mythras-gm/setting/seed_veilwrack.sh`).
+   published campaigns such as
+   [veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
+   load with `import-campaign --path <clone> --new-ids`).
 2. `get-context --campaign <id>` — returns campaign scene/date, full PC
    sheets, NPC roster, locations, factions, active encounters, the campaign's
    **lore index** (titles + categories), and the last 15 journal events.
@@ -29,8 +31,8 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
    - `rules/core-mechanics.md` — checks, difficulty grades, opposed rolls, luck, fatigue, healing
    - `rules/combat.md` — full combat procedure, special effects, hit locations
    - `rules/magic.md` — Magic (spells, MP-by-roll-result, traits) and Superpowers frameworks
-4. For the Veilwrack setting also read `setting/veilwrack.md` (player-safe) and
-   `setting/gm-secrets.md` (GM only — never paste its contents to the player).
+4. Setting knowledge lives in the campaign's **lore entries** (step 2's lore
+   index) — never show the player entries with visibility `gm`.
 5. Recap the situation to the player in 2-4 sentences, then play.
 
 ## GM Operating Rules
@@ -93,7 +95,8 @@ Endurance contests with `roll-opposed` or `roll-skill`.
 
 Walk the player through it conversationally, then persist once:
 
-1. Concept + kindred (Vael/Roak/Ossuin — see `setting/veilwrack.md`).
+1. Concept + setting frame (species/culture options come from the
+   campaign's lore entries).
 2. Characteristics: `--roll` (3d6/2d6+6, avian mods auto-applied) or
    `--stats` for point-build/assigned.
 3. Skills: base values are auto-computed from characteristics; add culture +
@@ -119,8 +122,9 @@ with `--about id,id` or `link-lore`. When the fiction establishes new canon
 ("the Ossuin never sing indoors"), capture it as lore immediately. This is
 what makes the system setting-agnostic: a new campaign is just
 `create-campaign` plus a body of lore entries, locations, factions, and
-templates — see `setting/seed_veilwrack.sh` + `setting/seed_lore.py` for the
-reference pattern.
+templates — see the
+[veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
+repo (and its `setting/` seed scripts) for the reference pattern.
 
 ## Publishing Campaigns
 
@@ -144,10 +148,8 @@ rebuilt). The round trip is lossless.
 | `rules/core-mechanics.md` | Skill system, attributes, fatigue, healing, experience |
 | `rules/combat.md` | Combat procedure, special effects, weapons, falling |
 | `rules/magic.md` | SRD Magic & Superpowers frameworks (setting-agnostic) |
-| `setting/veilwrack.md` | Player-facing setting guide |
-| `setting/gm-secrets.md` | GM-only truth, campaign arc, NPC list |
-| `setting/bestiary.md` | Stat blocks (mirrored as DB templates) |
-| `setting/alar-options.md` | Careers, Windworking spells, racial abilities, aerial movement, gear |
-| `setting/seed_veilwrack.sh` | One-shot campaign seeder (entities) |
-| `setting/seed_lore.py` | One-shot lore seeder (worldbuilding text into myth-lore) |
 | `schema.tql` | TypeDB myth- namespace |
+
+Campaign settings are published as separate repos (e.g.
+[veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign))
+and loaded with `import-campaign`.

@@ -3,8 +3,8 @@
 Distilled from the Mythras Imperative SRD chapter "Magic and Powers."
 Two separate frameworks: **Magic** (spells, for magicians) and
 **Superpowers** (core powers + Boosts + Limits, for super-beings).
-Settings rename and re-flavor these (e.g. the Veilwrack's Windworking is
-the Magic system verbatim — see setting/alar-options.md).
+Settings rename and re-flavor these (e.g. the Veilwrack campaign's
+Windworking is the Magic system verbatim — see that campaign's lore).
 
 ## Magic
 
