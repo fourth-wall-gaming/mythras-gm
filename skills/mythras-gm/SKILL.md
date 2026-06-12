@@ -20,8 +20,11 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 1. `list-campaigns` — find the campaign (or `create-campaign` for a new one;
    for the bundled setting run `bash skills/mythras-gm/setting/seed_veilwrack.sh`).
 2. `get-context --campaign <id>` — returns campaign scene/date, full PC
-   sheets, NPC roster, locations, factions, active encounters, and the last
-   15 journal events. **This is your save file. Read it before narrating.**
+   sheets, NPC roster, locations, factions, active encounters, the campaign's
+   **lore index** (titles + categories), and the last 15 journal events.
+   **This is your save file. Read it before narrating.**
+   Pull full worldbuilding text on demand with `get-lore --id <lore-id>`;
+   never show the player entries with visibility `gm`.
 3. Read the rules references before adjudicating:
    - `rules/core-mechanics.md` — checks, difficulty grades, opposed rolls, luck, fatigue, healing
    - `rules/combat.md` — full combat procedure, special effects, hit locations
@@ -65,6 +68,9 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 | Fight status | `get-encounter` (live HP per location, AP, initiative order) |
 | Out-of-combat damage (falls, fire) | `apply-damage --id X --location Chest --damage 6 --ignore-armor` |
 | Spawn a monster | `spawn --template <tmpl-id> --name "Stillwight A" --campaign C` |
+| Browse worldbuilding | `list-lore --campaign C [--category magic-system] [--visibility player]` |
+| Read a lore entry | `get-lore --id <lore-id>` (full rich text + linked entities) |
+| Record new canon | `add-lore --campaign C --title T --category culture --narrative "..."` |
 
 `resolve-attack` handles the whole differential roll: attack vs parry/evade,
 special-effect count, damage + damage modifier, hit location, parry size
@@ -100,6 +106,17 @@ persisted the moment they matter: `add-location`, `add-faction`,
 rich, reusable detail in `--narrative` (stored as `content` in TypeDB) — a
 future session's GM (you, with no memory of today) will rely on it.
 
+**Lore is the deep worldbuilding layer.** Anything that isn't a specific
+place/person/faction — cosmology, species anatomy, magic systems, careers,
+history, religion, economy, house rules — goes in `add-lore` with a
+free-form `--category` and `--visibility player|gm`. Link lore to entities
+with `--about id,id` or `link-lore`. When the fiction establishes new canon
+("the Ossuin never sing indoors"), capture it as lore immediately. This is
+what makes the system setting-agnostic: a new campaign is just
+`create-campaign` plus a body of lore entries, locations, factions, and
+templates — see `setting/seed_veilwrack.sh` + `setting/seed_lore.py` for the
+reference pattern.
+
 ## Files
 
 | File | Purpose |
@@ -112,5 +129,6 @@ future session's GM (you, with no memory of today) will rely on it.
 | `setting/gm-secrets.md` | GM-only truth, campaign arc, NPC list |
 | `setting/bestiary.md` | Stat blocks (mirrored as DB templates) |
 | `setting/alar-options.md` | Careers, Windworking spells, racial abilities, aerial movement, gear |
-| `setting/seed_veilwrack.sh` | One-shot campaign seeder |
+| `setting/seed_veilwrack.sh` | One-shot campaign seeder (entities) |
+| `setting/seed_lore.py` | One-shot lore seeder (worldbuilding text into myth-lore) |
 | `schema.tql` | TypeDB myth- namespace |

@@ -810,6 +810,110 @@ def cmd_get_log(args):
     out({"success": True, "events": events})
 
 
+# ---------------------------------------------------------------------------
+# Lore commands (generic worldbuilding)
+# ---------------------------------------------------------------------------
+
+LORE_SUBJECT_TYPES = ["myth-character", "myth-location", "myth-faction",
+                      "myth-creature-template", "myth-lore"]
+
+
+def _link_lore_about(driver, lore_id, subject_id):
+    """Link a lore entry to any subject entity, resolving its concrete type."""
+    for stype in LORE_SUBJECT_TYPES:
+        if _fetch(driver, f'''
+                match $s isa {stype}, has id "{escape_string(subject_id)}";
+                fetch {{ "id": $s.id }};'''):
+            _write(driver, f'''
+                match
+                  $l isa myth-lore, has id "{escape_string(lore_id)}";
+                  $s isa {stype}, has id "{escape_string(subject_id)}";
+                insert (lore: $l, subject: $s) isa myth-lore-about;''')
+            return stype
+    return None
+
+
+def cmd_add_lore(args):
+    lid = generate_id("myth-lore")
+    ts = get_timestamp()
+    q = f'''insert $l isa myth-lore,
+        has id "{lid}",
+        has name "{escape_string(args.title)}",
+        has myth-lore-category "{escape_string(args.category)}",
+        has myth-lore-visibility "{escape_string(args.visibility)}",
+        has created-at {ts}'''
+    if args.summary:
+        q += f', has description "{escape_string(args.summary)}"'
+    if args.narrative:
+        q += f', has content "{escape_string(args.narrative)}"'
+    q += ";"
+    with get_driver() as driver:
+        _write(driver, q)
+        _link_to_campaign(driver, args.campaign, lid, "myth-lore")
+        linked = []
+        for sid in (args.about or "").split(","):
+            sid = sid.strip()
+            if sid:
+                stype = _link_lore_about(driver, lid, sid)
+                linked.append({"id": sid, "type": stype})
+    out({"success": True, "id": lid, "linked_subjects": linked})
+
+
+def cmd_list_lore(args):
+    with get_driver() as driver:
+        rows = _fetch(driver, f'''
+            match
+              $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+              (campaign: $camp, element: $l) isa myth-campaign-membership;
+              $l isa myth-lore, has id $i, has name $n,
+                 has myth-lore-category $c, has myth-lore-visibility $v;
+            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+    if args.category:
+        rows = [r for r in rows if r["category"] == args.category]
+    if args.visibility:
+        rows = [r for r in rows if r["visibility"] == args.visibility]
+    out({"success": True, "lore": sorted(rows, key=lambda r: (r["category"], r["title"]))})
+
+
+def cmd_get_lore(args):
+    with get_driver() as driver:
+        l = _get_entity(driver, "myth-lore", args.id,
+                        ["description", "content", "myth-lore-category",
+                         "myth-lore-visibility"])
+        if not l:
+            fail(f"No lore entry '{args.id}'")
+        subjects = _fetch(driver, f'''
+            match
+              $l isa myth-lore, has id "{escape_string(args.id)}";
+              (lore: $l, subject: $s) isa myth-lore-about;
+              $s has id $si, has name $sn;
+            fetch {{ "id": $si, "name": $sn }};''')
+    l["about"] = subjects
+    out({"success": True, "lore": l})
+
+
+def cmd_link_lore(args):
+    with get_driver() as driver:
+        stype = _link_lore_about(driver, args.id, args.subject)
+    if not stype:
+        fail(f"No linkable entity with id '{args.subject}'")
+    out({"success": True, "lore": args.id, "subject": args.subject,
+         "subject_type": stype})
+
+
+def cmd_update_lore(args):
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-lore", args.id, []):
+            fail(f"No lore entry '{args.id}'")
+        if args.narrative is not None:
+            _set_attr(driver, "myth-lore", args.id, "content", args.narrative)
+        if args.summary is not None:
+            _set_attr(driver, "myth-lore", args.id, "description", args.summary)
+        if args.visibility is not None:
+            _set_attr(driver, "myth-lore", args.id, "myth-lore-visibility", args.visibility)
+    out({"success": True, "id": args.id})
+
+
 def cmd_get_context(args):
     """Everything needed to resume a campaign: campaign state, PCs (full sheets),
     NPCs (names), locations, factions, active encounters, recent events."""
@@ -854,10 +958,20 @@ def cmd_get_context(args):
                  has myth-event-type $t, has created-at $ts;
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
         recent = sorted(events, key=lambda r: str(r["at"]))[-15:]
+
+        lore = _fetch(driver, f'''
+            match
+              $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+              (campaign: $camp, element: $l) isa myth-campaign-membership;
+              $l isa myth-lore, has id $i, has name $n,
+                 has myth-lore-category $c, has myth-lore-visibility $v;
+            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+
         result = {"success": True, "campaign": camp, "player_characters": pcs,
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
+                  "lore_index": sorted(lore, key=lambda r: (r["category"], r["title"])),
                   "recent_events": recent}
 
     out(result)
@@ -1031,6 +1145,35 @@ def build_parser():
     s.add_argument("--narrative")
     s.add_argument("--session", type=int)
     s.add_argument("--involves", help="comma-separated entity ids")
+
+    s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--title", required=True)
+    s.add_argument("--category", required=True,
+                   help="free-form: cosmology, species, culture, magic-system, careers, "
+                        "history, religion, economy, bestiary, house-rules, ...")
+    s.add_argument("--summary", help="one-line description")
+    s.add_argument("--narrative", help="full rich-text content (markdown welcome)")
+    s.add_argument("--visibility", default="player", choices=["player", "gm"])
+    s.add_argument("--about", help="comma-separated entity ids this lore concerns")
+
+    s = sub.add_parser("list-lore", help="Index of lore entries for a campaign")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--category")
+    s.add_argument("--visibility", choices=["player", "gm"])
+
+    s = sub.add_parser("get-lore", help="Full text of one lore entry")
+    s.add_argument("--id", required=True)
+
+    s = sub.add_parser("link-lore", help="Link a lore entry to another entity")
+    s.add_argument("--id", required=True)
+    s.add_argument("--subject", required=True)
+
+    s = sub.add_parser("update-lore", help="Update a lore entry's text or visibility")
+    s.add_argument("--id", required=True)
+    s.add_argument("--narrative")
+    s.add_argument("--summary")
+    s.add_argument("--visibility", choices=["player", "gm"])
 
     s = sub.add_parser("get-log")
     s.add_argument("--campaign", required=True)

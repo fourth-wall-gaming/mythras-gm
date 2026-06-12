@@ -77,6 +77,10 @@ relation myth-template-instance,
     relates template,
     relates instance;
 
+relation myth-lore-about,
+    relates lore,
+    relates subject;
+
 # =============================================================================
 # ENTITIES
 # =============================================================================
@@ -106,7 +110,8 @@ entity myth-character sub alh-domain-thing,
     plays myth-participation:combatant,
     plays myth-event-involvement:participant,
     plays myth-faction-membership:member,
-    plays myth-template-instance:instance;
+    plays myth-template-instance:instance,
+    plays myth-lore-about:subject;
 
 entity myth-creature-template sub alh-domain-thing,
     owns myth-characteristics-json,
@@ -116,18 +121,21 @@ entity myth-creature-template sub alh-domain-thing,
     owns myth-equipment-json,
     owns myth-combat-styles-json,
     plays myth-campaign-membership:element,
-    plays myth-template-instance:template;
+    plays myth-template-instance:template,
+    plays myth-lore-about:subject;
 
 entity myth-location sub alh-domain-thing,
     owns myth-location-type,
     plays myth-campaign-membership:element,
     plays myth-presence:location,
-    plays myth-event-involvement:participant;
+    plays myth-event-involvement:participant,
+    plays myth-lore-about:subject;
 
 entity myth-faction sub alh-domain-thing,
     plays myth-campaign-membership:element,
     plays myth-faction-membership:faction,
-    plays myth-event-involvement:participant;
+    plays myth-event-involvement:participant,
+    plays myth-lore-about:subject;
 
 entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
@@ -142,3 +150,16 @@ entity myth-game-event sub alh-note,
     owns myth-session-number,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:event;
+
+# LORE - Generic worldbuilding detail for any campaign.
+# Each entry is a rich-text note (content inherited from alh-note) with a
+# free-form category (cosmology, species, culture, magic-system, careers,
+# history, religion, economy, bestiary, house-rules, ...) and a visibility
+# flag so GM-only material can live alongside player-facing canon.
+entity myth-lore sub alh-note,
+    owns myth-lore-category,
+    owns myth-lore-visibility,
+    plays myth-campaign-membership:element,
+    plays myth-event-involvement:participant,
+    plays myth-lore-about:lore,
+    plays myth-lore-about:subject;
