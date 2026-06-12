@@ -87,7 +87,9 @@ handles TypeDB startup and provides the base schema that mythras-gm extends.
 The plugin's SessionStart hook auto-loads the myth- namespace schema
 into TypeDB on every new session.
 
-### Step 3 (optional): Load a campaign setting
+### Step 3: Load a campaign
+
+Campaigns are published as standalone GitHub repos. Clone one and import it:
 
 ```bash
 git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
@@ -95,8 +97,34 @@ git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
 
 Then tell Claude: *"Import the Veilwrack campaign from ~/veilwrack-campaign"*
 
-Or create a fresh campaign: just say *"Create a new Mythras campaign"*
-and the GM will walk you through worldbuilding and character creation.
+Behind the scenes, Claude runs:
+
+```bash
+mythras_gm.py import-campaign --path ~/veilwrack-campaign --new-ids
+```
+
+The `--new-ids` flag remaps every entity ID so the campaign imports cleanly
+into any database. All relations -- faction membership, lore links, character
+presence, event involvement -- are rebuilt automatically. The round trip is
+lossless.
+
+After import, `get-context --campaign <id>` loads the full state: current
+scene, PC/NPC sheets, factions, locations, a lore index (the entire
+worldbook), and the last 15 journal events. That's the save file -- Claude
+reads it and picks up exactly where the last session left off.
+
+**Or start from scratch:** say *"Create a new Mythras campaign"* and the
+GM will walk you through worldbuilding and character creation.
+
+### Published campaigns
+
+| Campaign | Repo | Description |
+|---|---|---|
+| **The Veilwrack: The Stilling** | [fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign) | An original sky realm -- 46 lore entries, 10+ characters, 7 factions, 5-act arc. No ground, winged peoples, dead leviathans as architecture, and the wind is dying. |
+
+To publish your own campaign, use `export-campaign --campaign <id> --output <dir>`,
+commit the output directory to a GitHub repo, and share the clone URL. Anyone
+can load it with `import-campaign --path <clone> --new-ids`.
 
 ## Quick start (standalone)
 
