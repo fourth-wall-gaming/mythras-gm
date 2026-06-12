@@ -202,6 +202,93 @@ def fetch_campaign_data(campaign_id):
     return campaign, events, characters, locations, factions, lore
 
 
+# ---------------------------------------------------------------------------
+# Build: chapters/*.md -> pandoc -> typst -> PDF
+# ---------------------------------------------------------------------------
+
+def _run(cmd, cwd):
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise BuildError(f"{cmd[0]} failed: {r.stderr.strip()[:2000]}")
+
+
+def build_manuscript(manuscript_dir):
+    """Render the manuscript to PDF. Returns the PDF path; raises BuildError."""
+    problems = validate_manuscript(manuscript_dir) + missing_tools()
+    if problems:
+        raise BuildError("; ".join(problems))
+
+    with open(os.path.join(manuscript_dir, "book.yaml"), encoding="utf-8") as fh:
+        book = yaml.safe_load(fh) or {}
+    title = book.get("title") or "Untitled"
+    author = book.get("author") or ""
+    slug = book.get("slug") or slugify(title)
+
+    build_dir = os.path.join(manuscript_dir, ".build")
+    os.makedirs(build_dir, exist_ok=True)
+
+    chapters = [open(os.path.join(manuscript_dir, "chapters", f), encoding="utf-8").read()
+                for f in chapter_files(manuscript_dir)]
+    with open(os.path.join(build_dir, "body.md"), "w", encoding="utf-8") as fh:
+        fh.write("\n\n".join(chapters))
+
+    _run(["pandoc", "-f", "markdown", "-t", "typst", "body.md", "-o", "body.typ"],
+         cwd=build_dir)
+
+    # Typst #include files don't inherit the caller's scope, so pandoc's
+    # #horizontalrule calls would be unresolved. Prepend an import line.
+    body_typ_path = os.path.join(build_dir, "body.typ")
+    with open(body_typ_path, encoding="utf-8") as fh:
+        body_content = fh.read()
+    with open(body_typ_path, "w", encoding="utf-8") as fh:
+        fh.write('#import "novel.typ": horizontalrule\n' + body_content)
+
+    shutil.copy(TEMPLATE_PATH, os.path.join(build_dir, "novel.typ"))
+
+    def typ_str(s):
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
+    with open(os.path.join(build_dir, "main.typ"), "w", encoding="utf-8") as fh:
+        fh.write(f'#import "novel.typ": novel\n'
+                 f'#show: novel.with(title: "{typ_str(title)}", '
+                 f'author: "{typ_str(author)}")\n'
+                 f'#include "body.typ"\n')
+
+    _run(["typst", "compile", "main.typ", "out.pdf"], cwd=build_dir)
+    pdf_path = os.path.join(manuscript_dir, f"{slug}.pdf")
+    shutil.move(os.path.join(build_dir, "out.pdf"), pdf_path)
+    return pdf_path
+
+
+def cmd_build(args):
+    try:
+        pdf = build_manuscript(args.manuscript)
+    except BuildError as e:
+        gm.fail(str(e))
+    gm.out({"success": True, "pdf": os.path.abspath(pdf)})
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    p = argparse.ArgumentParser(description="Campaign journal -> typeset novel PDF")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    s = sub.add_parser("extract", help="TypeDB -> novels/<slug>/source.md + book.yaml")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--out", help="manuscript dir (default: ./novels/<campaign-slug>/)")
+    s.set_defaults(func=cmd_extract)
+
+    s = sub.add_parser("build", help="chapters/*.md -> PDF")
+    s.add_argument("--manuscript", required=True)
+    s.set_defaults(func=cmd_build)
+
+    args = p.parse_args()
+    args.func(args)
+
+
 def cmd_extract(args):
     campaign, events, chars, locs, facs, lore = fetch_campaign_data(args.campaign)
     if not events:
@@ -227,3 +314,7 @@ def cmd_extract(args):
 
     gm.out({"success": True, "manuscript": os.path.abspath(mdir),
             "events": len(events), "high_water_mark": book["high_water_mark"]})
+
+
+if __name__ == "__main__":
+    main()

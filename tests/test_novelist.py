@@ -194,3 +194,25 @@ def test_extract_seeded_campaign(tmp_path):
     assert events[0]["session"] == 1
     names = [l["name"] for l in lore]
     assert "Open Secret" in names and "Hidden Truth" not in names
+
+
+# --- build (golden path; skipped without pandoc+typst) ---------------------------
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample-manuscript")
+HAS_TOOLS = shutil.which("pandoc") is not None and shutil.which("typst") is not None
+
+
+def test_build_refuses_invalid_manuscript(tmp_path):
+    mdir = _make_manuscript(tmp_path, {"01-a.md": "# Chapter 1\n\n[TODO: finish]\n"})
+    with pytest.raises(nov.BuildError) as exc:
+        nov.build_manuscript(mdir)
+    assert "[TODO]" in str(exc.value)
+
+
+@pytest.mark.skipif(not HAS_TOOLS, reason="pandoc/typst not installed")
+def test_build_golden_path(tmp_path):
+    mdir = str(tmp_path / "ms")
+    shutil.copytree(FIXTURE, mdir)
+    pdf = nov.build_manuscript(mdir)
+    assert os.path.basename(pdf) == "sample-book.pdf"
+    assert os.path.getsize(pdf) > 10_000  # a real multi-page PDF, not an error stub
