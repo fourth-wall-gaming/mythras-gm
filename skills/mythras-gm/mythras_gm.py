@@ -59,6 +59,10 @@ Journal:
 Publishing:
     export-campaign --campaign ID --output DIR   # DB -> publishable file tree
     import-campaign --path DIR [--name N] [--new-ids]   # file tree -> DB
+
+Novelization (see NOVELIZATION.md; separate CLI novelist.py):
+    novelist.py extract --campaign ID [--out DIR]
+    novelist.py build --manuscript DIR
 """
 
 from __future__ import annotations

@@ -61,6 +61,23 @@ factions, a five-act campaign arc, and a bestiary — published in full at
 [fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
 and loadable into TypeDB with one command.
 
+## Novelization
+
+Turn a campaign's journal into a typeset PDF novel. Claude reads the event
+journal and player-visible canon from TypeDB, drafts chapters in a chosen
+author style (Hemingway, Tolkien, Moorcock, or any description you give it),
+and `novelist.py` renders the manuscript with pandoc + Typst.
+
+```bash
+brew install pandoc typst    # one-time, for PDF builds
+```
+
+Then just ask: *"Novelize the Veilwrack campaign in Moorcock's style."*
+Claude extracts the journal, proposes a chapter outline for your approval,
+drafts the chapters, and builds the PDF. Manuscripts live in the campaign
+repo under `novels/<slug>/` and are never imported back into game state --
+keep as many parallel novelizations as you like.
+
 ## Install as Claude Code Plugin
 
 The fastest way to play. Requires [Claude Code](https://claude.ai/code)

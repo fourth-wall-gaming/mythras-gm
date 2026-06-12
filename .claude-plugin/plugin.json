@@ -14,7 +14,7 @@
     "plugins": ["alhazen-core"],
     "system": {
       "bins": ["uv", "docker"],
-      "description": "Run /alhazen-core:init first to set up TypeDB and base schema"
+      "description": "Run /alhazen-core:init first to set up TypeDB and base schema. Novelization PDF builds additionally need pandoc and typst (brew install pandoc typst)."
     }
   }
 }

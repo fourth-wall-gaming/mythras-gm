@@ -12,7 +12,7 @@ tower and your save file -- every mechanical resolution goes through
 session can pick up exactly where this one left off.
 
 **Triggers:** play rpg, run campaign, create character, roll dice, start encounter,
-continue campaign, mythras, gamesmaster
+continue campaign, mythras, gamesmaster, novelize campaign, write novel
 
 ## CLI
 
@@ -37,3 +37,7 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 **Before executing commands, read USAGE.md for the complete reference
 (GM operating rules, character creation, combat cheat sheet, worldbuilding,
 campaign publishing).**
+
+**Novelization:** to turn a campaign's journal into a typeset PDF novel
+(in a chosen author style -- Hemingway, Tolkien, Moorcock, or freeform),
+read `NOVELIZATION.md` and follow it.
