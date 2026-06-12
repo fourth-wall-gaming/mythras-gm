@@ -108,12 +108,25 @@ Walk the player through it conversationally, then persist once:
 1. Concept + setting frame (species/culture options come from the
    campaign's lore entries).
 2. Characteristics: `--roll` (3d6/2d6+6, avian mods auto-applied) or
-   `--stats` for point-build/assigned.
+   `--stats` for point-build/assigned. SRD "Dice Roll High" option: roll one
+   **extra** die and discard the lowest (3d6 → 4d6 drop lowest;
+   2d6+6 → 3d6 drop lowest, +6) — not "roll twice, keep higher".
 3. Skills: base values are auto-computed from characteristics; add culture +
    career + bonus allocations (100/100/150 points, or the Skill Pyramid:
    50/40×2/30×3/20×4/10×5) and pass the final values via `--skills`.
 4. Combat style (name it evocatively), equipment, armor, up to 3 passions
    (+40/+30/+20 over base).
+   **Weapons in `--equipment` MUST be structured objects, not plain
+   strings** — `resolve-attack` looks weapons up by `name` and crashes on
+   bare strings. Required keys: `name`, `damage`, `size` (S/M/L/H/E):
+
+   ```json
+   [{"name": "Wingspear", "damage": "1d8+1", "size": "L"},
+    {"name": "Target shield", "damage": "1d3+1", "size": "L"},
+    "Warden flight harness", "rations (3 days)"]
+   ```
+
+   Non-weapon gear may stay as plain strings.
 5. `create-character --campaign <id> --name ... --narrative "<backstory>"`.
 
 ## Worldbuilding During Play
