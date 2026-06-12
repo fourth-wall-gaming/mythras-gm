@@ -52,36 +52,91 @@ Standard skills and up to three of its Professional skills.
 
 ## Windworking (Magic)
 
-**Skill: Windworking (POW+CHA).** A Professional skill; requires a teacher
-(Shrine-Cantor or Windworker career grants it). The caster coaxes the living
-Breath into small intentional shapes.
+Windworking is the Mythras Imperative **Magic** system (SRD: Magic and
+Powers), re-expressed: the caster coaxes the living Breath into small
+intentional shapes. **Skill: Windworking (POW+CHA)** — a Professional skill
+requiring a teacher; it fills the role of the SRD Magic skill exactly.
 
-**Casting:** spend the spell's Magic Points, roll Windworking. Failure: MP
-spent, no effect. Fumble: the Breath answers wrong (GM invents — a backdraft,
-a dead hush, a whisper delivered to the wrong ear). Critical: no MP cost, or
-double one numeric parameter.
+**Casting (SRD rules):** one Action + a Windworking roll.
 
-**Universal limits:** no effect inside a Stilling. Each casting takes 1 Combat
-Action unless noted. Resisted effects are opposed by Evade or Willpower as
-noted. **The Slowing:** these past years the Breath answers sluggishly — at
-the GM's option, casting in degraded regions is one grade harder.
+| Roll result | Magic Points | Effect |
+|---|---|---|
+| Critical | 0 MP | spell works |
+| Success | 1 MP | spell works |
+| Failure | 1 MP | spell fails |
+| Fumble | 1d3 MP | spell fails AND the Breath answers wrong (GM complication: a backdraft, a dead hush, a whisper to the wrong ear) |
 
-### Spell list
+- **Magic Points** = POW. Recovery: Healing Rate per hour of full rest —
+  *house rule:* only in living wind. No MP recovers in still or bottled air.
+- **Spell traits (SRD):** *Instant*, *Concentration*, *Ranged* (up to
+  Windworking skill in metres), *Touch*, *Resist (Endurance/Evade/Willpower)*
+  — resisted as an Opposed Roll vs the casting result; Evade resists cost an
+  Action Point. Default duration: the scene. All spells Intensity/Magnitude 1.
+- **Starting spells:** a character with the Windworking skill begins with
+  **1d4+1 spells**. Learning a new spell costs **3 Experience Rolls plus a
+  week of practice** with a teacher or a wind-script scroll.
+- **Universal limits:** nothing works inside a Stilling. *The Slowing:* in
+  Breath-degraded regions, casting is one Difficulty Grade harder.
 
-| Spell | MP | Range | Duration | Effect |
-|---|---|---|---|---|
-| **Updraft** | 1 | 20m | 1 round | A rising column: one flier gains +6m climb this round, or one faller halves fall distance (stacks with the racial Flight roll). |
-| **Whisperline** | 1 | 1 mile | instant | Send up to ten spoken words along the wind to a person or place you know. Loud environments at the far end may garble it (their Perception, Easy). |
-| **Aircut** | 2 | 10m | instant | A blade of compressed air: 1d6 damage, Size S, random location; Evade to dodge. Counts as a ranged attack using Windworking. |
-| **Hush** | 1 | 5m radius | 1 minute | Muffles all sound in the area: Stealth one grade easier, hearing-Perception one grade harder. Eerie — Alar dislike casting it. |
-| **Weathersense** | 1 | self | instant | True-telling of the next day's weather along one known windlane, including (on a success) whether any part of it "tastes still." |
-| **Featherfall** | 1 | touch | 1 minute | One person or object up to SIZ 20 falls at leaf-speed. No fall damage if it lands within the duration. |
-| **Gustshield** | 2 | self | 1 round | A swirling parry of air: counts as a Medium shield for one round (can passively block 2 locations or actively parry once at Windworking skill). |
-| **Squall** | 3 | 20m | 1 round | A hammer of wind in a 5m cone: opposed Windworking vs Brawn or be knocked prone (fliers: tumble 1d10m and must make a Flight roll). |
-| **Breathlend** | 2 | touch | special | Exhale into another's lungs: cures one round of asphyxiation, or grants one automatic success on an Endurance roll vs airlessness. The Hushed Choir uses this on initiates. Casting it on a Hushed is... informative. |
-| **Stillprobe** | 1 | 100m | instant | Cast a thread of Breath ahead: learn the exact boundary of dead air within range. The Wardens' most-used spell. |
-| **Lanternflare** | 1 | touch | 1 hour | Feeds a flame steady air: a lamp burns bright in thin or fouled air, and flickers warning when the Breath weakens around it. |
-| **Bind Breath** | 3 | touch | 1 day | Bottle one casting of another spell into a feather-token; anyone may snap it to release. The Marrowers would pay a great deal to industrialize this. They must never be allowed to. |
+### Adapted SRD spells (the Breath expression of each)
+
+| Spell | Traits | Veilwrack expression |
+|---|---|---|
+| Alarm | special duration | a watch-eddy circles the warded space and tugs the caster awake |
+| Avert | Instant, Ranged | a counter-gust unravels incoming magic (usable via Counter Spell reaction) |
+| Befuddle | Ranged, Resist (Willpower) | whispering wind fills the ears with half-thoughts |
+| Breath | Touch | hold air for POW/2 minutes — THE Undermist-fringe spell (SRD spell, unchanged) |
+| Calm | Ranged, Resist (Willpower) | a settling stillness laid on the heart; Alar find casting it faintly obscene |
+| Chill | Instant, Touch | evaporative cooling on a hand-sized object |
+| Disruption | Instant, Ranged, Resist (Endurance) | a pressure-snap: 1d3 to one random location, ignoring armor |
+| Extinguish | Instant, Ranged | pull the air out of a small flame |
+| Find (X) | Concentration, Ranged, Resist (special) | scent on the wind; *Find Updraft* is every courier's first prayer |
+| Glue | Touch | suction-press: air pressure holds two objects together (Brawn = POW x5) |
+| Heal | Instant, Touch | the breath of life; per SRD Heal (minor wounds restored, serious/major stabilized) |
+| Knock | Instant, Touch | an air-pressure pulse pops a mundane latch or bar |
+| Light | Concentration, Ranged | feeds a flame to lantern brightness; the Wardens' still-gauge is this spell, Bound (see below) |
+| Phantasm | Concentration, Ranged | figures woven from mist — the SRD's own example, native here |
+| Sleep | Touch, Resist (Endurance) | a lullaby wind; useless in combat per SRD |
+| Vigor | Touch | a second wind, literally: laborious Fatigue suspended for the scene |
+| Witchsight | Ranged, Resist (Willpower) | see the Breath itself: currents, active workings — and the horrible *absence* around a Hushed |
+
+### Original Veilwrack spells (same casting economy)
+
+| Spell | Traits | Effect |
+|---|---|---|
+| Updraft | Instant, Ranged | a rising column: one flier gains +6m climb this round, or one faller halves fall distance |
+| Featherfall | Touch | one person/object up to SIZ 20 descends at leaf-speed for the scene |
+| Aircut | Instant, Ranged, Resist (Evade) | a blade of compressed air: 1d6, Size S, random location |
+| Hush | Ranged | 5m muffle: Stealth one grade easier, hearing-Perception one grade harder |
+| Gustshield | Concentration | swirling air parry: counts as a Medium shield (passive block 2 locations, or parry at Windworking skill) |
+| Squall | Instant, Ranged, Resist (Evade) | hammer of wind in a 5m cone: fail = prone; fliers tumble 1d10m and must make a Flight roll |
+| Stillprobe | Instant, Ranged | thread of Breath cast ahead: learn the exact boundary of dead air within range — the Wardens' workhorse |
+| Whisperline | Instant, special range | ten spoken words carried up to a mile along a living lane wind |
+| Weathersense | Instant | true-telling of tomorrow's weather on one known windlane, including whether any stretch "tastes still" |
+| Bind Breath | Touch, special duration | bottle one casting of another spell into a feather-token; anyone may snap it to release. As SRD *Lock*: the Magic Point spent does not recover until the token is used. The Marrowers must never learn to industrialize this. |
+
+*(Earlier drafts listed Breathlend and Lanternflare: Breathlend is superseded
+by the SRD Breath spell; Lanternflare is Light, usually delivered as a Bound
+feather-token in a caged lantern.)*
+
+### Powers (the SRD superpower framework) — GM-facing
+
+Mythras Imperative's second system, **superpowers** (core powers + Boosts +
+Limits, Power Points = POW), is reserved in the Veilwrack for beings touched
+by the deep Breath. Use it, not the spell list, to build:
+
+- **The Hushed** — powers framework with heavy Limits: *Life Support* (no
+  breathing; immune to asphyxiation and exertion Fatigue), a custom *Silence
+  Aura* core power (3m of dead air: Windworking impossible, hearing-Perception
+  Formidable — and the aura slowly feeds the Stilling), with the Limits
+  *Physical Limitation* (cannot fly) and *Limited Power* (all gifts fail in
+  strong living wind).
+- **The leviathan-touched** — a campaign-finale option: a character who
+  survives intimate contact with an Unsung may gain ONE core power with one
+  Limit (GM approval): *Flight* (boost-capable), *Elemental Control (air)*,
+  *Enhanced Reactions*, or *Heightened Sense (air-pressure)*. This is the
+  Breath beginning to answer a debt — flag it as a permanent, visible change
+  (feathers gone white at the root, voice carrying further than it should).
 
 ---
 

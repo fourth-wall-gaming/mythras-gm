@@ -28,6 +28,7 @@ uv run python skills/mythras-gm/mythras_gm.py <command> ... 2>/dev/null
 3. Read the rules references before adjudicating:
    - `rules/core-mechanics.md` — checks, difficulty grades, opposed rolls, luck, fatigue, healing
    - `rules/combat.md` — full combat procedure, special effects, hit locations
+   - `rules/magic.md` — Magic (spells, MP-by-roll-result, traits) and Superpowers frameworks
 4. For the Veilwrack setting also read `setting/veilwrack.md` (player-safe) and
    `setting/gm-secrets.md` (GM only — never paste its contents to the player).
 5. Recap the situation to the player in 2-4 sentences, then play.
@@ -127,6 +128,7 @@ reference pattern.
 | `mythras_engine.py` | Pure rules engine (importable, no I/O) |
 | `rules/core-mechanics.md` | Skill system, attributes, fatigue, healing, experience |
 | `rules/combat.md` | Combat procedure, special effects, weapons, falling |
+| `rules/magic.md` | SRD Magic & Superpowers frameworks (setting-agnostic) |
 | `setting/veilwrack.md` | Player-facing setting guide |
 | `setting/gm-secrets.md` | GM-only truth, campaign arc, NPC list |
 | `setting/bestiary.md` | Stat blocks (mirrored as DB templates) |
