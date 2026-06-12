@@ -34,6 +34,8 @@ attribute myth-fatigue, value string;              # Fresh | Winded | Tired | ..
 attribute myth-luck-current, value integer;
 attribute myth-magic-current, value integer;
 attribute myth-experience-rolls, value integer;    # banked experience rolls
+attribute myth-spells-json, value string;          # {"folk":[...],"theism":[...],"sorcery":[...],"mysticism":[...],"windworking":[...]}
+attribute myth-extras-json, value string;          # lossless bag for system-specific fields (cult_rank, cults, features, spirits, natural_armor, strike_rank...)
 
 # Campaign / session
 attribute myth-game-date, value string;            # in-world calendar date
@@ -105,6 +107,8 @@ entity myth-character sub alh-domain-thing,
     owns myth-luck-current,
     owns myth-magic-current,
     owns myth-experience-rolls,
+    owns myth-spells-json,
+    owns myth-extras-json,
     plays myth-campaign-membership:element,
     plays myth-presence:located,
     plays myth-participation:combatant,
@@ -120,6 +124,8 @@ entity myth-creature-template sub alh-domain-thing,
     owns myth-hit-locations-json,
     owns myth-equipment-json,
     owns myth-combat-styles-json,
+    owns myth-spells-json,
+    owns myth-extras-json,
     plays myth-campaign-membership:element,
     plays myth-template-instance:template,
     plays myth-lore-about:subject;

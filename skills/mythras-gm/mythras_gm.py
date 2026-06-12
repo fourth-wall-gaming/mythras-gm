@@ -177,7 +177,8 @@ def _link_to_campaign(driver, campaign_id, element_id, element_type):
 CHAR_ATTRS = ["description", "content", "myth-char-type", "myth-status",
               "myth-characteristics-json", "myth-attributes-json", "myth-skills-json",
               "myth-hit-locations-json", "myth-equipment-json", "myth-passions-json",
-              "myth-combat-styles-json", "myth-fatigue", "myth-luck-current",
+              "myth-combat-styles-json", "myth-spells-json", "myth-extras-json",
+              "myth-fatigue", "myth-luck-current",
               "myth-magic-current", "myth-experience-rolls"]
 
 
@@ -298,6 +299,149 @@ def cmd_get_character(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
     out({"success": True, "character": c})
+
+
+# ---------------------------------------------------------------------------
+# Character import (Mythras-family JSON sheet files)
+# ---------------------------------------------------------------------------
+
+def _flatten_kv_list(lst):
+    """[{'STR': 14}, {'CON': 13}] -> {'STR': 14, 'CON': 13}. Accepts flat dicts too."""
+    if isinstance(lst, dict):
+        return dict(lst)
+    flat = {}
+    for item in lst or []:
+        flat.update(item)
+    return flat
+
+
+def _parse_range(rng):
+    """'01-03' / '19-20' / '07' / [1,3] -> [lo, hi]."""
+    if isinstance(rng, (list, tuple)):
+        return [int(rng[0]), int(rng[-1])]
+    parts = str(rng).split("-")
+    lo = int(parts[0])
+    hi = int(parts[-1])
+    return [lo, hi]
+
+
+def _transform_sheet(sheet, char_type):
+    """Convert an external Mythras-family character sheet (e.g. the
+    stats/skills-as-list-of-dicts format) into our storage shape.
+    Preserves source values verbatim where given; derives only what is absent."""
+    chars = _flatten_kv_list(sheet["stats"])
+
+    # Skills: flatten, then drop entries duplicated in combat_styles
+    skills = _flatten_kv_list(sheet.get("skills"))
+    styles = {}
+    for cs in sheet.get("combat_styles") or []:
+        styles[cs.get("name", "Combat Style")] = cs.get("value", 0)
+    for style_name in styles:
+        skills.pop(style_name, None)
+
+    # Hit locations: honor the file's hp/ap exactly (different Mythras
+    # flavors compute HP differently); add current_hp.
+    locations = []
+    for loc in sheet.get("hit_locations") or []:
+        locations.append({
+            "name": loc["name"].title(),
+            "range": _parse_range(loc.get("range", "01-20")),
+            "ap": loc.get("ap", 0),
+            "hp": loc["hp"],
+            "current_hp": loc.get("current_hp", loc["hp"]),
+        })
+    if not locations:
+        locations = eng.build_hit_locations(chars, "humanoid")
+
+    # Attributes: keep source values, fill gaps from the engine.
+    derived = eng.derive_attributes(chars, "humanoid")
+    src_attrs = dict(sheet.get("attributes") or {})
+    strike_rank = src_attrs.pop("strike_rank", None)
+    if strike_rank and "initiative_bonus" not in src_attrs:
+        digits = "".join(ch for ch in str(strike_rank).split("(")[0] if ch.isdigit())
+        if digits:
+            src_attrs["initiative_bonus"] = int(digits)
+    attrs = {**derived, **src_attrs}
+
+    # Equipment: combat style weapons (strings or dicts) + explicit equipment
+    equipment = []
+    for cs in sheet.get("combat_styles") or []:
+        for w in cs.get("weapons") or []:
+            equipment.append(w if isinstance(w, dict) else {"name": w})
+    for w in sheet.get("equipment") or []:
+        equipment.append(w if isinstance(w, dict) else {"name": w})
+
+    # Spells by tradition
+    spells = {}
+    for trad in ("folk", "theism", "sorcery", "mysticism", "windworking"):
+        key = f"{trad}_spells"
+        if sheet.get(key):
+            spells[trad] = sheet[key]
+
+    # Everything else rides along losslessly
+    consumed = {"name", "stats", "skills", "combat_styles", "hit_locations",
+                "attributes", "equipment", "notes", "passions",
+                "folk_spells", "theism_spells", "sorcery_spells",
+                "mysticism_spells", "windworking_spells"}
+    extras = {k: v for k, v in sheet.items() if k not in consumed}
+    if strike_rank:
+        extras["strike_rank"] = strike_rank
+
+    return {
+        "name": sheet["name"],
+        "type": char_type,
+        "characteristics": chars,
+        "attributes": attrs,
+        "skills": skills,
+        "combat_styles": styles,
+        "hit_locations": locations,
+        "equipment": equipment,
+        "passions": _flatten_kv_list(sheet.get("passions")),
+        "spells": spells,
+        "extras": extras,
+        "notes": sheet.get("notes", ""),
+    }
+
+
+def cmd_import_characters(args):
+    """Import one or more characters from a Mythras-family JSON sheet file."""
+    data = json.load(open(args.file))
+    if isinstance(data, dict):
+        data = [data]
+
+    imported = []
+    with get_driver() as driver:
+        for sheet in data:
+            t = _transform_sheet(sheet, args.type)
+            cid = generate_id("myth-char")
+            ts = get_timestamp()
+            q = f'''insert $c isa myth-character,
+                has id "{cid}",
+                has name "{escape_string(t["name"])}",
+                has myth-char-type "{escape_string(t["type"])}",
+                has myth-status "active",
+                has myth-characteristics-json "{escape_string(json.dumps(t["characteristics"]))}",
+                has myth-attributes-json "{escape_string(json.dumps(t["attributes"]))}",
+                has myth-skills-json "{escape_string(json.dumps(t["skills"]))}",
+                has myth-hit-locations-json "{escape_string(json.dumps(t["hit_locations"]))}",
+                has myth-equipment-json "{escape_string(json.dumps(t["equipment"]))}",
+                has myth-passions-json "{escape_string(json.dumps(t["passions"]))}",
+                has myth-combat-styles-json "{escape_string(json.dumps(t["combat_styles"]))}",
+                has myth-spells-json "{escape_string(json.dumps(t["spells"]))}",
+                has myth-extras-json "{escape_string(json.dumps(t["extras"]))}",
+                has myth-fatigue "Fresh",
+                has myth-luck-current {t["attributes"].get("luck_points", 2)},
+                has myth-magic-current {t["attributes"].get("magic_points", 10)},
+                has myth-experience-rolls 0,
+                has created-at {ts}'''
+            if t["notes"]:
+                q += f', has description "{escape_string(t["notes"])}"'
+            q += ";"
+            _write(driver, q)
+            if args.campaign:
+                _link_to_campaign(driver, args.campaign, cid, "myth-character")
+            imported.append({"id": cid, "name": t["name"]})
+    out({"success": True, "imported": imported})
 
 
 def cmd_list_characters(args):
@@ -1019,6 +1163,14 @@ def build_parser():
 
     s = sub.add_parser("get-character")
     s.add_argument("--id", required=True)
+
+    s = sub.add_parser("import-characters",
+                       help="Import characters from a Mythras-family JSON sheet file")
+    s.add_argument("--file", required=True,
+                   help="JSON file: a sheet object or list of sheets "
+                        "(stats/skills as list-of-dicts or flat dicts)")
+    s.add_argument("--campaign")
+    s.add_argument("--type", default="pc", choices=["pc", "npc", "creature"])
 
     s = sub.add_parser("list-characters")
     s.add_argument("--campaign", required=True)
