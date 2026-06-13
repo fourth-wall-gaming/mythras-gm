@@ -39,6 +39,13 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    containing only `---` (typeset as ⁂). Set `status: drafted` in `book.yaml`
    when the outline is fully drafted.
 
+   *Front matter (optional):* a `front-matter.md` in the manuscript root is
+   built in before chapter one -- use it for a prelude/preface that orients a
+   reader to the world. Give it its own page and title with a raw `{=typst}`
+   block (e.g. `#pagebreak(weak: true)` + a centered `smallcaps[Prelude]`),
+   **not** a `# heading`, so it does not register as a chapter (keeps chapter
+   numbering and figure placement intact). Player-visible lore only.
+
 5. **Canon rules.** Journal events are plot truth -- never contradict them.
    Characters, locations, factions, and player-visible lore give texture.
    You may invent connective tissue: interiority, transitions, minor sensory

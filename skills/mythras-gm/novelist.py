@@ -95,6 +95,24 @@ def chapter_files(manuscript_dir):
     return sorted(f for f in os.listdir(cdir) if f.endswith(".md"))
 
 
+def assemble_body(manuscript_dir):
+    """Optional front-matter.md (prelude etc.) followed by the chapters, in order.
+
+    front-matter.md should set its own page/title with a raw `{=typst}` block
+    rather than a `# heading`, so it does not register as a chapter (no chapter
+    opener styling, no shift to after_scene figure placement).
+    """
+    parts = []
+    fm = os.path.join(manuscript_dir, "front-matter.md")
+    if os.path.exists(fm):
+        with open(fm, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    for f in chapter_files(manuscript_dir):
+        with open(os.path.join(manuscript_dir, "chapters", f), encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n\n".join(parts)
+
+
 def validate_manuscript(manuscript_dir):
     """Return a list of human-readable problems; empty list means buildable."""
     errors = []
@@ -354,10 +372,8 @@ def build_manuscript(manuscript_dir):
     build_dir = os.path.join(manuscript_dir, ".build")
     os.makedirs(build_dir, exist_ok=True)
 
-    chapters = [open(os.path.join(manuscript_dir, "chapters", f), encoding="utf-8").read()
-                for f in chapter_files(manuscript_dir)]
     with open(os.path.join(build_dir, "body.md"), "w", encoding="utf-8") as fh:
-        fh.write("\n\n".join(chapters))
+        fh.write(assemble_body(manuscript_dir))
 
     # --wrap=none keeps each markdown paragraph on one line so text-anchored
     # illustration placement (after_text) can match a phrase reliably.

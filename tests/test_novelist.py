@@ -123,6 +123,26 @@ def test_validate_missing_book_yaml(tmp_path):
     assert any("book.yaml" in e for e in errors)
 
 
+# --- body assembly (front matter + chapters) ----------------------------------
+
+def test_assemble_body_chapters_only(tmp_path):
+    mdir = _make_manuscript(tmp_path, {
+        "01-a.md": "# Chapter 1\n\nAlpha.\n",
+        "02-b.md": "# Chapter 2\n\nBeta.\n",
+    })
+    body = nov.assemble_body(mdir)
+    assert body.index("Alpha.") < body.index("Beta.")
+    assert "Chapter 1" in body and "Chapter 2" in body
+
+
+def test_assemble_body_includes_front_matter_first(tmp_path):
+    mdir = _make_manuscript(tmp_path, {"01-a.md": "# Chapter 1\n\nAlpha.\n"})
+    with open(os.path.join(mdir, "front-matter.md"), "w", encoding="utf-8") as fh:
+        fh.write("Prelude text here.\n")
+    body = nov.assemble_body(mdir)
+    assert body.index("Prelude text here.") < body.index("Chapter 1")
+
+
 # --- illustration manifest validation -----------------------------------------
 
 def _ms_with_chapter(tmp_path, text, illustrations_dir_files=None):
