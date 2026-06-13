@@ -78,12 +78,21 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   `--involves`; fix the location and motive in the text. Mechanics go after
   the story, not instead of it. The journal is the source of record for
   recaps and novelization — anything you don't log never happened.
+- **Log the game fully — text is cheap.** Capture the whole interaction, not
+  a one-line gist: the discussion and the back-and-forth, the decisions and
+  the reasoning behind them, and the PROVENANCE of things — where a weapon,
+  writ, ally, or piece of intel came from and why it was chosen. (If a PC is
+  handed a falchion, the record says who gave it, what for, and what was said
+  over it.) A terse summary loses the texture that the novelization and a
+  future session's GM both depend on; an over-full event costs nothing, a
+  detail never written down is gone. This is fullness of FACTUAL capture, not
+  embellishment — still only what actually happened, dialogue quoted verbatim.
 - **Record only what happened in the game — no embellishment.** The journal
   is a factual record of play, not prose. Quote only lines actually spoken
   at the table; never invent dialogue, sensory detail, or interiority. Log
-  just enough that a novelization could be written from it later, and no
-  more — embellishment belongs in the novelization layer and must never be
-  written back into the journal or lore.
+  the whole of what happened — fully — but only what happened; embellishment
+  belongs in the novelization layer and must never be written back into the
+  journal or lore.
 - **Dialogue is the priority content of a narrative.** Record what was
   actually said — quote the key lines verbatim (NPC and PC both) in
   `--narrative`. Spoken words outrank scenery: extra description is
