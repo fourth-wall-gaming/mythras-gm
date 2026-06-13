@@ -60,15 +60,20 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
       drawn from the *player-visible* journal in `source.md` -- never GM lore)
       to `<manuscript>/illustrations/<NN-slug>.txt`.
    3. **Add the manifest.** For each plate add an entry under `illustrations:`
-      in `book.yaml`:
+      in `book.yaml`. Place it either right after the paragraph where the
+      action happens (`after_text`, preferred) or coarsely by scene
+      (`after_scene`). Omit `caption` for a bare image; include it for a
+      "Figure N" caption.
       ```yaml
       illustrations:
         - file: 01-the-dive.png      # the image you will generate
           chapter: 1
-          after_scene: 0             # 0 = chapter opener; k = after the k-th ⁂
-          caption: "The dive over the lamp-rings"
+          after_text: "drove the point down through the root of its wing"
+          # ...or instead: after_scene: 0   # 0 = chapter opener; k = after k-th ⁂
           prompt_file: 01-the-dive.txt
       ```
+      `after_text` is a verbatim phrase from the chapter prose; the plate drops
+      in right after that paragraph. (`after_text` wins if both are given.)
    4. **Generate and drop in.** Run each prompt through your image model and
       save the result as `<manuscript>/illustrations/<file>`.
    5. **Check.** `illustrate --manuscript <dir>` validates placements and lists

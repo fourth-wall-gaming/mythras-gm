@@ -176,6 +176,19 @@ def test_validate_illustrations_after_scene_out_of_range(tmp_path):
     assert any("after_scene" in e and "out of range" in e for e in errs)
 
 
+def test_validate_illustrations_after_text_ok(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [{"file": "a.png", "chapter": 1, "after_text": "B."}]}
+    assert nov.validate_illustrations(book, mdir) == []
+
+
+def test_validate_illustrations_after_text_not_found(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [{"file": "a.png", "chapter": 1, "after_text": "no such phrase"}]}
+    errs = nov.validate_illustrations(book, mdir)
+    assert any("after_text not found" in e for e in errs)
+
+
 def test_validate_illustrations_missing_prompt_file(tmp_path):
     mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER, illustrations_dir_files=["a.txt"])
     book = {"illustrations": [
@@ -217,6 +230,18 @@ def test_inject_figures_after_nth_break():
     # figure appears after the SECOND #horizontalrule, before the third paragraph
     second_rule = out.index("#horizontalrule", out.index("#horizontalrule") + 1)
     assert second_rule < out.index("illustrations/y.png") < out.index("Third para.")
+
+
+def test_inject_figures_after_text_placement():
+    ills = [{"file": "z.png", "chapter": 1, "after_text": "Second para"}]
+    out = nov.inject_figures(FIG_BODY, ills, {"z.png"})
+    # figure sits right after the paragraph that contains the anchor phrase
+    assert out.index("Second para.") < out.index("illustrations/z.png") < out.index("#horizontalrule", out.index("Second para."))
+
+
+def test_inject_figures_after_text_skips_missing():
+    ills = [{"file": "z.png", "chapter": 1, "after_text": "Second para"}]
+    assert nov.inject_figures(FIG_BODY, ills, set()) == FIG_BODY
 
 
 # --- tool checks ---------------------------------------------------------------

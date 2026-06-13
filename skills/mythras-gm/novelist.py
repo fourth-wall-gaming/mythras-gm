@@ -169,6 +169,13 @@ def validate_illustrations(book, manuscript_dir):
         ch = it.get("chapter")
         if ch not in chapters:
             problems.append(f"illustration {label}: chapter {ch!r} has no chapter file")
+        elif it.get("after_text"):
+            with open(chapters[ch], encoding="utf-8") as fh:
+                chap_text = fh.read()
+            if it["after_text"] not in chap_text:
+                problems.append(
+                    f"illustration {label}: after_text not found in chapter {ch}: "
+                    f"{it['after_text']!r}")
         else:
             breaks = _count_scene_breaks(chapters[ch])
             after = it.get("after_scene", 0)
@@ -202,18 +209,25 @@ def _figure_block(it):
 def inject_figures(body_typ, illustrations, present_files):
     """Insert #figure(image(...)) into pandoc's Typst body at manifest positions.
 
-    Chapters are level-1 headings ('= ...'); scene breaks are '#horizontalrule'
-    lines (pandoc renders markdown '---' that way). after_scene 0 places the
-    figure right after the chapter heading; k places it right after the k-th
-    scene break in that chapter. Entries whose 'file' is not in present_files
-    are skipped, so a build never breaks on art that has not been made yet.
+    Two placement modes:
+    - **after_text**: place the plate right after the paragraph line that
+      contains the given phrase (precise, in-the-action placement). Build with
+      pandoc --wrap=none so each paragraph stays on one line.
+    - **after_scene**: coarse fallback. Chapters are level-1 headings ('= ...')
+      and scene breaks are '#horizontalrule' lines; after_scene 0 = right after
+      the chapter heading, k = right after the k-th scene break in that chapter.
+
+    Entries whose 'file' is not in present_files are skipped, so a build never
+    breaks on art that has not been made yet.
     """
     wanted = [it for it in (illustrations or []) if it.get("file") in present_files]
     if not wanted:
         return body_typ
+    scened = [it for it in wanted if not it.get("after_text")]
+    pending_anchor = [it for it in wanted if it.get("after_text")]
 
-    def figs(chap, scene):
-        return [_figure_block(it) for it in wanted
+    def scene_figs(chap, scene):
+        return [_figure_block(it) for it in scened
                 if it.get("chapter") == chap and it.get("after_scene", 0) == scene]
 
     out, chap, scene = [], 0, 0
@@ -223,13 +237,20 @@ def inject_figures(body_typ, illustrations, present_files):
             chap += 1
             scene = 0
             out.append(line)
-            out.extend(figs(chap, 0))
+            out.extend(scene_figs(chap, 0))
         elif stripped == "#horizontalrule":
             scene += 1
             out.append(line)
-            out.extend(figs(chap, scene))
+            out.extend(scene_figs(chap, scene))
         else:
             out.append(line)
+            still = []
+            for it in pending_anchor:
+                if it["after_text"] in line:
+                    out.append(_figure_block(it))
+                else:
+                    still.append(it)
+            pending_anchor = still
     return "".join(out)
 
 
@@ -338,8 +359,10 @@ def build_manuscript(manuscript_dir):
     with open(os.path.join(build_dir, "body.md"), "w", encoding="utf-8") as fh:
         fh.write("\n\n".join(chapters))
 
-    _run(["pandoc", "-f", "markdown", "-t", "typst", "body.md", "-o", "body.typ"],
-         cwd=build_dir)
+    # --wrap=none keeps each markdown paragraph on one line so text-anchored
+    # illustration placement (after_text) can match a phrase reliably.
+    _run(["pandoc", "-f", "markdown", "-t", "typst", "--wrap=none",
+          "body.md", "-o", "body.typ"], cwd=build_dir)
 
     # Typst #include files don't inherit the caller's scope, so pandoc's
     # #horizontalrule calls would be unresolved. Prepend an import line.
