@@ -191,9 +191,12 @@ def _typ_inline(s):
 
 
 def _figure_block(it):
+    img = f'image("illustrations/{it["file"]}", width: 85%)'
     caption = it.get("caption")
-    cap = f", caption: [{_typ_inline(str(caption))}]" if caption else ""
-    return f'\n#figure(image("illustrations/{it["file"]}", width: 85%){cap})\n\n'
+    if caption:
+        return f'\n#figure({img}, caption: [{_typ_inline(str(caption))}])\n\n'
+    # No caption -> a bare centered image (no "Figure N" caption line).
+    return f'\n#align(center, {img})\n\n'
 
 
 def inject_figures(body_typ, illustrations, present_files):
