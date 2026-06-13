@@ -123,6 +123,102 @@ def test_validate_missing_book_yaml(tmp_path):
     assert any("book.yaml" in e for e in errors)
 
 
+# --- illustration manifest validation -----------------------------------------
+
+def _ms_with_chapter(tmp_path, text, illustrations_dir_files=None):
+    """One-chapter manuscript (01-x.md = text); optional illustrations/ files."""
+    mdir = _make_manuscript(tmp_path, {"01-x.md": text})
+    if illustrations_dir_files:
+        idir = os.path.join(mdir, "illustrations")
+        os.makedirs(idir, exist_ok=True)
+        for name in illustrations_dir_files:
+            with open(os.path.join(idir, name), "w", encoding="utf-8") as fh:
+                fh.write("x")
+    return mdir
+
+
+# A chapter with two scene breaks (three scenes).
+TWO_BREAK_CHAPTER = "# Chapter 1\n\nA.\n\n---\n\nB.\n\n---\n\nC.\n"
+
+
+def test_validate_illustrations_no_manifest(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    assert nov.validate_illustrations({}, mdir) == []
+
+
+def test_validate_illustrations_ok(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [
+        {"file": "a.png", "chapter": 1, "after_scene": 0},
+        {"file": "b.png", "chapter": 1, "after_scene": 2},
+    ]}
+    assert nov.validate_illustrations(book, mdir) == []
+
+
+def test_validate_illustrations_missing_file_key(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [{"chapter": 1, "after_scene": 0}]}
+    errs = nov.validate_illustrations(book, mdir)
+    assert any("missing 'file'" in e for e in errs)
+
+
+def test_validate_illustrations_bad_chapter(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [{"file": "a.png", "chapter": 2, "after_scene": 0}]}
+    errs = nov.validate_illustrations(book, mdir)
+    assert any("chapter" in e and "a.png" in e for e in errs)
+
+
+def test_validate_illustrations_after_scene_out_of_range(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER)
+    book = {"illustrations": [{"file": "a.png", "chapter": 1, "after_scene": 5}]}
+    errs = nov.validate_illustrations(book, mdir)
+    assert any("after_scene" in e and "out of range" in e for e in errs)
+
+
+def test_validate_illustrations_missing_prompt_file(tmp_path):
+    mdir = _ms_with_chapter(tmp_path, TWO_BREAK_CHAPTER, illustrations_dir_files=["a.txt"])
+    book = {"illustrations": [
+        {"file": "a.png", "chapter": 1, "after_scene": 0, "prompt_file": "a.txt"},
+        {"file": "b.png", "chapter": 1, "after_scene": 1, "prompt_file": "missing.txt"},
+    ]}
+    errs = nov.validate_illustrations(book, mdir)
+    assert any("prompt_file" in e and "missing.txt" in e for e in errs)
+    assert not any("a.txt" in e for e in errs)
+
+
+# --- figure injection into typst body -----------------------------------------
+
+FIG_BODY = ("= Chapter One\n\nFirst para.\n\n#horizontalrule\n\n"
+            "Second para.\n\n#horizontalrule\n\nThird para.\n")
+
+
+def test_inject_figures_empty_manifest_noop():
+    assert nov.inject_figures(FIG_BODY, [], set()) == FIG_BODY
+
+
+def test_inject_figures_skips_missing_file():
+    ills = [{"file": "x.png", "chapter": 1, "after_scene": 0}]
+    assert nov.inject_figures(FIG_BODY, ills, set()) == FIG_BODY
+
+
+def test_inject_figures_opener_placement():
+    ills = [{"file": "x.png", "chapter": 1, "after_scene": 0, "caption": "Cap"}]
+    out = nov.inject_figures(FIG_BODY, ills, {"x.png"})
+    assert 'image("illustrations/x.png"' in out
+    assert "caption: [Cap]" in out
+    # figure sits between the chapter heading and the first paragraph
+    assert out.index("= Chapter One") < out.index("illustrations/x.png") < out.index("First para.")
+
+
+def test_inject_figures_after_nth_break():
+    ills = [{"file": "y.png", "chapter": 1, "after_scene": 2}]
+    out = nov.inject_figures(FIG_BODY, ills, {"y.png"})
+    # figure appears after the SECOND #horizontalrule, before the third paragraph
+    second_rule = out.index("#horizontalrule", out.index("#horizontalrule") + 1)
+    assert second_rule < out.index("illustrations/y.png") < out.index("Third para.")
+
+
 # --- tool checks ---------------------------------------------------------------
 
 def test_missing_tools_reports_brew_hints():

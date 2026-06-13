@@ -48,10 +48,39 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    must never leak into the prose. Leave `[TODO: ...]` markers for anything
    you need the user to decide; `build` refuses to run until they're resolved.
 
-6. **Build.** `build --manuscript <dir>`. Report the PDF path. Commit the
-   manuscript directory (including the PDF) to the campaign repo if it's one.
+6. **Illustrate (optional).** Add engraving-style plates (or any look) to the
+   book. Like prose styles, art styles are reproducible cards in
+   `styles/art/`. The CLI is plumbing -- you write the prompts.
+   1. **Pin an art style.** Copy `styles/art/<name>.md` to
+      `<manuscript>/art.md` and set `art_style: <name>` in `book.yaml`. The
+      card is the visual preamble for every prompt, so the plates read as one
+      set.
+   2. **Choose scenes and write prompts.** For each scene to illustrate, write
+      a text-to-image prompt (the art-style preamble + the scene's specifics,
+      drawn from the *player-visible* journal in `source.md` -- never GM lore)
+      to `<manuscript>/illustrations/<NN-slug>.txt`.
+   3. **Add the manifest.** For each plate add an entry under `illustrations:`
+      in `book.yaml`:
+      ```yaml
+      illustrations:
+        - file: 01-the-dive.png      # the image you will generate
+          chapter: 1
+          after_scene: 0             # 0 = chapter opener; k = after the k-th ⁂
+          caption: "The dive over the lamp-rings"
+          prompt_file: 01-the-dive.txt
+      ```
+   4. **Generate and drop in.** Run each prompt through your image model and
+      save the result as `<manuscript>/illustrations/<file>`.
+   5. **Check.** `illustrate --manuscript <dir>` validates placements and lists
+      each plate as `present` or `pending`, with each chapter's scene-break
+      count so you can pick `after_scene`. The build injects only the plates
+      that exist, so it is safe to run before every image is made.
 
-7. **Continue later.** When the campaign has advanced past `high_water_mark`
+7. **Build.** `build --manuscript <dir>`. Report the PDF path. Commit the
+   manuscript directory (including the PDF and `illustrations/`) to the
+   campaign repo if it's one.
+
+8. **Continue later.** When the campaign has advanced past `high_water_mark`
    in `book.yaml`, re-run `extract` (it refreshes `source.md` and the mark
    without touching `chapters/`), outline the new material, and draft only
    the new chapters.

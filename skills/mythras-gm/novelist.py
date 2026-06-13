@@ -128,6 +128,109 @@ def missing_tools(path=None):
 
 
 # ---------------------------------------------------------------------------
+# Illustrations: book.yaml `illustrations:` manifest + Typst figure injection
+# ---------------------------------------------------------------------------
+
+def _chapter_paths_by_number(manuscript_dir):
+    """Map chapter number -> path, from chapters/NN-*.md."""
+    out = {}
+    for f in chapter_files(manuscript_dir):
+        m = re.match(r"(\d+)-.+\.md$", f)
+        if m:
+            out[int(m.group(1))] = os.path.join(manuscript_dir, "chapters", f)
+    return out
+
+
+def _count_scene_breaks(path):
+    """Number of '---' scene-break lines in a chapter markdown file."""
+    with open(path, encoding="utf-8") as fh:
+        return sum(1 for line in fh if line.strip() == "---")
+
+
+def validate_illustrations(book, manuscript_dir):
+    """Return human-readable problems with the book.yaml `illustrations:` list.
+
+    Each entry: file (required); chapter (an existing chapter number);
+    after_scene (0..number of '---' breaks in that chapter); optional caption;
+    optional prompt_file (must exist under illustrations/). Empty/absent
+    manifest is valid.
+    """
+    problems = []
+    items = book.get("illustrations") or []
+    chapters = _chapter_paths_by_number(manuscript_dir)
+    idir = os.path.join(manuscript_dir, "illustrations")
+    for n, it in enumerate(items, 1):
+        if not isinstance(it, dict):
+            problems.append(f"illustration {n}: not a mapping")
+            continue
+        label = it.get("file") or f"#{n}"
+        if not it.get("file"):
+            problems.append(f"illustration {n}: missing 'file'")
+        ch = it.get("chapter")
+        if ch not in chapters:
+            problems.append(f"illustration {label}: chapter {ch!r} has no chapter file")
+        else:
+            breaks = _count_scene_breaks(chapters[ch])
+            after = it.get("after_scene", 0)
+            if not isinstance(after, int) or after < 0 or after > breaks:
+                problems.append(
+                    f"illustration {label}: after_scene {after!r} out of range "
+                    f"(chapter {ch} has {breaks} scene breaks; use 0..{breaks})")
+        pf = it.get("prompt_file")
+        if pf and not os.path.exists(os.path.join(idir, pf)):
+            problems.append(
+                f"illustration {label}: prompt_file not found: illustrations/{pf}")
+    return problems
+
+
+def _typ_inline(s):
+    """Escape Typst-significant characters for use inside a [content] block."""
+    for ch in "\\#[]@$":
+        s = s.replace(ch, "\\" + ch)
+    return s
+
+
+def _figure_block(it):
+    caption = it.get("caption")
+    cap = f", caption: [{_typ_inline(str(caption))}]" if caption else ""
+    return f'\n#figure(image("illustrations/{it["file"]}", width: 85%){cap})\n\n'
+
+
+def inject_figures(body_typ, illustrations, present_files):
+    """Insert #figure(image(...)) into pandoc's Typst body at manifest positions.
+
+    Chapters are level-1 headings ('= ...'); scene breaks are '#horizontalrule'
+    lines (pandoc renders markdown '---' that way). after_scene 0 places the
+    figure right after the chapter heading; k places it right after the k-th
+    scene break in that chapter. Entries whose 'file' is not in present_files
+    are skipped, so a build never breaks on art that has not been made yet.
+    """
+    wanted = [it for it in (illustrations or []) if it.get("file") in present_files]
+    if not wanted:
+        return body_typ
+
+    def figs(chap, scene):
+        return [_figure_block(it) for it in wanted
+                if it.get("chapter") == chap and it.get("after_scene", 0) == scene]
+
+    out, chap, scene = [], 0, 0
+    for line in body_typ.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("= "):
+            chap += 1
+            scene = 0
+            out.append(line)
+            out.extend(figs(chap, 0))
+        elif stripped == "#horizontalrule":
+            scene += 1
+            out.append(line)
+            out.extend(figs(chap, scene))
+        else:
+            out.append(line)
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
 # TypeDB extraction
 # ---------------------------------------------------------------------------
 
@@ -243,6 +346,25 @@ def build_manuscript(manuscript_dir):
     with open(body_typ_path, "w", encoding="utf-8") as fh:
         fh.write('#import "novel.typ": horizontalrule\n' + body_content)
 
+    # Illustrations: copy generated images into the build dir and inject
+    # #figure blocks at the manifest positions. Images not yet generated are
+    # skipped, so the build never breaks before the art exists.
+    illustrations = book.get("illustrations") or []
+    if illustrations:
+        present = set()
+        src_idir = os.path.join(manuscript_dir, "illustrations")
+        if os.path.isdir(src_idir):
+            dst_idir = os.path.join(build_dir, "illustrations")
+            if os.path.exists(dst_idir):
+                shutil.rmtree(dst_idir)
+            shutil.copytree(src_idir, dst_idir)
+            present = {f for f in os.listdir(dst_idir)
+                       if os.path.isfile(os.path.join(dst_idir, f))}
+        with open(body_typ_path, encoding="utf-8") as fh:
+            injected = inject_figures(fh.read(), illustrations, present)
+        with open(body_typ_path, "w", encoding="utf-8") as fh:
+            fh.write(injected)
+
     shutil.copy(TEMPLATE_PATH, os.path.join(build_dir, "novel.typ"))
 
     def typ_str(s):
@@ -266,6 +388,35 @@ def cmd_build(args):
     except BuildError as e:
         gm.fail(str(e))
     gm.out({"success": True, "pdf": os.path.abspath(pdf)})
+
+
+def cmd_illustrate(args):
+    mdir = args.manuscript
+    book_path = os.path.join(mdir, "book.yaml")
+    if not os.path.exists(book_path):
+        gm.fail("book.yaml missing -- run extract first")
+    with open(book_path, encoding="utf-8") as fh:
+        book = yaml.safe_load(fh) or {}
+    problems = validate_illustrations(book, mdir)
+    scene_breaks = {n: _count_scene_breaks(p)
+                    for n, p in _chapter_paths_by_number(mdir).items()}
+    idir = os.path.join(mdir, "illustrations")
+    present = ({f for f in os.listdir(idir) if os.path.isfile(os.path.join(idir, f))}
+               if os.path.isdir(idir) else set())
+    figures = [{
+        "file": it.get("file"),
+        "chapter": it.get("chapter"),
+        "after_scene": it.get("after_scene", 0),
+        "caption": it.get("caption"),
+        "prompt_file": it.get("prompt_file"),
+        "status": "present" if it.get("file") in present else "pending",
+    } for it in (book.get("illustrations") or [])]
+    gm.out({"success": not problems,
+            "manuscript": os.path.abspath(mdir),
+            "art_style": book.get("art_style"),
+            "scene_breaks_per_chapter": scene_breaks,
+            "figures": figures,
+            "problems": problems})
 
 
 def cmd_extract(args):
@@ -311,6 +462,11 @@ def main():
     s = sub.add_parser("build", help="chapters/*.md -> PDF")
     s.add_argument("--manuscript", required=True)
     s.set_defaults(func=cmd_build)
+
+    s = sub.add_parser("illustrate",
+                       help="validate/report the book.yaml illustrations manifest")
+    s.add_argument("--manuscript", required=True)
+    s.set_defaults(func=cmd_illustrate)
 
     args = p.parse_args()
     args.func(args)
