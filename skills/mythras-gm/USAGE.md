@@ -53,6 +53,12 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   never run a chain of rolls silently and summarize afterwards. Prefix
   each CLI mechanics call with an `echo` describing the action so the
   resolution is auditable in the terminal output.
+- **Read roll quality the Mythras way.** High-but-under-skill is the
+  STRONGEST success: opposed rolls are won by the higher roll that still
+  succeeds, and ties on success level break to the higher die. Never
+  narrate a 47-under-50 as "barely made it" or "not pretty" — that roll
+  beats a 03 in any contest. Low rolls are only better for the critical
+  threshold (≤1/10 of skill), nothing else.
 - **Defense is the player's choice — always ask.** When a PC is attacked,
   stop and ask whether they parry, evade, or take it (and with what), before
   calling `resolve-attack`. Never assume `--defense none` or pick a reaction
