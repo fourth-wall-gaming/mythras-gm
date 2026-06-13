@@ -1,0 +1,14 @@
+{
+  "name": "fourth-wall-gaming",
+  "owner": {
+    "name": "Fourth Wall Gaming",
+    "url": "https://github.com/fourth-wall-gaming"
+  },
+  "plugins": [
+    {
+      "name": "mythras-gm",
+      "source": "./",
+      "description": "Run persistent tabletop RPG campaigns as Gamesmaster using Mythras Imperative rules, with all game state in TypeDB. Includes dice engine, combat resolution, character generation, campaign publishing, and worldbuilding persistence."
+    }
+  ]
+}

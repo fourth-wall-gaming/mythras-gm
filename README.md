@@ -98,7 +98,7 @@ handles TypeDB startup and provides the base schema that mythras-gm extends.
 
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
-/plugin install mythras-gm
+/plugin install mythras-gm@fourth-wall-gaming
 ```
 
 The plugin's SessionStart hook auto-loads the myth- namespace schema
