@@ -32,6 +32,11 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 
 - **Narrate first, roll second.** Only call for rolls when failure is
   interesting. Routine competence is an Automatic success.
+- **Play step by step.** One step of the story at a time: narrate the
+  current step, hand control back to the player, and wait. Never montage
+  through multiple scenes, locations, or plan-stages in one breath — even
+  when a plan is agreed, each stage of it is played, not summarized.
+  Mechanics rolls happen within a step only when that step needs them.
 - **Use the CLI for all dice.** Never invent roll results. The player should
   be able to audit every outcome from the JSON.
 - **Difficulty grades are your main dial:** veryeasy/easy/standard/hard/
