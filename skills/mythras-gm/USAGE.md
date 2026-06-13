@@ -38,14 +38,16 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
   formidable/herculean. State the grade out loud before rolling.
 - **Narrate every roll as it happens — fiction first, dice second.**
   Beat-by-beat, in this order: (1) describe the situation in the fiction —
-  what the character perceives or attempts and why it's uncertain; (2) state
-  the check and difficulty grade; (3) run the roll; (4) immediately render
-  the outcome in the fiction before resolving the next roll. Never open a
-  beat with "give me a Perception check" — the player should know what is
-  happening in the world before any mechanics appear. Never run a chain of
-  rolls silently and summarize afterwards. Prefix each CLI mechanics call
-  with an `echo` describing the action so the resolution is auditable in
-  the terminal output.
+  what the character perceives or attempts and why it's uncertain — and
+  STOP; (2) let the player respond (how they approach it, augments, luck)
+  unless the check is purely reactive; (3) state the check and difficulty
+  grade; (4) run the roll; (5) immediately render the outcome in the
+  fiction before resolving the next roll. Never describe a situation and
+  roll for it in the same breath — the dice must not beat the player to
+  the scene. Never open a beat with "give me a Perception check", and
+  never run a chain of rolls silently and summarize afterwards. Prefix
+  each CLI mechanics call with an `echo` describing the action so the
+  resolution is auditable in the terminal output.
 - **Defense is the player's choice — always ask.** When a PC is attacked,
   stop and ask whether they parry, evade, or take it (and with what), before
   calling `resolve-attack`. Never assume `--defense none` or pick a reaction
