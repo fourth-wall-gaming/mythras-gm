@@ -1193,6 +1193,238 @@ def cmd_update_lore(args):
     out({"success": True, "id": args.id})
 
 
+# ---------------------------------------------------------------------------
+# Rules graph (global, faceted, queryable -- mirrors the lore pattern)
+# ---------------------------------------------------------------------------
+
+RULES_DIR = os.path.join(_SKILL_DIR, "rules")
+RULE_ATTRS = ["description", "content", "myth-rule-category", "myth-rule-kind",
+              "myth-rule-domain", "myth-rule-topic"]
+
+
+def _get_or_create_facet(driver, dim, value):
+    """Return the id of the myth-rule-facet for (dim, value); create if absent."""
+    rows = _fetch(driver, f'''
+        match $f isa myth-rule-facet, has name "{escape_string(value)}",
+              has myth-facet-dim "{escape_string(dim)}";
+        fetch {{ "id": $f.id }};''')
+    if rows:
+        return rows[0]["id"]
+    fid = generate_id("myth-facet")
+    _write(driver, f'''insert $f isa myth-rule-facet,
+        has id "{fid}", has name "{escape_string(value)}",
+        has myth-facet-dim "{escape_string(dim)}";''')
+    return fid
+
+
+def _rule_facets(driver, rule_id):
+    """All (dim, value) facets tagged on a rule."""
+    return _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-tagged, links (rule: $r, facet: $f);
+          $f has myth-facet-dim $d, has name $v;
+        fetch {{ "dim": $d, "value": $v }};''')
+
+
+def _rule_links(driver, rule_id):
+    """One hop of linked rules in both directions (id + title)."""
+    fwd = _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-link, links (rule: $r, linked: $o);
+          $o has id $i, has name $n;
+        fetch {{ "id": $i, "title": $n }};''')
+    rev = _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-link, links (rule: $o, linked: $r);
+          $o has id $i, has name $n;
+        fetch {{ "id": $i, "title": $n }};''')
+    seen, out_links = set(), []
+    for r in fwd + rev:
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            out_links.append(r)
+    return out_links
+
+
+def cmd_load_rules(args):
+    """Walk rules/<domain>/*.md (frontmatter + body), (re)build the rules graph.
+
+    Idempotent: clears all myth-rule / facets / tag / link relations, then
+    reloads from disk. Rules are GLOBAL (no campaign membership).
+    """
+    import campaign_io
+    rules_dir = args.dir or RULES_DIR
+    if not os.path.isdir(rules_dir):
+        fail(f"No rules directory: {rules_dir}")
+
+    # Gather every markdown file that carries a frontmatter `id`.
+    pieces = []
+    for root, _dirs, files in os.walk(rules_dir):
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            meta, body = campaign_io._parse_md(os.path.join(root, fn))
+            if not meta.get("id"):
+                continue
+            meta["content"] = body
+            pieces.append(meta)
+
+    if not pieces:
+        fail(f"No rule files with frontmatter `id` under {rules_dir}")
+
+    with get_driver() as driver:
+        # Clear the existing graph (data matches with bound vars -- safe).
+        for rel in ("myth-rule-tagged", "myth-rule-link"):
+            _write(driver, f"match $x isa {rel}; delete $x;")
+        for ent in ("myth-rule", "myth-rule-facet"):
+            _write(driver, f"match $x isa {ent}; delete $x;")
+
+        ts = get_timestamp()
+        for p in pieces:
+            rid = p["id"]
+            q = f'''insert $r isa myth-rule,
+                has id "{escape_string(rid)}",
+                has name "{escape_string(p.get("title", rid))}",
+                has myth-rule-category "{escape_string(p.get("category", p.get("domain", "core")))}",
+                has myth-rule-kind "{escape_string(p.get("kind", "reference"))}",
+                has myth-rule-domain "{escape_string(p.get("domain", p.get("category", "core")))}",
+                has myth-rule-topic "{escape_string(p.get("topic", ""))}",
+                has created-at {ts}'''
+            if p.get("summary"):
+                q += f', has description "{escape_string(p["summary"])}"'
+            if p.get("content"):
+                q += f', has content "{escape_string(p["content"])}"'
+            q += ";"
+            _write(driver, q)
+
+            for dim, values in (p.get("facets") or {}).items():
+                for value in (values if isinstance(values, list) else [values]):
+                    fid = _get_or_create_facet(driver, dim, str(value))
+                    _write(driver, f'''
+                        match
+                          $r isa myth-rule, has id "{escape_string(rid)}";
+                          $f isa myth-rule-facet, has id "{escape_string(fid)}";
+                        insert (rule: $r, facet: $f) isa myth-rule-tagged;''')
+
+        # Links in a second pass, once every rule exists.
+        link_count = 0
+        for p in pieces:
+            rid = p["id"]
+            for target in (p.get("links") or []):
+                if _fetch(driver, f'''
+                        match $t isa myth-rule, has id "{escape_string(target)}";
+                        fetch {{ "id": $t.id }};'''):
+                    _write(driver, f'''
+                        match
+                          $r isa myth-rule, has id "{escape_string(rid)}";
+                          $t isa myth-rule, has id "{escape_string(target)}";
+                        insert (rule: $r, linked: $t) isa myth-rule-link;''')
+                    link_count += 1
+
+    out({"success": True, "rules_loaded": len(pieces), "links_loaded": link_count})
+
+
+def cmd_list_rules(args):
+    """The facet index -- a TOC by situation. Tiny; load once at session start."""
+    with get_driver() as driver:
+        rows = _fetch(driver, '''
+            match $r isa myth-rule, has id $i, has name $n,
+                  has myth-rule-category $c, has myth-rule-domain $dm,
+                  has myth-rule-topic $tp, has myth-rule-kind $k;
+            fetch { "id": $i, "title": $n, "category": $c,
+                    "domain": $dm, "topic": $tp, "kind": $k };''')
+        for r in rows:
+            facets = {}
+            for f in _rule_facets(driver, r["id"]):
+                facets.setdefault(f["dim"], []).append(f["value"])
+            r["facets"] = facets
+    if args.category:
+        rows = [r for r in rows if r["category"] == args.category]
+    if args.dim and args.value:
+        rows = [r for r in rows
+                if args.value in (r["facets"].get(args.dim) or [])]
+    out({"success": True, "count": len(rows),
+         "rules": sorted(rows, key=lambda r: (r["domain"], r["topic"], r["title"]))})
+
+
+def cmd_get_rule(args):
+    """One rule piece in full; with --linked, append its linked neighbours."""
+    with get_driver() as driver:
+        r = _get_entity(driver, "myth-rule", args.id, RULE_ATTRS)
+        if not r:
+            fail(f"No rule '{args.id}'")
+        facets = {}
+        for f in _rule_facets(driver, args.id):
+            facets.setdefault(f["dim"], []).append(f["value"])
+        r["facets"] = facets
+        if args.linked:
+            neighbours = []
+            for nb in _rule_links(driver, args.id):
+                full = _get_entity(driver, "myth-rule", nb["id"], RULE_ATTRS)
+                if full:
+                    neighbours.append(full)
+            r["linked"] = neighbours
+    out({"success": True, "rule": r})
+
+
+def cmd_query_rules(args):
+    """Live faceted fetch: pass --facet dim=value (repeatable). Rules matching
+    more of the situation's facets rank first; --linked adds one link hop."""
+    wanted = []
+    for spec in (args.facet or []):
+        if "=" not in spec:
+            fail(f"Bad --facet '{spec}' (expected dim=value)")
+        dim, _, value = spec.partition("=")
+        wanted.append((dim.strip(), value.strip()))
+    if not wanted:
+        fail("Provide at least one --facet dim=value")
+
+    with get_driver() as driver:
+        scores = {}
+        for dim, value in wanted:
+            for row in _fetch(driver, f'''
+                    match
+                      $f isa myth-rule-facet, has name "{escape_string(value)}",
+                          has myth-facet-dim "{escape_string(dim)}";
+                      $rel isa myth-rule-tagged, links (rule: $r, facet: $f);
+                      $r has id $i;
+                    fetch {{ "id": $i }};'''):
+                scores[row["id"]] = scores.get(row["id"], 0) + 1
+
+        ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if args.limit and args.limit > 0:
+            ranked = ranked[:args.limit]
+
+        results = []
+        seen = set(rid for rid, _ in ranked)
+        for rid, score in ranked:
+            full = _get_entity(driver, "myth-rule", rid, RULE_ATTRS)
+            if not full:
+                continue
+            full["match_score"] = score
+            facets = {}
+            for f in _rule_facets(driver, rid):
+                facets.setdefault(f["dim"], []).append(f["value"])
+            full["facets"] = facets
+            results.append(full)
+
+        linked = []
+        if args.linked:
+            for rid, _ in ranked:
+                for nb in _rule_links(driver, rid):
+                    if nb["id"] not in seen:
+                        seen.add(nb["id"])
+                        full = _get_entity(driver, "myth-rule", nb["id"], RULE_ATTRS)
+                        if full:
+                            linked.append(full)
+
+    out({"success": True, "facets": [f"{d}={v}" for d, v in wanted],
+         "count": len(results), "rules": results, "linked": linked})
+
+
 def cmd_get_context(args):
     """Everything needed to resume a campaign: campaign state, PCs (full sheets),
     NPCs (names), locations, factions, active encounters, recent events."""
@@ -1493,6 +1725,31 @@ def build_parser():
     s.add_argument("--narrative")
     s.add_argument("--summary")
     s.add_argument("--visibility", choices=["player", "gm"])
+
+    # --- Rules graph (global, faceted) ---
+    s = sub.add_parser("load-rules",
+                       help="(Re)build the global rules graph from rules/<domain>/*.md")
+    s.add_argument("--dir", help="rules directory (default: skill's rules/)")
+
+    s = sub.add_parser("list-rules",
+                       help="Facet index of all rule pieces (the situational TOC)")
+    s.add_argument("--category")
+    s.add_argument("--dim", help="filter by facet dimension (with --value)")
+    s.add_argument("--value", help="filter by facet value (with --dim)")
+
+    s = sub.add_parser("get-rule", help="Full text of one rule piece")
+    s.add_argument("--id", required=True)
+    s.add_argument("--linked", action="store_true",
+                   help="also return one hop of linked rule pieces")
+
+    s = sub.add_parser("query-rules",
+                       help="Live faceted fetch: --facet dim=value (repeatable)")
+    s.add_argument("--facet", action="append",
+                   help="dim=value; repeat to AND/rank across facets")
+    s.add_argument("--linked", action="store_true",
+                   help="append one hop of myth-rule-link neighbours")
+    s.add_argument("--limit", type=int, default=0,
+                   help="cap the number of ranked rules returned (0 = all)")
 
     s = sub.add_parser("get-log")
     s.add_argument("--campaign", required=True)
