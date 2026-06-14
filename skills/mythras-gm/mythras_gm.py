@@ -596,6 +596,7 @@ def cmd_update_character(args):
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-fatigue": args.fatigue,
         "myth-status": args.status,
+        "description": args.description, "content": args.narrative,
     }
     with get_driver() as driver:
         for attr, val in updates.items():
@@ -1583,6 +1584,8 @@ def build_parser():
     s.add_argument("--fatigue")
     s.add_argument("--luck", type=int)
     s.add_argument("--status")
+    s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
+    s.add_argument("--narrative", help="full rich-text backstory (stored as content)")
 
     s = sub.add_parser("apply-damage")
     s.add_argument("--id", required=True)
