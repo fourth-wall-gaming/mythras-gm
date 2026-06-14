@@ -16,7 +16,7 @@ Characters:
         [--species avian|humanoid|winged-quadruped] [--stats JSON] [--roll]
         [--skills JSON] [--combat-styles JSON] [--equipment JSON]
         [--passions JSON] [--armor JSON] [--description D] [--narrative TEXT]
-    get-character --id ID
+    get-character --id ID [--compact]
     list-characters --campaign ID [--type pc|npc]
     update-character --id ID [--skills JSON] [--equipment JSON] [--passions JSON]
         [--fatigue LEVEL] [--luck N] [--status S]
@@ -53,8 +53,8 @@ World:
 Journal:
     log-event --campaign ID --type T --summary TEXT [--narrative TEXT]
         [--session N] [--involves ID,ID,...]
-    get-log --campaign ID [--session N] [--type T]
-    get-context --campaign ID        # everything needed to resume play
+    get-log --campaign ID [--session N] [--type T] [--limit N]
+    get-context --campaign ID [--compact]   # everything needed to resume play
 
 Publishing:
     export-campaign --campaign ID --output DIR   # DB -> publishable file tree
@@ -200,6 +200,39 @@ def _load_character(driver, char_id):
     return c
 
 
+# Attribute keys worth keeping on a combat card (derived stats the GM needs
+# mid-fight). Everything else in myth-attributes-json is omitted.
+_CARD_ATTR_KEYS = ["action_points", "damage_modifier", "initiative_bonus",
+                   "initiative", "movement", "healing_rate"]
+
+
+def _combat_card(c):
+    """Compact projection of a character for in-play context.
+
+    Keeps live combat STATE (hit locations w/ current HP, fatigue, luck, AP,
+    damage modifier, combat styles, passions, characteristics) and drops the
+    bulky reference data (full skills dict, equipment, spells, extras, prose).
+    roll-skill/resolve-attack look skills up from the DB on demand, so the GM
+    does not need the skill list in context to adjudicate.
+    """
+    attrs = c.get("myth-attributes-json") or {}
+    card = {
+        "id": c.get("id"),
+        "name": c.get("name"),
+        "type": c.get("myth-char-type"),
+        "status": c.get("myth-status"),
+        "characteristics": c.get("myth-characteristics-json") or {},
+        "attributes": {k: attrs[k] for k in _CARD_ATTR_KEYS if k in attrs},
+        "fatigue": c.get("myth-fatigue"),
+        "luck_current": c.get("myth-luck-current"),
+        "magic_current": c.get("myth-magic-current"),
+        "hit_locations": c.get("myth-hit-locations-json") or [],
+        "combat_styles": c.get("myth-combat-styles-json") or {},
+        "passions": c.get("myth-passions-json") or {},
+    }
+    return card
+
+
 # ---------------------------------------------------------------------------
 # Campaign commands
 # ---------------------------------------------------------------------------
@@ -306,6 +339,8 @@ def cmd_create_character(args):
 def cmd_get_character(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
+    if getattr(args, "compact", False):
+        c = _combat_card(c)
     out({"success": True, "character": c})
 
 
@@ -1048,6 +1083,9 @@ def cmd_get_log(args):
     events = sorted(rows, key=lambda r: str(r["at"]))
     if args.type:
         events = [e for e in events if e["type"] == args.type]
+    limit = getattr(args, "limit", None)
+    if limit and limit > 0:
+        events = events[-limit:]
     out({"success": True, "events": events})
 
 
@@ -1180,8 +1218,12 @@ def cmd_get_context(args):
               $c isa myth-character, has id $i, has name $n,
                  has myth-char-type $t, has myth-status $s;
             fetch {{ "id": $i, "name": $n, "type": $t, "status": $s }};''')
-        pcs = [_load_character(driver, r["id"]) for r in chars
-               if r["type"] == "pc" and r["status"] == "active"]
+        compact = getattr(args, "compact", False)
+        active_pcs = [r for r in chars if r["type"] == "pc" and r["status"] == "active"]
+        if compact:
+            pcs = [_combat_card(_load_character(driver, r["id"])) for r in active_pcs]
+        else:
+            pcs = [_load_character(driver, r["id"]) for r in active_pcs]
         npcs = [r for r in chars if r["type"] != "pc"]
 
         encounters = _fetch(driver, f'''
@@ -1198,22 +1240,26 @@ def cmd_get_context(args):
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
-        recent = sorted(events, key=lambda r: str(r["at"]))[-15:]
-
-        lore = _fetch(driver, f'''
-            match
-              $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
-              (campaign: $camp, element: $l) isa myth-campaign-membership;
-              $l isa myth-lore, has id $i, has name $n,
-                 has myth-lore-category $c, has myth-lore-visibility $v;
-            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+        recent_n = 5 if compact else 15
+        recent = sorted(events, key=lambda r: str(r["at"]))[-recent_n:]
 
         result = {"success": True, "campaign": camp, "player_characters": pcs,
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
-                  "lore_index": sorted(lore, key=lambda r: (r["category"], r["title"])),
                   "recent_events": recent}
+
+        # The lore index is a big static block. In compact mode skip it
+        # entirely (use list-lore on demand); only emit it for full context.
+        if not compact:
+            lore = _fetch(driver, f'''
+                match
+                  $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+                  (campaign: $camp, element: $l) isa myth-campaign-membership;
+                  $l isa myth-lore, has id $i, has name $n,
+                     has myth-lore-category $c, has myth-lore-visibility $v;
+                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+            result["lore_index"] = sorted(lore, key=lambda r: (r["category"], r["title"]))
 
     out(result)
 
@@ -1274,6 +1320,9 @@ def build_parser():
 
     s = sub.add_parser("get-character")
     s.add_argument("--id", required=True)
+    s.add_argument("--compact", action="store_true",
+                   help="Combat-card projection (state only; omits skills, "
+                        "equipment, spells, prose)")
 
     s = sub.add_parser("import-characters",
                        help="Import characters from a Mythras-family JSON sheet file")
@@ -1449,9 +1498,14 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--session", type=int)
     s.add_argument("--type")
+    s.add_argument("--limit", type=int, default=15,
+                   help="Return only the last N events (default 15; 0 = all)")
 
     s = sub.add_parser("get-context")
     s.add_argument("--campaign", required=True)
+    s.add_argument("--compact", action="store_true",
+                   help="Combat cards instead of full PC sheets, drop lore "
+                        "index, last 5 events. ~13k -> ~1.5k tokens.")
 
     s = sub.add_parser("export-campaign",
                        help="Export a campaign to a publishable file tree")
