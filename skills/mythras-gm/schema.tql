@@ -51,6 +51,16 @@ attribute myth-combatants-json, value string;      # [{"id":"...","name":"...","
 attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
 attribute myth-event-type, value string;           # scene | combat | skill-roll | decision | gm-note | session-start | session-end
 
+# Rules graph (global, faceted, queryable). See entity myth-rule below.
+# A rule piece carries its canonical hierarchy home (domain > topic) plus a
+# coarse category/kind, and is tagged with 1-4 orthogonal facets for live,
+# situational retrieval during play.
+attribute myth-rule-category, value string;        # core | combat | magic | system | character | skill | vehicle | creature
+attribute myth-rule-kind, value string;            # procedure | table | modifier | special-effect | condition | reference-list | formula
+attribute myth-rule-domain, value string;          # hierarchy domain (same vocab as category)
+attribute myth-rule-topic, value string;           # hierarchy topic within the domain
+attribute myth-facet-dim, value string;            # facet axis: phase | action | effect | weapon | trigger | body | severity | condition | magic-system | stat | kind
+
 # =============================================================================
 # RELATIONS (before entities so role names resolve in plays clauses)
 # =============================================================================
@@ -82,6 +92,15 @@ relation myth-template-instance,
 relation myth-lore-about,
     relates lore,
     relates subject;
+
+# Rules graph relations
+relation myth-rule-tagged,        # rule <-> facet (situational tag)
+    relates rule,
+    relates facet;
+
+relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-rules)
+    relates rule,
+    relates linked;
 
 # =============================================================================
 # ENTITIES
@@ -169,3 +188,26 @@ entity myth-lore sub alh-note,
     plays myth-event-involvement:participant,
     plays myth-lore-about:lore,
     plays myth-lore-about:subject;
+
+# RULES GRAPH - Universal Mythras rules sliced into small, queryable pieces.
+# Unlike lore, rules are GLOBAL (no campaign membership): Mythras Imperative
+# rules are universal; setting-specific house rules stay as campaign myth-lore.
+# Each piece is a rich-text note (content inherited from alh-note) with a
+# hierarchy home (domain > topic), a coarse category/kind, faceted tags for
+# situational retrieval, and optional links to related pieces.
+#
+# A facet is a (dimension, value) pair modeled as a first-class entity so it is
+# precisely queryable; its `name` is the facet value (e.g. "impale") and
+# myth-facet-dim is the axis (e.g. "effect").
+entity myth-rule-facet sub alh-identifiable-entity,   # name = the facet value
+    owns myth-facet-dim,
+    plays myth-rule-tagged:facet;
+
+entity myth-rule sub alh-note,
+    owns myth-rule-category,
+    owns myth-rule-kind,
+    owns myth-rule-domain,
+    owns myth-rule-topic,
+    plays myth-rule-tagged:rule,
+    plays myth-rule-link:rule,
+    plays myth-rule-link:linked;
