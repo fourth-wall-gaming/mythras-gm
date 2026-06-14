@@ -14,19 +14,56 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
    published campaigns such as
    [veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
    load with `import-campaign --path <clone> --new-ids`).
-2. `get-context --campaign <id>` — returns campaign scene/date, full PC
-   sheets, NPC roster, locations, factions, active encounters, the campaign's
-   **lore index** (titles + categories), and the last 15 journal events.
-   **This is your save file. Read it before narrating.**
-   Pull full worldbuilding text on demand with `get-lore --id <lore-id>`;
-   never show the player entries with visibility `gm`.
-3. Read the rules references before adjudicating:
-   - `rules/core-mechanics.md` — checks, difficulty grades, opposed rolls, luck, fatigue, healing
-   - `rules/combat.md` — full combat procedure, special effects, hit locations
-   - `rules/magic.md` — Magic (spells, MP-by-roll-result, traits) and Superpowers frameworks
-4. Setting knowledge lives in the campaign's **lore entries** (step 2's lore
-   index) — never show the player entries with visibility `gm`.
+2. `get-context --campaign <id> --compact` — returns campaign scene/date, PC
+   **combat cards** (live state: HP per location, fatigue, luck, AP, damage
+   mod, combat styles, passions, characteristics — no skills dict, equipment,
+   spells, or prose), NPC roster, locations, factions, active encounters, and
+   the last 5 journal events. **This is your save file. Read it before
+   narrating.** Drop `--compact` only when you actually need full sheets + the
+   lore index. Pull full worldbuilding text on demand with `get-lore --id
+   <lore-id>`; never show the player entries with visibility `gm`.
+3. **Do not preload the rules.** The CLI resolves every roll deterministically,
+   so the rules prose is rarely needed. When a beat needs a rule the engine
+   doesn't fully encode, fetch only the relevant pieces from the rules graph:
+   - `list-rules` — the tiny facet index (a situational table of contents).
+   - `query-rules --facet dim=value [--facet ...] [--linked]` — the live fetch,
+     ranked by how many of the situation's facets a rule matches.
+   - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
+   (See **Rules Graph** below for the facet vocabulary.)
+4. Setting knowledge lives in the campaign's **lore entries** — browse with
+   `list-lore`, read with `get-lore`; never show the player entries with
+   visibility `gm`.
 5. Recap the situation to the player in 2-4 sentences, then play.
+
+## Rules Graph (faceted, load-on-demand)
+
+The universal Mythras rules are sliced into ~39 small pieces under
+`rules/<domain>/<slug>.md`, ingested into TypeDB by `load-rules` (run
+automatically on session start; idempotent). Each piece is tagged with facets
+so you can fetch exactly what a situation needs instead of loading whole files.
+
+**Facet dimensions (controlled vocabulary):**
+
+| Dim | Example values |
+|---|---|
+| `phase` | chargen, skill-check, opposed, combat-round, attack, defense, damage, wound, recovery, casting, movement, hazard, downtime |
+| `action` | attack, parry, evade, charge, cast, move, outmaneuver, aim, use-luck, ... |
+| `effect` | impale, bleed, bash, trip, stun-location, sunder, disarm, ... |
+| `weapon` | melee, ranged, thrown, impaling, cutting, bludgeoning, two-handed, shield, natural, size-s/m/l |
+| `trigger` | attacker-critical, defender-critical, opponent-fumble, differential |
+| `body` | head, chest, abdomen, arm, leg, wing, avian |
+| `severity` | minor, serious, major, blood-loss |
+| `condition` | prone, flying, falling, charging, knockback, surprised, darkness, fatigued, turbulence, dead-air, ... |
+| `magic-system` | magic, superpowers, windworking |
+| `stat` | STR, CON, ..., action-points, damage-modifier, hit-points, ... |
+| `kind` | procedure, table, modifier, special-effect, condition, reference-list, formula |
+
+Compose the live situation into facets, e.g. an impaling wingspear into a
+flying foe's wing:
+`query-rules --facet effect=impale --facet condition=flying --facet body=avian --linked`
+returns the impale piece, the avian hit-location/aerial pieces, and (via
+`--linked`) wound-levels. Editing a `rules/*.md` file then re-running
+`load-rules` rebuilds the graph.
 
 ## GM Operating Rules
 
@@ -138,7 +175,9 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 `resolve-attack` handles the whole differential roll: attack vs parry/evade,
 special-effect count, damage + damage modifier, hit location, parry size
 reduction, armor, wound level, and AP spend. **You** choose and narrate the
-special effects (list in `rules/combat.md`) — apply their mechanical
+special effects (fetch them on demand with
+`query-rules --facet phase=attack --facet trigger=differential` or
+`get-rule --id combat/special-effects --linked`) — apply their mechanical
 consequences with follow-up CLI calls (e.g. Trip → opposed roll; Bleed →
 fatigue tracking via `update-character --fatigue`).
 
@@ -214,10 +253,9 @@ rebuilt). The round trip is lossless.
 | `mythras_gm.py` | CLI: persistence + resolution (JSON out) |
 | `mythras_engine.py` | Pure rules engine (importable, no I/O) |
 | `campaign_io.py` | Campaign publishing: export/import file trees |
-| `rules/core-mechanics.md` | Skill system, attributes, fatigue, healing, experience |
-| `rules/combat.md` | Combat procedure, special effects, weapons, falling |
-| `rules/magic.md` | SRD Magic & Superpowers frameworks (setting-agnostic) |
-| `schema.tql` | TypeDB myth- namespace |
+| `rules/<domain>/*.md` | The faceted rules graph (~39 pieces); ingested by `load-rules`, queried via `list-rules`/`query-rules`/`get-rule` |
+| `rules/{core-mechanics,combat,magic}.md` | Legacy monolithic references (human-readable source the pieces were distilled from) |
+| `schema.tql` | TypeDB myth- namespace (incl. myth-rule graph) |
 
 Campaign settings are published as separate repos (e.g.
 [veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign))
