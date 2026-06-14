@@ -89,8 +89,8 @@ mythras-gm stores all game state in TypeDB. The `alhazen-core` plugin
 handles TypeDB startup and provides the base schema that mythras-gm extends.
 
 ```
-/plugin marketplace add sciknow-io/alhazen-skill-examples
-/plugin install alhazen-core@alhazen-skills
+/plugin marketplace add sciknow-io/skillful-alhazen
+/plugin install alhazen-core@skillful-alhazen
 /alhazen-core:init
 ```
 
@@ -147,7 +147,7 @@ can load it with `import-campaign --path <clone> --new-ids`.
 
 For use without Claude Code. Prereqs: Python 3.11+, `typedb-driver>=3.8.0`,
 a running TypeDB 3.x server with the
-[alhazen-core](https://github.com/sciknow-io/alhazen-skill-examples/tree/main/skills/core/alhazen-core)
+[alhazen-core](https://github.com/sciknow-io/skillful-alhazen/tree/main/skills/alhazen-core)
 base schema loaded.
 
 ```bash
