@@ -16,7 +16,7 @@ Characters:
         [--species avian|humanoid|winged-quadruped] [--stats JSON] [--roll]
         [--skills JSON] [--combat-styles JSON] [--equipment JSON]
         [--passions JSON] [--armor JSON] [--description D] [--narrative TEXT]
-    get-character --id ID
+    get-character --id ID [--compact]
     list-characters --campaign ID [--type pc|npc]
     update-character --id ID [--skills JSON] [--equipment JSON] [--passions JSON]
         [--fatigue LEVEL] [--luck N] [--status S]
@@ -53,8 +53,8 @@ World:
 Journal:
     log-event --campaign ID --type T --summary TEXT [--narrative TEXT]
         [--session N] [--involves ID,ID,...]
-    get-log --campaign ID [--session N] [--type T]
-    get-context --campaign ID        # everything needed to resume play
+    get-log --campaign ID [--session N] [--type T] [--limit N]
+    get-context --campaign ID [--compact]   # everything needed to resume play
 
 Publishing:
     export-campaign --campaign ID --output DIR   # DB -> publishable file tree
@@ -200,6 +200,39 @@ def _load_character(driver, char_id):
     return c
 
 
+# Attribute keys worth keeping on a combat card (derived stats the GM needs
+# mid-fight). Everything else in myth-attributes-json is omitted.
+_CARD_ATTR_KEYS = ["action_points", "damage_modifier", "initiative_bonus",
+                   "initiative", "movement", "healing_rate"]
+
+
+def _combat_card(c):
+    """Compact projection of a character for in-play context.
+
+    Keeps live combat STATE (hit locations w/ current HP, fatigue, luck, AP,
+    damage modifier, combat styles, passions, characteristics) and drops the
+    bulky reference data (full skills dict, equipment, spells, extras, prose).
+    roll-skill/resolve-attack look skills up from the DB on demand, so the GM
+    does not need the skill list in context to adjudicate.
+    """
+    attrs = c.get("myth-attributes-json") or {}
+    card = {
+        "id": c.get("id"),
+        "name": c.get("name"),
+        "type": c.get("myth-char-type"),
+        "status": c.get("myth-status"),
+        "characteristics": c.get("myth-characteristics-json") or {},
+        "attributes": {k: attrs[k] for k in _CARD_ATTR_KEYS if k in attrs},
+        "fatigue": c.get("myth-fatigue"),
+        "luck_current": c.get("myth-luck-current"),
+        "magic_current": c.get("myth-magic-current"),
+        "hit_locations": c.get("myth-hit-locations-json") or [],
+        "combat_styles": c.get("myth-combat-styles-json") or {},
+        "passions": c.get("myth-passions-json") or {},
+    }
+    return card
+
+
 # ---------------------------------------------------------------------------
 # Campaign commands
 # ---------------------------------------------------------------------------
@@ -306,6 +339,8 @@ def cmd_create_character(args):
 def cmd_get_character(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
+    if getattr(args, "compact", False):
+        c = _combat_card(c)
     out({"success": True, "character": c})
 
 
@@ -1048,6 +1083,9 @@ def cmd_get_log(args):
     events = sorted(rows, key=lambda r: str(r["at"]))
     if args.type:
         events = [e for e in events if e["type"] == args.type]
+    limit = getattr(args, "limit", None)
+    if limit and limit > 0:
+        events = events[-limit:]
     out({"success": True, "events": events})
 
 
@@ -1155,6 +1193,238 @@ def cmd_update_lore(args):
     out({"success": True, "id": args.id})
 
 
+# ---------------------------------------------------------------------------
+# Rules graph (global, faceted, queryable -- mirrors the lore pattern)
+# ---------------------------------------------------------------------------
+
+RULES_DIR = os.path.join(_SKILL_DIR, "rules")
+RULE_ATTRS = ["description", "content", "myth-rule-category", "myth-rule-kind",
+              "myth-rule-domain", "myth-rule-topic"]
+
+
+def _get_or_create_facet(driver, dim, value):
+    """Return the id of the myth-rule-facet for (dim, value); create if absent."""
+    rows = _fetch(driver, f'''
+        match $f isa myth-rule-facet, has name "{escape_string(value)}",
+              has myth-facet-dim "{escape_string(dim)}";
+        fetch {{ "id": $f.id }};''')
+    if rows:
+        return rows[0]["id"]
+    fid = generate_id("myth-facet")
+    _write(driver, f'''insert $f isa myth-rule-facet,
+        has id "{fid}", has name "{escape_string(value)}",
+        has myth-facet-dim "{escape_string(dim)}";''')
+    return fid
+
+
+def _rule_facets(driver, rule_id):
+    """All (dim, value) facets tagged on a rule."""
+    return _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-tagged, links (rule: $r, facet: $f);
+          $f has myth-facet-dim $d, has name $v;
+        fetch {{ "dim": $d, "value": $v }};''')
+
+
+def _rule_links(driver, rule_id):
+    """One hop of linked rules in both directions (id + title)."""
+    fwd = _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-link, links (rule: $r, linked: $o);
+          $o has id $i, has name $n;
+        fetch {{ "id": $i, "title": $n }};''')
+    rev = _fetch(driver, f'''
+        match
+          $r isa myth-rule, has id "{escape_string(rule_id)}";
+          $rel isa myth-rule-link, links (rule: $o, linked: $r);
+          $o has id $i, has name $n;
+        fetch {{ "id": $i, "title": $n }};''')
+    seen, out_links = set(), []
+    for r in fwd + rev:
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            out_links.append(r)
+    return out_links
+
+
+def cmd_load_rules(args):
+    """Walk rules/<domain>/*.md (frontmatter + body), (re)build the rules graph.
+
+    Idempotent: clears all myth-rule / facets / tag / link relations, then
+    reloads from disk. Rules are GLOBAL (no campaign membership).
+    """
+    import campaign_io
+    rules_dir = args.dir or RULES_DIR
+    if not os.path.isdir(rules_dir):
+        fail(f"No rules directory: {rules_dir}")
+
+    # Gather every markdown file that carries a frontmatter `id`.
+    pieces = []
+    for root, _dirs, files in os.walk(rules_dir):
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            meta, body = campaign_io._parse_md(os.path.join(root, fn))
+            if not meta.get("id"):
+                continue
+            meta["content"] = body
+            pieces.append(meta)
+
+    if not pieces:
+        fail(f"No rule files with frontmatter `id` under {rules_dir}")
+
+    with get_driver() as driver:
+        # Clear the existing graph (data matches with bound vars -- safe).
+        for rel in ("myth-rule-tagged", "myth-rule-link"):
+            _write(driver, f"match $x isa {rel}; delete $x;")
+        for ent in ("myth-rule", "myth-rule-facet"):
+            _write(driver, f"match $x isa {ent}; delete $x;")
+
+        ts = get_timestamp()
+        for p in pieces:
+            rid = p["id"]
+            q = f'''insert $r isa myth-rule,
+                has id "{escape_string(rid)}",
+                has name "{escape_string(p.get("title", rid))}",
+                has myth-rule-category "{escape_string(p.get("category", p.get("domain", "core")))}",
+                has myth-rule-kind "{escape_string(p.get("kind", "reference"))}",
+                has myth-rule-domain "{escape_string(p.get("domain", p.get("category", "core")))}",
+                has myth-rule-topic "{escape_string(p.get("topic", ""))}",
+                has created-at {ts}'''
+            if p.get("summary"):
+                q += f', has description "{escape_string(p["summary"])}"'
+            if p.get("content"):
+                q += f', has content "{escape_string(p["content"])}"'
+            q += ";"
+            _write(driver, q)
+
+            for dim, values in (p.get("facets") or {}).items():
+                for value in (values if isinstance(values, list) else [values]):
+                    fid = _get_or_create_facet(driver, dim, str(value))
+                    _write(driver, f'''
+                        match
+                          $r isa myth-rule, has id "{escape_string(rid)}";
+                          $f isa myth-rule-facet, has id "{escape_string(fid)}";
+                        insert (rule: $r, facet: $f) isa myth-rule-tagged;''')
+
+        # Links in a second pass, once every rule exists.
+        link_count = 0
+        for p in pieces:
+            rid = p["id"]
+            for target in (p.get("links") or []):
+                if _fetch(driver, f'''
+                        match $t isa myth-rule, has id "{escape_string(target)}";
+                        fetch {{ "id": $t.id }};'''):
+                    _write(driver, f'''
+                        match
+                          $r isa myth-rule, has id "{escape_string(rid)}";
+                          $t isa myth-rule, has id "{escape_string(target)}";
+                        insert (rule: $r, linked: $t) isa myth-rule-link;''')
+                    link_count += 1
+
+    out({"success": True, "rules_loaded": len(pieces), "links_loaded": link_count})
+
+
+def cmd_list_rules(args):
+    """The facet index -- a TOC by situation. Tiny; load once at session start."""
+    with get_driver() as driver:
+        rows = _fetch(driver, '''
+            match $r isa myth-rule, has id $i, has name $n,
+                  has myth-rule-category $c, has myth-rule-domain $dm,
+                  has myth-rule-topic $tp, has myth-rule-kind $k;
+            fetch { "id": $i, "title": $n, "category": $c,
+                    "domain": $dm, "topic": $tp, "kind": $k };''')
+        for r in rows:
+            facets = {}
+            for f in _rule_facets(driver, r["id"]):
+                facets.setdefault(f["dim"], []).append(f["value"])
+            r["facets"] = facets
+    if args.category:
+        rows = [r for r in rows if r["category"] == args.category]
+    if args.dim and args.value:
+        rows = [r for r in rows
+                if args.value in (r["facets"].get(args.dim) or [])]
+    out({"success": True, "count": len(rows),
+         "rules": sorted(rows, key=lambda r: (r["domain"], r["topic"], r["title"]))})
+
+
+def cmd_get_rule(args):
+    """One rule piece in full; with --linked, append its linked neighbours."""
+    with get_driver() as driver:
+        r = _get_entity(driver, "myth-rule", args.id, RULE_ATTRS)
+        if not r:
+            fail(f"No rule '{args.id}'")
+        facets = {}
+        for f in _rule_facets(driver, args.id):
+            facets.setdefault(f["dim"], []).append(f["value"])
+        r["facets"] = facets
+        if args.linked:
+            neighbours = []
+            for nb in _rule_links(driver, args.id):
+                full = _get_entity(driver, "myth-rule", nb["id"], RULE_ATTRS)
+                if full:
+                    neighbours.append(full)
+            r["linked"] = neighbours
+    out({"success": True, "rule": r})
+
+
+def cmd_query_rules(args):
+    """Live faceted fetch: pass --facet dim=value (repeatable). Rules matching
+    more of the situation's facets rank first; --linked adds one link hop."""
+    wanted = []
+    for spec in (args.facet or []):
+        if "=" not in spec:
+            fail(f"Bad --facet '{spec}' (expected dim=value)")
+        dim, _, value = spec.partition("=")
+        wanted.append((dim.strip(), value.strip()))
+    if not wanted:
+        fail("Provide at least one --facet dim=value")
+
+    with get_driver() as driver:
+        scores = {}
+        for dim, value in wanted:
+            for row in _fetch(driver, f'''
+                    match
+                      $f isa myth-rule-facet, has name "{escape_string(value)}",
+                          has myth-facet-dim "{escape_string(dim)}";
+                      $rel isa myth-rule-tagged, links (rule: $r, facet: $f);
+                      $r has id $i;
+                    fetch {{ "id": $i }};'''):
+                scores[row["id"]] = scores.get(row["id"], 0) + 1
+
+        ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if args.limit and args.limit > 0:
+            ranked = ranked[:args.limit]
+
+        results = []
+        seen = set(rid for rid, _ in ranked)
+        for rid, score in ranked:
+            full = _get_entity(driver, "myth-rule", rid, RULE_ATTRS)
+            if not full:
+                continue
+            full["match_score"] = score
+            facets = {}
+            for f in _rule_facets(driver, rid):
+                facets.setdefault(f["dim"], []).append(f["value"])
+            full["facets"] = facets
+            results.append(full)
+
+        linked = []
+        if args.linked:
+            for rid, _ in ranked:
+                for nb in _rule_links(driver, rid):
+                    if nb["id"] not in seen:
+                        seen.add(nb["id"])
+                        full = _get_entity(driver, "myth-rule", nb["id"], RULE_ATTRS)
+                        if full:
+                            linked.append(full)
+
+    out({"success": True, "facets": [f"{d}={v}" for d, v in wanted],
+         "count": len(results), "rules": results, "linked": linked})
+
+
 def cmd_get_context(args):
     """Everything needed to resume a campaign: campaign state, PCs (full sheets),
     NPCs (names), locations, factions, active encounters, recent events."""
@@ -1180,8 +1450,12 @@ def cmd_get_context(args):
               $c isa myth-character, has id $i, has name $n,
                  has myth-char-type $t, has myth-status $s;
             fetch {{ "id": $i, "name": $n, "type": $t, "status": $s }};''')
-        pcs = [_load_character(driver, r["id"]) for r in chars
-               if r["type"] == "pc" and r["status"] == "active"]
+        compact = getattr(args, "compact", False)
+        active_pcs = [r for r in chars if r["type"] == "pc" and r["status"] == "active"]
+        if compact:
+            pcs = [_combat_card(_load_character(driver, r["id"])) for r in active_pcs]
+        else:
+            pcs = [_load_character(driver, r["id"]) for r in active_pcs]
         npcs = [r for r in chars if r["type"] != "pc"]
 
         encounters = _fetch(driver, f'''
@@ -1198,22 +1472,26 @@ def cmd_get_context(args):
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
-        recent = sorted(events, key=lambda r: str(r["at"]))[-15:]
-
-        lore = _fetch(driver, f'''
-            match
-              $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
-              (campaign: $camp, element: $l) isa myth-campaign-membership;
-              $l isa myth-lore, has id $i, has name $n,
-                 has myth-lore-category $c, has myth-lore-visibility $v;
-            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+        recent_n = 5 if compact else 15
+        recent = sorted(events, key=lambda r: str(r["at"]))[-recent_n:]
 
         result = {"success": True, "campaign": camp, "player_characters": pcs,
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
-                  "lore_index": sorted(lore, key=lambda r: (r["category"], r["title"])),
                   "recent_events": recent}
+
+        # The lore index is a big static block. In compact mode skip it
+        # entirely (use list-lore on demand); only emit it for full context.
+        if not compact:
+            lore = _fetch(driver, f'''
+                match
+                  $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+                  (campaign: $camp, element: $l) isa myth-campaign-membership;
+                  $l isa myth-lore, has id $i, has name $n,
+                     has myth-lore-category $c, has myth-lore-visibility $v;
+                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+            result["lore_index"] = sorted(lore, key=lambda r: (r["category"], r["title"]))
 
     out(result)
 
@@ -1274,6 +1552,9 @@ def build_parser():
 
     s = sub.add_parser("get-character")
     s.add_argument("--id", required=True)
+    s.add_argument("--compact", action="store_true",
+                   help="Combat-card projection (state only; omits skills, "
+                        "equipment, spells, prose)")
 
     s = sub.add_parser("import-characters",
                        help="Import characters from a Mythras-family JSON sheet file")
@@ -1445,13 +1726,43 @@ def build_parser():
     s.add_argument("--summary")
     s.add_argument("--visibility", choices=["player", "gm"])
 
+    # --- Rules graph (global, faceted) ---
+    s = sub.add_parser("load-rules",
+                       help="(Re)build the global rules graph from rules/<domain>/*.md")
+    s.add_argument("--dir", help="rules directory (default: skill's rules/)")
+
+    s = sub.add_parser("list-rules",
+                       help="Facet index of all rule pieces (the situational TOC)")
+    s.add_argument("--category")
+    s.add_argument("--dim", help="filter by facet dimension (with --value)")
+    s.add_argument("--value", help="filter by facet value (with --dim)")
+
+    s = sub.add_parser("get-rule", help="Full text of one rule piece")
+    s.add_argument("--id", required=True)
+    s.add_argument("--linked", action="store_true",
+                   help="also return one hop of linked rule pieces")
+
+    s = sub.add_parser("query-rules",
+                       help="Live faceted fetch: --facet dim=value (repeatable)")
+    s.add_argument("--facet", action="append",
+                   help="dim=value; repeat to AND/rank across facets")
+    s.add_argument("--linked", action="store_true",
+                   help="append one hop of myth-rule-link neighbours")
+    s.add_argument("--limit", type=int, default=0,
+                   help="cap the number of ranked rules returned (0 = all)")
+
     s = sub.add_parser("get-log")
     s.add_argument("--campaign", required=True)
     s.add_argument("--session", type=int)
     s.add_argument("--type")
+    s.add_argument("--limit", type=int, default=15,
+                   help="Return only the last N events (default 15; 0 = all)")
 
     s = sub.add_parser("get-context")
     s.add_argument("--campaign", required=True)
+    s.add_argument("--compact", action="store_true",
+                   help="Combat cards instead of full PC sheets, drop lore "
+                        "index, last 5 events. ~13k -> ~1.5k tokens.")
 
     s = sub.add_parser("export-campaign",
                        help="Export a campaign to a publishable file tree")
