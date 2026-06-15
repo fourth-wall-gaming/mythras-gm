@@ -1329,21 +1329,29 @@ def cmd_load_rules(args):
 
 
 def cmd_list_rules(args):
-    """The facet index -- a TOC by situation. Tiny; load once at session start."""
+    """Lean rule index -- a TOC by domain/topic. Cheap; load once for orientation.
+
+    By default each entry is just id/title/domain/topic/kind (no facets), so the
+    whole 100+-piece index stays small (~1k tokens). Pass --facets to include
+    each piece's facet tags (heavier), or --dim/--value to filter by a facet.
+    """
+    want_facets = args.facets or (args.dim and args.value)
     with get_driver() as driver:
         rows = _fetch(driver, '''
             match $r isa myth-rule, has id $i, has name $n,
-                  has myth-rule-category $c, has myth-rule-domain $dm,
+                  has myth-rule-domain $dm,
                   has myth-rule-topic $tp, has myth-rule-kind $k;
-            fetch { "id": $i, "title": $n, "category": $c,
+            fetch { "id": $i, "title": $n,
                     "domain": $dm, "topic": $tp, "kind": $k };''')
-        for r in rows:
-            facets = {}
-            for f in _rule_facets(driver, r["id"]):
-                facets.setdefault(f["dim"], []).append(f["value"])
-            r["facets"] = facets
-    if args.category:
-        rows = [r for r in rows if r["category"] == args.category]
+        # category == domain by construction, so it isn't emitted; filter on domain.
+        if args.category:
+            rows = [r for r in rows if r["domain"] == args.category]
+        if want_facets:
+            for r in rows:
+                facets = {}
+                for f in _rule_facets(driver, r["id"]):
+                    facets.setdefault(f["dim"], []).append(f["value"])
+                r["facets"] = facets
     if args.dim and args.value:
         rows = [r for r in rows
                 if args.value in (r["facets"].get(args.dim) or [])]
@@ -1735,8 +1743,10 @@ def build_parser():
     s.add_argument("--dir", help="rules directory (default: skill's rules/)")
 
     s = sub.add_parser("list-rules",
-                       help="Facet index of all rule pieces (the situational TOC)")
+                       help="Lean rule index (id/title/domain/topic); the orientation TOC")
     s.add_argument("--category")
+    s.add_argument("--facets", action="store_true",
+                   help="include each piece's facet tags (heavier output)")
     s.add_argument("--dim", help="filter by facet dimension (with --value)")
     s.add_argument("--value", help="filter by facet value (with --dim)")
 

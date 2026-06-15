@@ -25,7 +25,8 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 3. **Do not preload the rules.** The CLI resolves every roll deterministically,
    so the rules prose is rarely needed. When a beat needs a rule the engine
    doesn't fully encode, fetch only the relevant pieces from the rules graph:
-   - `list-rules` — the tiny facet index (a situational table of contents).
+   - `list-rules` — the lean index (id/title/domain/topic/kind) for orientation;
+     add `--facets` for the tag lists (heavier) or `--category <domain>` to narrow.
    - `query-rules --facet dim=value [--facet ...] [--linked]` — the live fetch,
      ranked by how many of the situation's facets a rule matches.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
@@ -37,10 +38,12 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 
 ## Rules Graph (faceted, load-on-demand)
 
-The universal Mythras rules are sliced into ~39 small pieces under
-`rules/<domain>/<slug>.md`, ingested into TypeDB by `load-rules` (run
-automatically on session start; idempotent). Each piece is tagged with facets
-so you can fetch exactly what a situation needs instead of loading whole files.
+The universal Mythras rules are sliced into ~100 small pieces under
+`rules/<domain>/<slug>.md` (full SRD coverage: character, skill, system,
+combat, magic incl. per-spell/per-power, vehicle, creature), ingested into
+TypeDB by `load-rules` (run automatically on session start; idempotent). Each
+piece is tagged with facets so you can fetch exactly what a situation needs
+instead of loading whole files.
 
 **Facet dimensions (controlled vocabulary):**
 
@@ -253,7 +256,7 @@ rebuilt). The round trip is lossless.
 | `mythras_gm.py` | CLI: persistence + resolution (JSON out) |
 | `mythras_engine.py` | Pure rules engine (importable, no I/O) |
 | `campaign_io.py` | Campaign publishing: export/import file trees |
-| `rules/<domain>/*.md` | The faceted rules graph (~39 pieces); ingested by `load-rules`, queried via `list-rules`/`query-rules`/`get-rule` |
+| `rules/<domain>/*.md` | The faceted rules graph (~100 pieces, full SRD); ingested by `load-rules`, queried via `list-rules`/`query-rules`/`get-rule` |
 | `rules/{core-mechanics,combat,magic}.md` | Legacy monolithic references (human-readable source the pieces were distilled from) |
 | `schema.tql` | TypeDB myth- namespace (incl. myth-rule graph) |
 
