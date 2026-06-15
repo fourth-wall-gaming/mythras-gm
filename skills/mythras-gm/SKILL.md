@@ -48,8 +48,10 @@ Every token you load is re-sent on every turn. Load the minimum:
   reads the value from the DB, so you do not need the skills dict in context.
 - **Rules on demand via the graph.** Compose the current situation into facets
   and fetch just those pieces:
-  - `list-rules` -- the tiny facet index (situational table of contents); skim
-    it once if you need orientation.
+  - `list-rules` -- the lean index (id/title/domain/topic/kind) for orientation;
+    skim once if needed. Prefer `query-rules` over loading this; add `--facets`
+    only if you actually need the tag lists (heavier), or `--category <domain>`
+    to narrow it.
   - `query-rules --facet dim=value [--facet ...] [--linked]` -- the live fetch.
     Dims: `phase action effect weapon trigger body severity condition
     magic-system stat kind`. A rule matching more facets ranks first; `--linked`
