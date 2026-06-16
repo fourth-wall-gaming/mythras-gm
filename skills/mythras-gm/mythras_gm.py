@@ -655,12 +655,17 @@ def _skill_value(char, skill_name):
 def cmd_roll_skill(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
-    skill = _skill_value(c, args.skill)
+    base = _skill_value(c, args.skill)
+    skill = base
+    aug = None
     if args.augment:
         passion = _skill_value(c, args.augment)
-        skill += passion // 5  # +20% of passion value
+        aug_bonus = passion // 5  # +20% of passion value
+        skill += aug_bonus
+        aug = {"passion": args.augment, "passion_value": passion, "bonus": aug_bonus}
     result = eng.skill_check(skill, args.difficulty)
-    out({"success": True, "character": c["name"], "skill_name": args.skill, **result})
+    out({"success": True, "character": c["name"], "skill_name": args.skill,
+         "base_skill": base, "augment": aug, **result})
 
 
 def cmd_roll_opposed(args):
