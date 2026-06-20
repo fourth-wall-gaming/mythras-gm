@@ -181,6 +181,8 @@ entity myth-game-event sub alh-note,
 # free-form category (cosmology, species, culture, magic-system, careers,
 # history, religion, economy, bestiary, house-rules, ...) and a visibility
 # flag so GM-only material can live alongside player-facing canon.
+attribute myth-lore-category, value string;     # cosmology | species | culture | ...
+attribute myth-lore-visibility, value string;   # gm-only | player-facing
 entity myth-lore sub alh-note,
     owns myth-lore-category,
     owns myth-lore-visibility,
