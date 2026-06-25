@@ -217,6 +217,244 @@ Walk the player through it conversationally, then persist once:
    Non-weapon gear may stay as plain strings.
 5. `create-character --campaign <id> --name ... --narrative "<backstory>"`.
 
+## Running a Classic Fantasy Imperative Campaign
+
+Classic Fantasy Imperative (CFI) is a second rule system supported alongside
+the standard Mythras Imperative rules. CFI adds four classes (Cleric, Fighter,
+Magic-User, Rogue), a 0–5 rank progression, a two-axis Alignment system, class
+Oaths, arcane and divine magic disciplines, and a large spell library. The CLI
+plumbing is complete; this section covers the GM-facing workflow.
+
+### System Setup (one-time per campaign)
+
+1. Create the campaign with the CFI system flag:
+   ```bash
+   create-campaign --name "Dungeon of the Iron God" --system classic-fantasy
+   ```
+2. Load the CFI rules graph (idempotent; safe to re-run):
+   ```bash
+   load-rules --system classic-fantasy --dir rules-cfi
+   ```
+   This ingests the 348 CFI pieces (classes, spells, magic procedures,
+   character creation steps, alignment, oaths, racial tables, etc.) tagged
+   with `system: classic-fantasy` so they never pollute standard Mythras
+   queries.
+3. During play, query CFI rules with `--system classic-fantasy`:
+   ```bash
+   query-rules --system classic-fantasy --facet kind=class
+   list-rules   --system classic-fantasy --category magic
+   get-rule     --id cfi/class/cleric
+   ```
+
+### CFI Character Creation
+
+Walk the player through all eight steps conversationally, then persist once.
+When in doubt about a specific number (racial modifier, spell count, Rank
+threshold), query the rules graph rather than stating values from memory.
+
+**Step 1 — Concept and race.** Agree on race (Human, Dwarf, Elf, Gnome,
+Half-Elf, Half-Orc, or Halfling) and class (Cleric, Fighter, Magic-User,
+Rogue). Humans additionally choose a Culture (Barbarian, Civilized, or
+Nomadic). For the full racial dice ranges and averages:
+```bash
+get-rule --id cfi/character/racial-characteristics-table
+```
+
+**Step 2 — Characteristics.** Use `--roll` for random generation or `--stats`
+to pass a pre-built set. Human characteristics are straight 3d6 except SIZ
+(2d6+6) and INT (2d6+6). Racial mods are applied by the GM during the
+conversational build; only the final values go into `--stats`.
+
+**Step 3 — Attributes.** Derived automatically from characteristics (action
+points, damage modifier, initiative bonus, hit points per location, magic
+points, movement, luck points). Humans gain +1 Luck Point. For the full
+derivation formulae:
+```bash
+get-rule --id cfi/character/damage-modifier
+get-rule --id cfi/character/luck-points
+```
+
+**Step 4–6 — Skills (race + class + bonus points).** CFI skill allocation is
+three pools applied in sequence:
+
+| Pool | Points | Source |
+|------|--------|--------|
+| Race/Culture | 100 | racial Standard + Professional bonuses |
+| Class | 100 | class Standard + Professional bonuses (max 3 Professional skills) |
+| Bonus | 100 | player's free allocation (max +10 per skill at Rank 1) |
+
+Add all three pools to the characteristic-derived base values, then pass the
+final totals in `--skills`. For the class skill lists:
+```bash
+get-rule --id cfi/class/cleric      # or fighter / magic-user / rogue
+query-rules --system classic-fantasy --facet kind=class
+```
+
+**Step 7 — Rank.** A new character starts at Rank 0 unless they already meet
+the Rank 1 threshold (any 5 class skills at 40%+). Most starting characters
+qualify for Rank 1 after applying all three skill pools. Rank determines class
+Abilities, HP/Luck/Action Point bonuses, and (for casters) spells in memory.
+For the full threshold table:
+```bash
+get-rule --id cfi/class/rank-structure
+```
+
+**Step 8 — Alignment, Oath, and Passions.** Each character has two Alignment
+codes (Ethical: Lawful/Neutral/Chaotic; Moral: Good/Neutral/Evil), each
+starting at INT + POW + 30. Clerics must additionally take a Clerical Oath
+(30% + INT + POW) sworn to their religious order. Store both Alignment codes
+and the Oath as passions in `--passions`:
+```json
+{
+  "Lawful (Honorable, Disciplined)": 55,
+  "Good (Charitable, Merciful)": 55,
+  "Oath to the Order of the Golden Sun": 62
+}
+```
+For Alignment rules and Oath mechanics:
+```bash
+get-rule --id cfi/alignment/alignment-system
+get-rule --id cfi/alignment/oaths
+```
+
+**Persisting class metadata (extras-json).** The `create-character` command
+builds the mechanical sheet (characteristics, derived attributes, skills,
+equipment, combat styles). Class, rank, and alignment are CFI-specific
+metadata that ride in the character's `extras-json` bag. Pass them via a
+complete character JSON sheet with `import-characters`, where any key not
+consumed by the standard schema lands in `extras` automatically:
+
+```json
+{
+  "name": "Sister Aelindra",
+  "stats": {"STR": 11, "CON": 12, "SIZ": 10, "DEX": 11, "INT": 13, "POW": 12, "CHA": 14},
+  "class": "cleric",
+  "rank": 1,
+  "rank_title": "Initiate",
+  "alignment_ethical": "Lawful",
+  "alignment_moral": "Good",
+  "skills": {
+    "Combat Skill (Cleric)": 46,
+    "First Aid": 42,
+    "Influence": 48,
+    "Insight": 44,
+    "Locale": 43,
+    "Sing": 41,
+    "Willpower": 47,
+    "Channel": 45,
+    "Devotion (Order of the Golden Sun)": 45,
+    "Lore (Religion)": 42,
+    "Healing": 40,
+    "Oratory": 43
+  },
+  "passions": {
+    "Lawful (Honorable, Disciplined)": 55,
+    "Good (Charitable, Merciful)": 55,
+    "Oath to the Order of the Golden Sun": 55
+  },
+  "combat_styles": [
+    {"name": "Cleric (mace and shield)", "value": 46,
+     "weapons": [
+       {"name": "Mace", "damage": "1d8", "size": "M"},
+       {"name": "Medium shield", "damage": "1d4", "size": "L"}
+     ]}
+  ],
+  "equipment": ["chainmail", "holy symbol", "rations (3 days)"],
+  "hit_locations": [
+    {"name": "Right Leg",  "range": "01-03", "ap": 5, "hp": 5},
+    {"name": "Left Leg",   "range": "04-06", "ap": 5, "hp": 5},
+    {"name": "Abdomen",    "range": "07-09", "ap": 5, "hp": 6},
+    {"name": "Chest",      "range": "10-12", "ap": 5, "hp": 7},
+    {"name": "Right Arm",  "range": "13-15", "ap": 5, "hp": 4},
+    {"name": "Left Arm",   "range": "16-18", "ap": 5, "hp": 4},
+    {"name": "Head",       "range": "19-20", "ap": 5, "hp": 5}
+  ],
+  "notes": "Human (Civilized) Cleric, Rank 1 Initiate, Order of the Golden Sun"
+}
+```
+
+```bash
+import-characters --file sister-aelindra.json --campaign <id>
+```
+
+The keys `class`, `rank`, `rank_title`, `alignment_ethical`, and
+`alignment_moral` are not part of the consumed schema so they land verbatim in
+`myth-extras-json` and are visible on `get-character --id <id>`.
+
+After import, record a Rank 1 Ability chosen at creation (e.g. Powerful
+Concentration) as an `add-lore` entry or in the character's narrative so it
+isn't lost between sessions.
+
+### CFI Magic
+
+**Two disciplines, same core engine.** Arcane and Divine both use Magic Points
+and the standard casting rules (time, cost, opposed resistance). They differ in
+how spells are learned and accessed. For the full casting procedures:
+```bash
+query-rules --system classic-fantasy --facet magic-system=arcane
+query-rules --system classic-fantasy --facet magic-system=divine
+```
+
+**Arcane (Magic-Users).** Spells live in a personal spell book. The caster
+uses Arcane Casting as their casting skill. Arcane casters CANNOT cast in
+armor. At character creation they know a handful of spells (exact count from
+their INT and Arcane Knowledge — see the Magic-User class write-up); on each
+new Rank they gain 3 additional spells for free. Extra spells require research
+(EXP rolls + study time) or copying from scrolls/books via Read Magic.
+```bash
+get-rule --id cfi/magic/learning-arcane-spells
+```
+
+**Divine (Clerics).** Spells are granted through prayer. Clerics know ALL
+spells of their current Rank or lower automatically upon reaching that Rank —
+no research, EXP rolls, or spell book. They cast via their Channel skill (and
+Devotion for sustained effects). Armor does NOT hinder divine casting.
+```bash
+get-rule --id cfi/magic/learning-divine-spells
+```
+
+**Spells in memory.** Both disciplines require memorization before casting.
+After 8 hours rest, the caster spends 15 minutes per spell (study for Arcane,
+prayer for Divine) up to their Rank's memory limit. The limit is specified in
+each class's Rank Table (formula: INT/4 round down, plus a per-rank cumulative
+bonus). Casting does NOT expunge a spell from memory; it can be recast as long
+as MP remain.
+```bash
+get-rule --id cfi/magic/memorizing-spells
+```
+
+**Recording known spells.** Use `spells-json` with `arcane` and `divine` as
+the discipline keys. Include known spells in the character JSON sheet passed
+to `import-characters`:
+
+```json
+{
+  "name": "Sister Aelindra",
+  ...
+  "theism_spells": ["Avert", "Might", "Calm",
+                    "Bless", "Cure Minor Wounds", "Remove Fear"]
+}
+```
+
+For arcane casters use `"sorcery_spells"` in the import sheet. After import,
+the values appear on `get-character` as `theism_spells` / `sorcery_spells`,
+stored in `myth-spells-json` under `divine` / `arcane` keys respectively.
+
+**Looking up a spell in play.** Fetch one spell by ID or query by facet — do
+not load the full list into context:
+```bash
+get-rule --id cfi/spell/cure-minor-wounds
+get-rule --id cfi/spell/magic-missile
+query-rules --system classic-fantasy --facet kind=spell --facet magic-system=divine
+```
+
+**Turn Undead (Cleric).** Opposed test: Channel vs. highest Willpower undead
+in area. Usable once per Short Rest at Rank 1. Use `roll-opposed` for the
+resolution, then narrate the result according to the turning outcome table:
+```bash
+get-rule --id cfi/class/cleric --linked
+```
+
 ## Worldbuilding During Play
 
 New places, factions, and recurring NPCs the fiction generates should be
