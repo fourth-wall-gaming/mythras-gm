@@ -40,4 +40,5 @@ Each attack on a confused creature allows it another Resistance roll. Large (SIZ
 | 2 | 4 | 2 min. | 2d4 | 2d3+2 |
 | 3 | 5 | 3 min. | 3d4 | 3d3+3 |
 | 4 | 6 | 4 min. | 4d4 (max) | 4d3+4 |
+| 5 | 7 | 5 min. | - | 5d3+5 |
 | +1 | +1 | +1 min. | - | +1d3+1 (no max) |

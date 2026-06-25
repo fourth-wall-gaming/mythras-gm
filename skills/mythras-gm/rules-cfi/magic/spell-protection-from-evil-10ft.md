@@ -24,3 +24,5 @@ links: ["cfi/spell/protection-from-evil"]
 Functions exactly as Protection from Evil (three defensive layers against evil creatures) but extends to all allies within a 10 ft. radius of the target.
 
 **Reverse - Protection from Good 10-foot Radius:** Functions against creatures of Good Alignment within the same area.
+
+Note: inferred from Protection from Evil and the Cleric spell list; no standalone SRD block.

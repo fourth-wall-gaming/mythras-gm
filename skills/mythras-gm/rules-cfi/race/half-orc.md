@@ -35,5 +35,6 @@ links: ["cfi/race/human", "cfi/race/race-overview"]
 **Special Rules:**
 - **Movement:** 20 feet.
 - **Darkvision:** See up to 60 feet in dim light as bright light (standard Perception rolls). See in darkness as dim light (Perception rolls Hard). Colors appear as shades of gray in darkness. Does not work in magical darkness.
+- **Additional Languages:** During character creation, if raised by orcs, additional languages are limited to goblin, hobgoblin, orc, and gnoll. If raised by humans, you are not limited in selection of languages (if you can justify the choice).
 - **Illiterate (if raised by orcs):** Cannot read or write. To learn: spend 1 Experience Roll + 1 month of training for basic literacy (half skill level in one known language). A further 1 Experience Roll + 1 month gives full literacy. New languages learned in play are assumed at full literacy. If raised by a literate culture, they are literate.
 - **Survival Bonus (Specific, if raised by orcs):** All Survival rolls for area of origin are one grade easier.

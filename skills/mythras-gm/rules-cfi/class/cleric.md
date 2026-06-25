@@ -53,6 +53,8 @@ Base formula for Spells in Memory per rank = INT/4 (round down), modified by the
 - **Starting Spells:** Access to all Rank 0 cleric spells and all of current rank or lower. Pray for any of them when choosing memorized spells. See Memorizing Spells rules.
 - **Turn Undead:** May turn undead within 30 feet. Evil clerics may choose to control instead. Usable once at Rank 1, twice at Rank 3, three times at Rank 5. Regain all uses after a Short Rest (1+ hour).
 
+Also, during character creation choose one Rank 1 Ranked Ability for free (if prerequisites met).
+
 **Turning Power:** 1d6+2, +2 per rank beyond 1. (Example: Rank 2 = 1d6+4.)
 
 **Turning Procedure:** Opposed test: cleric's Channel vs. highest Willpower undead in area.

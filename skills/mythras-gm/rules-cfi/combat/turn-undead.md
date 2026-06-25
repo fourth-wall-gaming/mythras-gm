@@ -6,7 +6,7 @@ category: "combat"
 domain: "combat"
 topic: "class-abilities"
 kind: "procedure"
-summary: "Clerics expend uses (1/3/3 per rest at Ranks 1/3/5) to repel or destroy undead within 30 ft via an Opposed Channel vs. highest Willpower."
+summary: "Clerics expend uses (1/2/3 per rest at Ranks 1/3/5) to repel or destroy undead within 30 ft via an Opposed Channel vs. highest Willpower."
 facets: {"phase": ["action"], "action": ["proactive"], "kind": ["procedure"], "class": ["cleric"], "trigger": ["undead"]}
 links: ["cfi/combat/proactive-actions"]
 ---
