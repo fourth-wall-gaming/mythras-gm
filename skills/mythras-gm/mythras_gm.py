@@ -1265,7 +1265,10 @@ def cmd_load_rules(args):
     """
     import campaign_io
     system = (args.system or "mythras").strip().lower()
-    rules_dir = args.dir or RULES_DIR
+    if args.dir:
+        rules_dir = args.dir if os.path.isabs(args.dir) else os.path.join(_SKILL_DIR, args.dir)
+    else:
+        rules_dir = RULES_DIR
     if not os.path.isdir(rules_dir):
         fail(f"No rules directory: {rules_dir}")
 
