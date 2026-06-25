@@ -59,6 +59,8 @@ Every token you load is re-sent on every turn. Load the minimum:
   - `get-rule --id <domain>/<slug> [--linked]` -- one specific piece.
   - e.g. impaling wingspear into a flying foe's wing:
     `query-rules --facet effect=impale --facet condition=flying --facet body=avian --linked`
+  - For Classic Fantasy Imperative campaigns, rules are loaded from `rules-cfi/`
+    and filtered with `--system classic-fantasy`. See USAGE.md.
 - **`get-log --campaign <id> --limit N`** when you need more history than the
   recent events in context (default 15).
 - For a heavy one-off lookup, dispatch a subagent so the big result never lands

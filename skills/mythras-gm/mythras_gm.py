@@ -242,6 +242,7 @@ def cmd_create_campaign(args):
     ts = get_timestamp()
     q = f'''insert $c isa myth-campaign,
         has id "{cid}", has name "{escape_string(args.name)}",
+        has myth-system "{escape_string(args.system)}",
         has myth-session-number 0, has created-at {ts}'''
     if args.description:
         q += f', has description "{escape_string(args.description)}"'
@@ -256,10 +257,11 @@ def cmd_create_campaign(args):
 def cmd_get_campaign(args):
     with get_driver() as driver:
         c = _get_entity(driver, "myth-campaign", args.campaign,
-                        ["description", "content", "myth-game-date",
+                        ["myth-system", "description", "content", "myth-game-date",
                          "myth-current-scene", "myth-session-number"])
     if not c:
         fail(f"No campaign '{args.campaign}'")
+    c.setdefault("myth-system", "mythras")
     out({"success": True, "campaign": c})
 
 
@@ -1199,8 +1201,8 @@ def cmd_update_lore(args):
 # ---------------------------------------------------------------------------
 
 RULES_DIR = os.path.join(_SKILL_DIR, "rules")
-RULE_ATTRS = ["description", "content", "myth-rule-category", "myth-rule-kind",
-              "myth-rule-domain", "myth-rule-topic"]
+RULE_ATTRS = ["description", "content", "myth-rule-system", "myth-rule-category",
+              "myth-rule-kind", "myth-rule-domain", "myth-rule-topic"]
 
 
 def _get_or_create_facet(driver, dim, value):
@@ -1250,18 +1252,26 @@ def _rule_links(driver, rule_id):
     return out_links
 
 
-def cmd_load_rules(args):
-    """Walk rules/<domain>/*.md (frontmatter + body), (re)build the rules graph.
+def _piece_system(meta):
+    """The ruleset a rule piece belongs to; frontmatter `system`, default mythras."""
+    return str(meta.get("system", "mythras")).strip().lower() or "mythras"
 
-    Idempotent: clears all myth-rule / facets / tag / link relations, then
-    reloads from disk. Rules are GLOBAL (no campaign membership).
+
+def cmd_load_rules(args):
+    """Walk <dir>/*.md (frontmatter + body) and (re)build the rules graph for ONE
+    system. Idempotent per-system: clears only this system's myth-rule pieces,
+    their tags, and their links, then reloads. Shared facets are reused, never
+    deleted (the other system may still tag them). Rules are GLOBAL (no campaign).
     """
     import campaign_io
-    rules_dir = args.dir or RULES_DIR
+    system = (args.system or "mythras").strip().lower()
+    if args.dir:
+        rules_dir = args.dir if os.path.isabs(args.dir) else os.path.join(_SKILL_DIR, args.dir)
+    else:
+        rules_dir = RULES_DIR
     if not os.path.isdir(rules_dir):
         fail(f"No rules directory: {rules_dir}")
 
-    # Gather every markdown file that carries a frontmatter `id`.
     pieces = []
     for root, _dirs, files in os.walk(rules_dir):
         for fn in sorted(files):
@@ -1270,18 +1280,58 @@ def cmd_load_rules(args):
             meta, body = campaign_io._parse_md(os.path.join(root, fn))
             if not meta.get("id"):
                 continue
+            if _piece_system(meta) != system:
+                continue
             meta["content"] = body
             pieces.append(meta)
 
     if not pieces:
-        fail(f"No rule files with frontmatter `id` under {rules_dir}")
+        fail(f"No rule files with frontmatter `id` and system '{system}' under {rules_dir}")
 
     with get_driver() as driver:
-        # Clear the existing graph (data matches with bound vars -- safe).
-        for rel in ("myth-rule-tagged", "myth-rule-link"):
-            _write(driver, f"match $x isa {rel}; delete $x;")
-        for ent in ("myth-rule", "myth-rule-facet"):
-            _write(driver, f"match $x isa {ent}; delete $x;")
+        # Clear ONLY this system's graph. Delete tags/links that touch a rule of
+        # this system, then the rule entities. Leave facets (shared) in place.
+        # Also clear legacy untagged rules (pre-system-scoping migration) when
+        # reloading the default "mythras" system so the first tagged load succeeds.
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-tagged, links (rule: $r);
+            delete $rel;''')
+        # Delete outbound links (this system's rule is the source role).
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-link, links (rule: $r);
+            delete $rel;''')
+        # Delete inbound links (this system's rule is the target role).
+        # Accepted behaviour: reloading system S drops inbound links FROM other
+        # systems into S; those are rebuilt when the other system is reloaded.
+        # This ensures NO dangling myth-rule-link relation survives.
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-link, links (linked: $r);
+            delete $rel;''')
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+            delete $r;''')
+        if system == "mythras":
+            # Migration: remove legacy rules that have no myth-rule-system attribute.
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-tagged, links (rule: $r);
+                delete $rel;''')
+            # Delete outbound links for untagged legacy rules.
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-link, links (rule: $r);
+                delete $rel;''')
+            # Delete inbound links for untagged legacy rules (target role).
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-link, links (linked: $r);
+                delete $rel;''')
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                delete $r;''')
 
         ts = get_timestamp()
         for p in pieces:
@@ -1289,6 +1339,7 @@ def cmd_load_rules(args):
             q = f'''insert $r isa myth-rule,
                 has id "{escape_string(rid)}",
                 has name "{escape_string(p.get("title", rid))}",
+                has myth-rule-system "{escape_string(system)}",
                 has myth-rule-category "{escape_string(p.get("category", p.get("domain", "core")))}",
                 has myth-rule-kind "{escape_string(p.get("kind", "reference"))}",
                 has myth-rule-domain "{escape_string(p.get("domain", p.get("category", "core")))}",
@@ -1310,7 +1361,8 @@ def cmd_load_rules(args):
                           $f isa myth-rule-facet, has id "{escape_string(fid)}";
                         insert (rule: $r, facet: $f) isa myth-rule-tagged;''')
 
-        # Links in a second pass, once every rule exists.
+        # Links in a second pass. A CFI piece may link to a Mythras piece, so do
+        # not constrain target system here; just require the target to exist.
         link_count = 0
         for p in pieces:
             rid = p["id"]
@@ -1325,7 +1377,8 @@ def cmd_load_rules(args):
                         insert (rule: $r, linked: $t) isa myth-rule-link;''')
                     link_count += 1
 
-    out({"success": True, "rules_loaded": len(pieces), "links_loaded": link_count})
+    out({"success": True, "system": system,
+         "rules_loaded": len(pieces), "links_loaded": link_count})
 
 
 def cmd_list_rules(args):
@@ -1339,10 +1392,13 @@ def cmd_list_rules(args):
     with get_driver() as driver:
         rows = _fetch(driver, '''
             match $r isa myth-rule, has id $i, has name $n,
+                  has myth-rule-system $sys,
                   has myth-rule-domain $dm,
                   has myth-rule-topic $tp, has myth-rule-kind $k;
-            fetch { "id": $i, "title": $n,
+            fetch { "id": $i, "title": $n, "system": $sys,
                     "domain": $dm, "topic": $tp, "kind": $k };''')
+        if args.system:
+            rows = [r for r in rows if r["system"] == args.system]
         # category == domain by construction, so it isn't emitted; filter on domain.
         if args.category:
             rows = [r for r in rows if r["domain"] == args.category]
@@ -1404,6 +1460,16 @@ def cmd_query_rules(args):
                 scores[row["id"]] = scores.get(row["id"], 0) + 1
 
         ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if args.system:
+            keep = set()
+            for rid, _ in ranked:
+                row = _fetch(driver, f'''
+                    match $r isa myth-rule, has id "{escape_string(rid)}",
+                          has myth-rule-system "{escape_string(args.system)}";
+                    fetch {{ "id": $r.id }};''')
+                if row:
+                    keep.add(rid)
+            ranked = [(rid, sc) for rid, sc in ranked if rid in keep]
         if args.limit and args.limit > 0:
             ranked = ranked[:args.limit]
 
@@ -1439,10 +1505,11 @@ def cmd_get_context(args):
     NPCs (names), locations, factions, active encounters, recent events."""
     with get_driver() as driver:
         camp = _get_entity(driver, "myth-campaign", args.campaign,
-                           ["description", "content", "myth-game-date",
+                           ["myth-system", "description", "content", "myth-game-date",
                             "myth-current-scene", "myth-session-number"])
         if not camp:
             fail(f"No campaign '{args.campaign}'")
+        camp.setdefault("myth-system", "mythras")
 
         def members(entity_type, extra=""):
             return _fetch(driver, f'''
@@ -1532,6 +1599,9 @@ def build_parser():
     s.add_argument("--name", required=True)
     s.add_argument("--description")
     s.add_argument("--game-date")
+    s.add_argument("--system", default="mythras",
+                   choices=["mythras", "classic-fantasy"],
+                   help="ruleset for this campaign (default: mythras)")
 
     s = sub.add_parser("get-campaign")
     s.add_argument("--campaign", required=True)
@@ -1739,12 +1809,17 @@ def build_parser():
 
     # --- Rules graph (global, faceted) ---
     s = sub.add_parser("load-rules",
-                       help="(Re)build the global rules graph from rules/<domain>/*.md")
+                       help="(Re)build the rules graph for one system from <dir>/*.md")
     s.add_argument("--dir", help="rules directory (default: skill's rules/)")
+    s.add_argument("--system", default="mythras",
+                   choices=["mythras", "classic-fantasy"],
+                   help="only load/replace pieces of this ruleset (default: mythras)")
 
     s = sub.add_parser("list-rules",
                        help="Lean rule index (id/title/domain/topic); the orientation TOC")
     s.add_argument("--category")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--facets", action="store_true",
                    help="include each piece's facet tags (heavier output)")
     s.add_argument("--dim", help="filter by facet dimension (with --value)")
@@ -1759,6 +1834,8 @@ def build_parser():
                        help="Live faceted fetch: --facet dim=value (repeatable)")
     s.add_argument("--facet", action="append",
                    help="dim=value; repeat to AND/rank across facets")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--linked", action="store_true",
                    help="append one hop of myth-rule-link neighbours")
     s.add_argument("--limit", type=int, default=0,
