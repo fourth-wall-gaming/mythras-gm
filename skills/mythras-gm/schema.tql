@@ -60,6 +60,8 @@ attribute myth-rule-kind, value string;            # procedure | table | modifie
 attribute myth-rule-domain, value string;          # hierarchy domain (same vocab as category)
 attribute myth-rule-topic, value string;           # hierarchy topic within the domain
 attribute myth-facet-dim, value string;            # facet axis: phase | action | effect | weapon | trigger | body | severity | condition | magic-system | stat | kind
+attribute myth-system, value string;               # mythras | classic-fantasy (campaign ruleset)
+attribute myth-rule-system, value string;          # mythras | classic-fantasy (which ruleset a rule belongs to)
 
 # =============================================================================
 # RELATIONS (before entities so role names resolve in plays clauses)
@@ -107,6 +109,7 @@ relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-r
 # =============================================================================
 
 entity myth-campaign sub alh-collection,
+    owns myth-system,
     owns myth-game-date,
     owns myth-current-scene,
     owns myth-session-number,
@@ -206,6 +209,7 @@ entity myth-rule-facet sub alh-identifiable-entity,   # name = the facet value
     plays myth-rule-tagged:facet;
 
 entity myth-rule sub alh-note,
+    owns myth-rule-system,
     owns myth-rule-category,
     owns myth-rule-kind,
     owns myth-rule-domain,
