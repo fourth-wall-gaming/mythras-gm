@@ -1201,8 +1201,8 @@ def cmd_update_lore(args):
 # ---------------------------------------------------------------------------
 
 RULES_DIR = os.path.join(_SKILL_DIR, "rules")
-RULE_ATTRS = ["description", "content", "myth-rule-category", "myth-rule-kind",
-              "myth-rule-domain", "myth-rule-topic"]
+RULE_ATTRS = ["description", "content", "myth-rule-system", "myth-rule-category",
+              "myth-rule-kind", "myth-rule-domain", "myth-rule-topic"]
 
 
 def _get_or_create_facet(driver, dim, value):
@@ -1389,10 +1389,13 @@ def cmd_list_rules(args):
     with get_driver() as driver:
         rows = _fetch(driver, '''
             match $r isa myth-rule, has id $i, has name $n,
+                  has myth-rule-system $sys,
                   has myth-rule-domain $dm,
                   has myth-rule-topic $tp, has myth-rule-kind $k;
-            fetch { "id": $i, "title": $n,
+            fetch { "id": $i, "title": $n, "system": $sys,
                     "domain": $dm, "topic": $tp, "kind": $k };''')
+        if args.system:
+            rows = [r for r in rows if r["system"] == args.system]
         # category == domain by construction, so it isn't emitted; filter on domain.
         if args.category:
             rows = [r for r in rows if r["domain"] == args.category]
@@ -1454,6 +1457,16 @@ def cmd_query_rules(args):
                 scores[row["id"]] = scores.get(row["id"], 0) + 1
 
         ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if args.system:
+            keep = set()
+            for rid, _ in ranked:
+                row = _fetch(driver, f'''
+                    match $r isa myth-rule, has id "{escape_string(rid)}",
+                          has myth-rule-system "{escape_string(args.system)}";
+                    fetch {{ "id": $r.id }};''')
+                if row:
+                    keep.add(rid)
+            ranked = [(rid, sc) for rid, sc in ranked if rid in keep]
         if args.limit and args.limit > 0:
             ranked = ranked[:args.limit]
 
@@ -1802,6 +1815,8 @@ def build_parser():
     s = sub.add_parser("list-rules",
                        help="Lean rule index (id/title/domain/topic); the orientation TOC")
     s.add_argument("--category")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--facets", action="store_true",
                    help="include each piece's facet tags (heavier output)")
     s.add_argument("--dim", help="filter by facet dimension (with --value)")
@@ -1816,6 +1831,8 @@ def build_parser():
                        help="Live faceted fetch: --facet dim=value (repeatable)")
     s.add_argument("--facet", action="append",
                    help="dim=value; repeat to AND/rank across facets")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--linked", action="store_true",
                    help="append one hop of myth-rule-link neighbours")
     s.add_argument("--limit", type=int, default=0,
