@@ -423,9 +423,9 @@ as MP remain.
 get-rule --id cfi/magic/memorizing-spells
 ```
 
-**Recording known spells.** Use `spells-json` with `arcane` and `divine` as
-the discipline keys. Include known spells in the character JSON sheet passed
-to `import-characters`:
+**Recording known spells.** CFI reuses the two existing Mythras magic slots:
+put CFI divine spells under `theism_spells` and CFI arcane spells under
+`sorcery_spells` in the character JSON sheet passed to `import-characters`:
 
 ```json
 {
@@ -438,7 +438,9 @@ to `import-characters`:
 
 For arcane casters use `"sorcery_spells"` in the import sheet. After import,
 the values appear on `get-character` as `theism_spells` / `sorcery_spells`,
-stored in `myth-spells-json` under `divine` / `arcane` keys respectively.
+stored in `myth-spells-json` under the `theism` / `sorcery` keys respectively.
+CFI deliberately reuses those two Mythras magic slots for its divine/arcane
+disciplines so that combat-card and Roll20 read-back continue to work.
 
 **Looking up a spell in play.** Fetch one spell by ID or query by facet — do
 not load the full list into context:
