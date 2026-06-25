@@ -242,6 +242,7 @@ def cmd_create_campaign(args):
     ts = get_timestamp()
     q = f'''insert $c isa myth-campaign,
         has id "{cid}", has name "{escape_string(args.name)}",
+        has myth-system "{escape_string(args.system)}",
         has myth-session-number 0, has created-at {ts}'''
     if args.description:
         q += f', has description "{escape_string(args.description)}"'
@@ -256,10 +257,11 @@ def cmd_create_campaign(args):
 def cmd_get_campaign(args):
     with get_driver() as driver:
         c = _get_entity(driver, "myth-campaign", args.campaign,
-                        ["description", "content", "myth-game-date",
+                        ["myth-system", "description", "content", "myth-game-date",
                          "myth-current-scene", "myth-session-number"])
     if not c:
         fail(f"No campaign '{args.campaign}'")
+    c.setdefault("myth-system", "mythras")
     out({"success": True, "campaign": c})
 
 
@@ -1439,10 +1441,11 @@ def cmd_get_context(args):
     NPCs (names), locations, factions, active encounters, recent events."""
     with get_driver() as driver:
         camp = _get_entity(driver, "myth-campaign", args.campaign,
-                           ["description", "content", "myth-game-date",
+                           ["myth-system", "description", "content", "myth-game-date",
                             "myth-current-scene", "myth-session-number"])
         if not camp:
             fail(f"No campaign '{args.campaign}'")
+        camp.setdefault("myth-system", "mythras")
 
         def members(entity_type, extra=""):
             return _fetch(driver, f'''
@@ -1532,6 +1535,9 @@ def build_parser():
     s.add_argument("--name", required=True)
     s.add_argument("--description")
     s.add_argument("--game-date")
+    s.add_argument("--system", default="mythras",
+                   choices=["mythras", "classic-fantasy"],
+                   help="ruleset for this campaign (default: mythras)")
 
     s = sub.add_parser("get-campaign")
     s.add_argument("--campaign", required=True)
