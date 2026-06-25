@@ -381,6 +381,15 @@ The keys `class`, `rank`, `rank_title`, `alignment_ethical`, and
 `alignment_moral` are not part of the consumed schema so they land verbatim in
 `myth-extras-json` and are visible on `get-character --id <id>`.
 
+> **`--species` is a body plan, not a CFI race.** `create-character --species`
+> only accepts the engine's body archetypes (`humanoid`, `avian`,
+> `winged-quadruped`). Every CFI race (human, dwarf, elf, gnome, halfling,
+> half-orc, half-elf) is a `humanoid` for hit-location/body purposes — pass
+> `--species humanoid` and apply the race's characteristic modifiers yourself
+> via `--stats` (see `get-rule --id cfi/race/<name>`), recording the chosen
+> race in the sheet's `notes`/`extras`. The `import-characters` sheet above
+> sidesteps this by providing `stats` and `hit_locations` directly.
+
 After import, record a Rank 1 Ability chosen at creation (e.g. Powerful
 Concentration) as an `add-lore` entry or in the character's narrative so it
 isn't lost between sessions.
