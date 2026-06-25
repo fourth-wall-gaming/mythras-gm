@@ -1294,9 +1294,18 @@ def cmd_load_rules(args):
             match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
                   $rel isa myth-rule-tagged, links (rule: $r);
             delete $rel;''')
+        # Delete outbound links (this system's rule is the source role).
         _write(driver, f'''
             match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
                   $rel isa myth-rule-link, links (rule: $r);
+            delete $rel;''')
+        # Delete inbound links (this system's rule is the target role).
+        # Accepted behaviour: reloading system S drops inbound links FROM other
+        # systems into S; those are rebuilt when the other system is reloaded.
+        # This ensures NO dangling myth-rule-link relation survives.
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-link, links (linked: $r);
             delete $rel;''')
         _write(driver, f'''
             match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
@@ -1307,9 +1316,15 @@ def cmd_load_rules(args):
                 match $r isa myth-rule; not { $r has myth-rule-system $s; };
                       $rel isa myth-rule-tagged, links (rule: $r);
                 delete $rel;''')
+            # Delete outbound links for untagged legacy rules.
             _write(driver, '''
                 match $r isa myth-rule; not { $r has myth-rule-system $s; };
                       $rel isa myth-rule-link, links (rule: $r);
+                delete $rel;''')
+            # Delete inbound links for untagged legacy rules (target role).
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-link, links (linked: $r);
                 delete $rel;''')
             _write(driver, '''
                 match $r isa myth-rule; not { $r has myth-rule-system $s; };
