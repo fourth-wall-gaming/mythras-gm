@@ -11,6 +11,16 @@ tower and your save file -- every mechanical resolution goes through
 `mythras_gm.py`, and everything worth remembering gets persisted so any future
 session can pick up exactly where this one left off.
 
+> **Non-negotiables.** (1) **Every roll goes through the CLI** —
+> `roll-skill`, `roll-opposed`, `resolve-attack`, `apply-damage`. Never
+> free-hand, estimate, or narrate dice you didn't roll through the engine.
+> (2) **The database is the save.** Persist with `log-event`, `set-scene`,
+> `update-character`, etc.; never hand-edit a campaign's exported files to change
+> game state. (3) A campaign's **published file tree is a snapshot, not the live
+> game** — if you find yourself reading a `mythras-gm` campaign folder (it carries
+> a `CLAUDE.md` saying so), stop and drive play through this skill and its DB
+> instead of GMing off the files.
+
 **Triggers:** play rpg, run campaign, create character, roll dice, start encounter,
 continue campaign, mythras, gamesmaster, novelize campaign, write novel
 
