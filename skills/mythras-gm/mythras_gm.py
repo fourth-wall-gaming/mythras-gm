@@ -175,6 +175,19 @@ def _get_entity(driver, entity_type, entity_id, attrs):
 
 
 def _link_to_campaign(driver, campaign_id, element_id, element_type):
+    """Link an element to a campaign, refusing silently-orphaning writes.
+
+    If the campaign is absent -- almost always because TYPEDB_DATABASE points at
+    the wrong database -- the insert below matches nothing and does nothing, and
+    the caller happily reports success while the element dangles unreachable.
+    That has cost a whole session of campaign log before. Check first and fail loudly.
+    """
+    if not _fetch(driver, f'''
+            match $c isa myth-campaign, has id "{escape_string(campaign_id)}";
+            fetch {{ "id": $c.id }};'''):
+        fail(f"No campaign '{campaign_id}' in database '{TYPEDB_DATABASE}'. "
+             f"Set TYPEDB_DATABASE to the campaign's database and retry "
+             f"(the element was created but is NOT linked).")
     _write(driver, f'''
         match
           $c isa myth-campaign, has id "{escape_string(campaign_id)}";
@@ -593,6 +606,38 @@ def cmd_list_characters(args):
     out({"success": True, "characters": chars})
 
 
+MERGEABLE_JSON_ATTRS = ("myth-skills-json", "myth-passions-json")
+
+
+def _merge_json_attr(driver, char_id, attr, incoming):
+    """Merge an incoming JSON object into the stored one.
+
+    These attributes are whole-document blobs. Writing a partial document
+    replaces the lot, which silently deletes every key you did not mention --
+    e.g. awarding experience on three skills used to wipe the other forty.
+    Default to merging; --replace-json opts back into the destructive behaviour.
+    """
+    try:
+        new = json.loads(incoming)
+    except (TypeError, ValueError):
+        return incoming
+    if not isinstance(new, dict):
+        return incoming
+    rows = _fetch(driver, f'''
+        match $e isa myth-character, has id "{escape_string(char_id)}", has {attr} $v;
+        fetch {{ "v": $v }};''')
+    current = {}
+    if rows:
+        try:
+            current = json.loads(rows[0]["v"]) or {}
+        except (TypeError, ValueError):
+            current = {}
+    if not isinstance(current, dict):
+        current = {}
+    current.update(new)
+    return json.dumps(current)
+
+
 def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
@@ -601,6 +646,11 @@ def cmd_update_character(args):
         "description": args.description, "content": args.narrative,
     }
     with get_driver() as driver:
+        if not getattr(args, "replace_json", False):
+            for attr in MERGEABLE_JSON_ATTRS:
+                if updates.get(attr) is not None:
+                    updates[attr] = _merge_json_attr(driver, args.id, attr,
+                                                     updates[attr])
         for attr, val in updates.items():
             if val is not None:
                 _set_attr(driver, "myth-character", args.id, attr, val)
@@ -1087,10 +1137,17 @@ def cmd_get_log(args):
               (campaign: $camp, element: $e) isa myth-campaign-membership;
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
-            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
-    events = sorted(rows, key=lambda r: str(r["at"]))
+              try {{ $e has myth-session-number $sn; }};
+            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
+                     "session": $sn }};''')
+    # Order by session first so a re-logged session sorts into place rather than
+    # onto the end, then by write time within the session.
+    events = sorted(rows, key=lambda r: (r.get("session") is None,
+                                         r.get("session") or 0, str(r["at"])))
     if args.type:
         events = [e for e in events if e["type"] == args.type]
+    if getattr(args, "session", None) is not None:
+        events = [e for e in events if e.get("session") == args.session]
     limit = getattr(args, "limit", None)
     if limit and limit > 0:
         events = events[-limit:]
@@ -1661,9 +1718,12 @@ def build_parser():
 
     s = sub.add_parser("update-character")
     s.add_argument("--id", required=True)
-    s.add_argument("--skills")
-    s.add_argument("--equipment")
-    s.add_argument("--passions")
+    s.add_argument("--skills", help="JSON object; MERGED into the stored skills")
+    s.add_argument("--equipment", help="JSON list; replaces the stored equipment")
+    s.add_argument("--passions", help="JSON object; MERGED into the stored passions")
+    s.add_argument("--replace-json", action="store_true",
+                   help="replace --skills/--passions wholesale instead of merging "
+                        "(destructive: deletes any key you do not supply)")
     s.add_argument("--fatigue")
     s.add_argument("--luck", type=int)
     s.add_argument("--status")
