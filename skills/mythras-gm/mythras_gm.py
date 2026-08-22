@@ -672,7 +672,7 @@ def cmd_list_characters(args):
 
 
 MERGEABLE_JSON_ATTRS = ("myth-skills-json", "myth-passions-json",
-                        "myth-extras-json")
+                        "myth-extras-json", "myth-attributes-json")
 
 
 def _merge_json_attr(driver, char_id, attr, incoming):
@@ -707,6 +707,7 @@ def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-extras-json": args.extras,
+        "myth-attributes-json": args.attributes,
         "myth-fatigue": args.fatigue, "myth-status": args.status,
         "description": args.description, "content": args.narrative,
     }
@@ -1810,6 +1811,8 @@ def build_parser():
     s.add_argument("--passions", help="JSON object; MERGED into the stored passions")
     s.add_argument("--extras", help="JSON object; MERGED into myth-extras-json "
                                     "(character scores live under the 'score' key)")
+    s.add_argument("--attributes", help="JSON object; MERGED into myth-attributes-json "
+                                        "(derived attributes: action_points, damage_modifier, ...)")
     s.add_argument("--replace-json", action="store_true",
                    help="replace --skills/--passions/--extras wholesale instead of merging "
                         "(destructive: deletes any key you do not supply)")

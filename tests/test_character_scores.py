@@ -153,3 +153,16 @@ def test_update_campaign_covers_the_editable_attributes():
     body = source.split("def cmd_update_campaign(")[1].split("\ndef ")[0]
     for attr in ("description", "myth-session-number", "myth-system", "content"):
         assert attr in body, f"cmd_update_campaign does not handle {attr}"
+
+
+# --- update-character --attributes --------------------------------------
+
+def test_attributes_is_a_mergeable_attribute():
+    """Derived attributes need correcting when an engine formula is fixed.
+    Merging matters: writing only action_points must not drop damage_modifier."""
+    source = _gm_source()
+    assert '"myth-attributes-json": args.attributes' in source, \
+        "update-character does not pass --attributes through"
+    assert '"myth-attributes-json"' in source.split("MERGEABLE_JSON_ATTRS")[1][:260], \
+        "myth-attributes-json is not in MERGEABLE_JSON_ATTRS"
+    assert 'add_argument("--attributes"' in source, "--attributes flag is not registered"
