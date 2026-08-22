@@ -101,3 +101,29 @@ def test_warns_when_tactics_ladder_too_short():
 def test_validate_never_raises_on_junk():
     assert isinstance(st.validate_score({}), list)
     assert isinstance(st.validate_score({"tactics": "not a list"}), list)
+
+
+# --- CLI wiring ---------------------------------------------------------
+
+def _gm_source():
+    path = os.path.join(os.path.dirname(__file__), "..", "skills",
+                        "mythras-gm", "mythras_gm.py")
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_extras_is_a_mergeable_attribute():
+    """mythras_gm must treat extras like skills: merged, not replaced."""
+    source = _gm_source()
+    assert '"myth-extras-json": args.extras' in source, \
+        "update-character does not pass --extras through to the update dict"
+    assert '"myth-extras-json"' in source.split("MERGEABLE_JSON_ATTRS")[1][:200], \
+        "myth-extras-json is not in MERGEABLE_JSON_ATTRS"
+    assert 'add_argument("--extras"' in source, "--extras flag is not registered"
+
+
+def test_merge_helper_is_used_by_mythras_gm():
+    source = _gm_source()
+    assert "from score_tools import" in source or "import score_tools" in source, \
+        "mythras_gm does not import the pure merge helper"
+    assert "deep_merge" in source, "mythras_gm does not use deep_merge"

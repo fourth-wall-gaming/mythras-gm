@@ -74,6 +74,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
+from score_tools import deep_merge, validate_score
 
 try:
     from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
@@ -638,7 +639,8 @@ def cmd_list_characters(args):
     out({"success": True, "characters": chars})
 
 
-MERGEABLE_JSON_ATTRS = ("myth-skills-json", "myth-passions-json")
+MERGEABLE_JSON_ATTRS = ("myth-skills-json", "myth-passions-json",
+                        "myth-extras-json")
 
 
 def _merge_json_attr(driver, char_id, attr, incoming):
@@ -666,15 +668,14 @@ def _merge_json_attr(driver, char_id, attr, incoming):
             current = {}
     if not isinstance(current, dict):
         current = {}
-    current.update(new)
-    return json.dumps(current)
+    return json.dumps(deep_merge(current, new))
 
 
 def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
-        "myth-passions-json": args.passions, "myth-fatigue": args.fatigue,
-        "myth-status": args.status,
+        "myth-passions-json": args.passions, "myth-extras-json": args.extras,
+        "myth-fatigue": args.fatigue, "myth-status": args.status,
         "description": args.description, "content": args.narrative,
     }
     with get_driver() as driver:
@@ -689,7 +690,20 @@ def cmd_update_character(args):
         if args.luck is not None:
             _set_attr(driver, "myth-character", args.id, "myth-luck-current",
                       args.luck, quote=False)
-    out({"success": True, "id": args.id})
+    # Validate the score as it now STANDS, not the fragment just sent -- else
+    # appending one observation reports every other slot as missing.
+    warnings = []
+    if args.extras:
+        try:
+            score = json.loads(updates["myth-extras-json"]).get("score")
+        except (TypeError, ValueError, AttributeError):
+            score = None
+        if isinstance(score, dict):
+            warnings = validate_score(score)
+    payload = {"success": True, "id": args.id}
+    if warnings:
+        payload["score_warnings"] = warnings
+    out(payload)
 
 
 def cmd_apply_damage(args):
@@ -1753,8 +1767,10 @@ def build_parser():
     s.add_argument("--skills", help="JSON object; MERGED into the stored skills")
     s.add_argument("--equipment", help="JSON list; replaces the stored equipment")
     s.add_argument("--passions", help="JSON object; MERGED into the stored passions")
+    s.add_argument("--extras", help="JSON object; MERGED into myth-extras-json "
+                                    "(character scores live under the 'score' key)")
     s.add_argument("--replace-json", action="store_true",
-                   help="replace --skills/--passions wholesale instead of merging "
+                   help="replace --skills/--passions/--extras wholesale instead of merging "
                         "(destructive: deletes any key you do not supply)")
     s.add_argument("--fatigue")
     s.add_argument("--luck", type=int)
