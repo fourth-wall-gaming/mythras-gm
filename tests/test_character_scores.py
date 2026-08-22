@@ -127,3 +127,29 @@ def test_merge_helper_is_used_by_mythras_gm():
     assert "from score_tools import" in source or "import score_tools" in source, \
         "mythras_gm does not import the pure merge helper"
     assert "deep_merge" in source, "mythras_gm does not use deep_merge"
+
+
+# --- update-campaign ----------------------------------------------------
+
+def test_update_campaign_is_registered_and_wired():
+    source = _gm_source()
+    assert 'sub.add_parser("update-campaign")' in source, \
+        "update-campaign subcommand is not registered"
+    assert "def cmd_update_campaign(" in source, "cmd_update_campaign is missing"
+
+
+def test_update_campaign_verifies_the_campaign_exists():
+    """The data-loss bug was writes succeeding against a campaign that was not
+    there. Every campaign-scoped write must check first."""
+    source = _gm_source()
+    body = source.split("def cmd_update_campaign(")[1].split("\ndef ")[0]
+    assert "fail(" in body, \
+        "cmd_update_campaign does not fail when the campaign does not exist"
+    assert "myth-campaign" in body
+
+
+def test_update_campaign_covers_the_editable_attributes():
+    source = _gm_source()
+    body = source.split("def cmd_update_campaign(")[1].split("\ndef ")[0]
+    for attr in ("description", "myth-session-number", "myth-system", "content"):
+        assert attr in body, f"cmd_update_campaign does not handle {attr}"

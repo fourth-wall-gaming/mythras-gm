@@ -319,6 +319,38 @@ def cmd_set_scene(args):
     out({"success": True})
 
 
+def cmd_update_campaign(args):
+    """Amend a campaign's own record after the fact.
+
+    create-campaign was write-once for everything except the current scene, so
+    a premise that changed in play, or a session counter left at 0 since the
+    campaign was made, could only be fixed by hand-editing TypeDB. get-context
+    loads the description every session, so a stale one quietly feeds the wrong
+    framing into every future game.
+    """
+    with get_driver() as driver:
+        if not _fetch(driver, f'''
+                match $c isa myth-campaign, has id "{escape_string(args.campaign)}";
+                fetch {{ "id": $c.id }};'''):
+            fail(f"No myth-campaign with id '{args.campaign}' in database "
+                 f"'{TYPEDB_DATABASE}'")
+
+        updates = {
+            "name": args.name,
+            "description": args.description,
+            "content": args.narrative,
+            "myth-system": args.system,
+            "myth-game-date": args.game_date,
+        }
+        for attr, val in updates.items():
+            if val is not None:
+                _set_attr(driver, "myth-campaign", args.campaign, attr, val)
+        if args.session is not None:
+            _set_attr(driver, "myth-campaign", args.campaign,
+                      "myth-session-number", args.session, quote=False)
+    out({"success": True, "id": args.campaign})
+
+
 def cmd_list_campaigns(args):
     with get_driver() as driver:
         rows = _fetch(driver, '''
@@ -1718,6 +1750,15 @@ def build_parser():
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--scene", required=True)
     s.add_argument("--game-date")
+
+    s = sub.add_parser("update-campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
+    s.add_argument("--name")
+    s.add_argument("--description", help="the premise; get-context loads this every session")
+    s.add_argument("--narrative", help="long-form notes (stored as content)")
+    s.add_argument("--system")
+    s.add_argument("--game-date")
+    s.add_argument("--session", type=int, help="the session number now in play")
 
     sub.add_parser("list-campaigns")
 
