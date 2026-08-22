@@ -93,6 +93,14 @@ Every token you load is re-sent on every turn. Load the minimum:
 (GM operating rules, character creation, combat cheat sheet, worldbuilding,
 campaign publishing).**
 
+**Playing NPCs.** Every recurring NPC carries a *character score* in
+`myth-extras-json` -- want/ought, driver vs stated reason, relational status, a
+tactics ladder, and whether they catch a lie (default: they do not). Read the
+score before the scene, play the ladder in order, and append what happened to
+`observed` afterwards with `update-character --extras`. Without this, every NPC
+converges on the GM's own temperament: perceptive, self-aware, and articulate
+about their own motives. See `CHARACTER-SCORES.md`.
+
 **Novelization:** to turn a campaign's journal into a typeset PDF novel
 (in a chosen author style -- Hemingway, Tolkien, Moorcock, or freeform),
 read `NOVELIZATION.md` and follow it.
