@@ -103,9 +103,41 @@ except ImportError:
 
 TYPEDB_HOST = os.getenv("TYPEDB_HOST", "localhost")
 TYPEDB_PORT = int(os.getenv("TYPEDB_PORT", "1729"))
-TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alhazen_notebook")
+# This skill owns the alh_mythras database under the per-repo split. The old
+# shared "alhazen_notebook" was retired in June 2026; defaulting to it meant
+# every un-prefixed invocation wrote somewhere nothing could read it back.
+TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alh_mythras")
 TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
+
+
+DEFAULT_CAMPAIGN = os.getenv("MYTHRAS_CAMPAIGN")
+
+
+def resolve_campaign(campaign_id):
+    """Return the campaign to act on.
+
+    Explicit --campaign wins. Otherwise MYTHRAS_CAMPAIGN, otherwise the only
+    campaign in the database if there is exactly one. With several and no hint
+    we refuse rather than guess, because picking the wrong campaign writes
+    plausible-looking data into somebody else's game.
+    """
+    if campaign_id:
+        return campaign_id
+    if DEFAULT_CAMPAIGN:
+        return DEFAULT_CAMPAIGN
+    with get_driver() as driver:
+        rows = _fetch(driver, """
+            match $c isa myth-campaign, has id $i, has name $n;
+            fetch { "id": $i, "name": $n };""")
+    if len(rows) == 1:
+        return rows[0]["id"]
+    if not rows:
+        fail(f"No campaigns in database '{TYPEDB_DATABASE}'. "
+             f"Check TYPEDB_DATABASE, or create one with create-campaign.")
+    listing = "; ".join(f'{r["name"]} ({r["id"]})' for r in sorted(rows, key=lambda r: r["name"]))
+    fail(f"{len(rows)} campaigns in '{TYPEDB_DATABASE}' -- pass --campaign or set "
+         f"MYTHRAS_CAMPAIGN. Available: {listing}")
 
 
 def get_driver():
@@ -1666,10 +1698,10 @@ def build_parser():
                    help="ruleset for this campaign (default: mythras)")
 
     s = sub.add_parser("get-campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("set-scene")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--scene", required=True)
     s.add_argument("--game-date")
 
@@ -1713,7 +1745,7 @@ def build_parser():
     s.add_argument("--output", help="write to file instead of stdout")
 
     s = sub.add_parser("list-characters")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--type")
 
     s = sub.add_parser("update-character")
@@ -1759,7 +1791,7 @@ def build_parser():
     s.add_argument("--difficulty-b", default="standard")
 
     s = sub.add_parser("start-encounter")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--description")
 
@@ -1795,14 +1827,14 @@ def build_parser():
     s.add_argument("--summary")
 
     s = sub.add_parser("add-location")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--type")
     s.add_argument("--description")
     s.add_argument("--narrative")
 
     s = sub.add_parser("add-faction")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--description")
     s.add_argument("--narrative")
@@ -1834,7 +1866,7 @@ def build_parser():
     s.add_argument("--faction", required=True)
 
     s = sub.add_parser("log-event")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--type", required=True,
                    choices=["scene", "combat", "skill-roll", "decision",
                             "gm-note", "session-start", "session-end"])
@@ -1844,7 +1876,7 @@ def build_parser():
     s.add_argument("--involves", help="comma-separated entity ids")
 
     s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--title", required=True)
     s.add_argument("--category", required=True,
                    help="free-form: cosmology, species, culture, magic-system, careers, "
@@ -1855,7 +1887,7 @@ def build_parser():
     s.add_argument("--about", help="comma-separated entity ids this lore concerns")
 
     s = sub.add_parser("list-lore", help="Index of lore entries for a campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--category")
     s.add_argument("--visibility", choices=["player", "gm"])
 
@@ -1907,21 +1939,21 @@ def build_parser():
                    help="cap the number of ranked rules returned (0 = all)")
 
     s = sub.add_parser("get-log")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--session", type=int)
     s.add_argument("--type")
     s.add_argument("--limit", type=int, default=15,
                    help="Return only the last N events (default 15; 0 = all)")
 
     s = sub.add_parser("get-context")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--compact", action="store_true",
                    help="Combat cards instead of full PC sheets, drop lore "
                         "index, last 5 events. ~13k -> ~1.5k tokens.")
 
     s = sub.add_parser("export-campaign",
                        help="Export a campaign to a publishable file tree")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--output", required=True, help="directory to write")
 
     s = sub.add_parser("import-campaign",
@@ -1937,6 +1969,8 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if hasattr(args, "campaign"):
+        args.campaign = resolve_campaign(args.campaign)
     if not args.command:
         parser.print_help()
         sys.exit(1)
