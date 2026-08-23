@@ -92,7 +92,7 @@ of play rather than a plan for it.
 
 ## Storage and CLI
 
-Scores live in `myth-extras-json` under a top-level `score` key. Write them with
+Scores live in `myth-extras-json` under a top-level `score` key. `score` is *who they are*; its sibling `doing` is *what they are currently up to* between scenes -- see [`WORLD-STATE.md`](WORLD-STATE.md). Write them with
 `update-character --extras`, which **merges**: dicts merge recursively and lists
 extend, so appending one observation cannot discard the rest of the score.
 

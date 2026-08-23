@@ -147,8 +147,28 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 - **Character knowledge is per-character, not per-campaign.** The journal
   and rosters are the GM's memory, not the PC's. Before giving a PC a fact,
   check WHO learned it in the fiction: events another PC played through, or
-  lore the character has no path to, must not surface in their head. When in
-  doubt, trace the fact to a scene this character was present for.
+  lore the character has no path to, must not surface in their head.
+  **Run `get-log --known-to <char-id>`.** If it warns about unattributed
+  events the answer is incomplete — backfill with `update-event --involves`
+  rather than guessing. An empty result is missing data, not proof of ignorance.
+- **The camera has a position.** Every `log-event` carries `--visibility`:
+  `played` (on screen, the default), `reported` (the party was told),
+  `offscreen` (happened elsewhere — GM-side only; players learn of it through
+  consequences, never cutaways), `meta` (bookkeeping about the game, not an
+  event in it). Mark your own correction notes `meta`, or they pollute both
+  knowledge scoping and the recent-events window.
+- **Close the loop on off-camera action.** At session end, for each NPC with a
+  `doing`: either `set-doing --did "..."` because it moved, or leave it because
+  it did not. No `doing` should sit unexamined for more than two sessions.
+  GM-side, at a session boundary, invisible at the table.
+- **Canon that stops being true is retired, not deleted.** `retire-canon --id X
+  --status superseded --by Y`. Retired records keep their audit trail but stop
+  being read as live. When a crew retires, mark the PCs `retired` *and* retire
+  any lore that was only ever true for them.
+- **Read the NPC before the scene.** `get-character --brief <id>` gives score,
+  what they are currently up to, lore written about them, and the last five
+  events they were actually in — without the stat block.
+  See [`WORLD-STATE.md`](WORLD-STATE.md) for the full model.
 - **Secrets stay secret.** GM-side material (gm-secrets.md, faction
   narratives, template descriptions) informs your narration but is revealed
   only through play.

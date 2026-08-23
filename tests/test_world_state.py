@@ -147,3 +147,166 @@ def test_unattributed_is_not_the_same_as_nobody_knows():
     sparse = [{"id": "x1", "session": 1, "summary": "nobody recorded", "who": []}]
     assert wt.filter_log(sparse, known_to=OMMET) == []
     assert wt.count_unattributed(sparse) == 1
+
+
+# --- doing: forward state -----------------------------------------------
+
+DOING = {
+    "goal": "the pattern, worth more than the tools",
+    "next": "weigh whatever the Sundries bring and ask what else they have",
+    "where": "the Slake",
+    "with": ["myth-char-cauk"],
+    "blocked_by": "she will not move against the Spindle openly",
+    "as_of_session": 4,
+    "log": ["s3: traded the bog knife for a chip of dragon scale"],
+}
+
+
+def test_build_doing_keeps_only_known_slots():
+    d = wt.build_doing(goal="g", next="n", nonsense="x", session=4)
+    assert d["goal"] == "g" and d["next"] == "n"
+    assert "nonsense" not in d
+    assert d["as_of_session"] == 4
+
+
+def test_build_doing_omits_empty_slots():
+    d = wt.build_doing(goal="g", session=1)
+    assert "where" not in d and "blocked_by" not in d
+
+
+def test_valid_doing_has_no_warnings():
+    assert wt.validate_doing(DOING) == []
+
+
+def test_warns_when_next_is_missing():
+    """A goal with no next action is a wish, not an agenda."""
+    assert any("next" in w for w in wt.validate_doing({"goal": "g", "as_of_session": 1}))
+
+
+def test_warns_when_next_merely_restates_goal():
+    bad = dict(DOING, next=DOING["goal"])
+    assert any("next" in w for w in wt.validate_doing(bad))
+
+
+def test_warns_when_undated():
+    bad = {k: v for k, v in DOING.items() if k != "as_of_session"}
+    assert any("as_of_session" in w for w in wt.validate_doing(bad))
+
+
+def test_validate_doing_never_raises():
+    assert isinstance(wt.validate_doing({}), list)
+    assert isinstance(wt.validate_doing("nonsense"), list)
+
+
+def test_doing_line_renders_goal_and_next():
+    line = wt.doing_line(DOING, current_session=4)
+    assert "the pattern" in line and "next:" in line
+
+
+def test_doing_line_flags_staleness():
+    assert "2 sessions stale" in wt.doing_line(DOING, current_session=6)
+
+
+def test_doing_line_no_staleness_when_current():
+    assert "stale" not in wt.doing_line(DOING, current_session=4)
+
+
+def test_doing_line_truncates():
+    assert len(wt.doing_line(DOING, current_session=4, width=40)) <= 40
+
+
+def test_doing_line_empty_for_no_doing():
+    assert wt.doing_line(None, current_session=4) == ""
+    assert wt.doing_line({}, current_session=4) == ""
+
+
+# --- meta: bookkeeping is not fiction -----------------------------------
+
+META = {"id": "m1", "session": 4, "who": [(KRENCH, "Krench"), (OMMET, "Ommet")],
+        "summary": "GM CORRECTION - CREW CONFUSION", "visibility": "meta"}
+
+
+def test_meta_is_never_knowledge():
+    """A GM note naming the cast must not tell --known-to that a goblin is
+    aware of my own corrections."""
+    assert wt.filter_log([META], known_to=KRENCH) == []
+
+
+def test_meta_excluded_from_fiction():
+    assert wt.filter_log(LOG + [META], fiction_only=True) == wt.filter_log(LOG)
+
+
+def test_offscreen_is_still_fiction():
+    """Offscreen happened in the world; the party just did not see it."""
+    assert wt.is_fiction({"visibility": "offscreen"}) is True
+    assert wt.is_fiction({"visibility": "meta"}) is False
+    assert wt.is_fiction({}) is True
+
+
+# --- CLI wiring ---------------------------------------------------------
+
+def _gm_source():
+    path = os.path.join(os.path.dirname(__file__), "..", "skills",
+                        "mythras-gm", "mythras_gm.py")
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _schema():
+    path = os.path.join(os.path.dirname(__file__), "..", "skills",
+                        "mythras-gm", "schema.tql")
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_schema_declares_new_attributes_additively():
+    s = _schema()
+    for attr in ("myth-event-visibility", "myth-canon-status", "myth-superseded-by"):
+        assert f"attribute {attr}, value string;" in s, f"{attr} not declared"
+    # Additive define only: annotations or redefine would force a migration.
+    assert "redefine" not in s and "@values" not in s and "@card" not in s
+
+
+def test_canon_status_owned_by_every_canon_bearing_entity():
+    s = _schema()
+    assert s.count("owns myth-canon-status") == 5
+
+
+def test_event_visibility_owned_by_game_event():
+    s = _schema()
+    block = s.split("entity myth-game-event")[1].split(";")[0]
+    assert "owns myth-event-visibility" in block
+
+
+def test_commands_registered():
+    s = _gm_source()
+    for cmd in ("set-doing", "retire-canon"):
+        assert f'sub.add_parser("{cmd}"' in s, f"{cmd} not registered"
+    assert 'add_argument("--brief"' in s
+    assert 'add_argument("--known-to"' in s
+    assert 'add_argument("--involving"' in s
+
+
+def test_retire_canon_fails_on_unknown_id():
+    body = _gm_source().split("def cmd_retire_canon(")[1].split("\ndef ")[0]
+    assert "fail(" in body
+    assert "TYPEDB_DATABASE" in body, "error must name the database"
+
+
+def test_set_doing_merges_rather_than_overwrites():
+    body = _gm_source().split("def cmd_set_doing(")[1].split("\ndef ")[0]
+    assert "deep_merge" in body, "set-doing must merge, not replace extras"
+
+
+def test_read_paths_respect_canon_status():
+    s = _gm_source()
+    for fn in ("cmd_list_lore", "cmd_get_log"):
+        body = s.split(f"def {fn}(")[1].split("\ndef ")[0]
+        assert "canon" in body, f"{fn} does not consider canon status"
+
+
+def test_context_excludes_meta_and_surfaces_doing():
+    body = _gm_source().split("def cmd_get_context(")[1].split("\ndef ")[0]
+    assert "fiction_only=True" in body, "meta notes must not fill recent_events"
+    assert "doing_line" in body, "context must surface what NPCs are doing"
+    assert "former_player_characters" in body

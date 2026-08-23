@@ -13,10 +13,75 @@ CANON_STATUSES = ("live", "superseded", "retracted")
 
 # Where the camera was. Absent means "played", so existing records need no
 # backfill. Orthogonal to event type: an offscreen event can still be a combat.
-EVENT_VISIBILITIES = ("played", "reported", "offscreen")
+#   meta is bookkeeping ABOUT the campaign rather than an event IN it -- GM
+#   corrections, adopted conventions. It names the whole cast and so would
+#   otherwise poison both knowledge scoping and the recent-events window.
+EVENT_VISIBILITIES = ("played", "reported", "offscreen", "meta")
 
-# What a PC could actually know about. Offscreen is GM-side only.
+# What a PC could actually know about. Offscreen is GM-side; meta is not fiction.
 KNOWABLE_VISIBILITIES = ("played", "reported")
+
+# What belongs in the running journal at all.
+FICTION_VISIBILITIES = ("played", "reported", "offscreen")
+
+
+# What an NPC is currently up to. `score` is who they are; `doing` is what they
+# are occupied with on the days the party is not standing in front of them.
+#
+# ANTI-GOALS, named so they stay out: there is no progress, no segments, no
+# clock, no deadline, no eta, no threat level. Each is a rejected subsystem in
+# disguise. goal + next is a sentence, not a meter. `as_of_session` is a
+# staleness LABEL so a reader can see a line is three sessions old -- nothing
+# ticks, and nothing advances unless the GM said it did.
+DOING_SLOTS = ("goal", "next", "where", "with", "blocked_by",
+               "as_of_session", "log")
+
+
+def build_doing(session=None, **slots):
+    """Assemble a doing block, keeping known slots with a value."""
+    out = {}
+    for k in DOING_SLOTS:
+        v = slots.get(k)
+        if v not in (None, "", [], {}):
+            out[k] = v
+    if session is not None:
+        out["as_of_session"] = session
+    return out
+
+
+def validate_doing(doing):
+    """Return warnings about a doing block. Never raises, never blocks a write."""
+    if not isinstance(doing, dict):
+        return ["doing is not an object"]
+    warnings = []
+    goal, nxt = doing.get("goal"), doing.get("next")
+    if not nxt:
+        warnings.append(
+            "no 'next' -- a goal with no next action is a wish, not an agenda")
+    elif goal and str(nxt).strip().lower() == str(goal).strip().lower():
+        warnings.append("'next' merely restates 'goal'; next is the concrete "
+                        "thing they do, not the thing they want")
+    if doing.get("as_of_session") is None:
+        warnings.append("no 'as_of_session' -- staleness cannot be seen")
+    return warnings
+
+
+def doing_line(doing, current_session=None, width=140):
+    """One-line render for the context save file, with a staleness label."""
+    if not isinstance(doing, dict) or not doing:
+        return ""
+    parts = []
+    if doing.get("goal"):
+        parts.append(str(doing["goal"]))
+    if doing.get("next"):
+        parts.append("next: " + str(doing["next"]))
+    line = "; ".join(parts)
+    since = doing.get("as_of_session")
+    if current_session is not None and since is not None:
+        gap = current_session - since
+        if gap > 0:
+            line += f"  [s{since}, {gap} session{'s' if gap != 1 else ''} stale]"
+    return line if len(line) <= width else line[:width - 1].rstrip() + "…"
 
 
 def is_live(canon_status):
@@ -61,8 +126,13 @@ def count_unattributed(events):
     return sum(1 for e in events if not _participant_ids(e))
 
 
+def is_fiction(event):
+    """Did this happen in the world, as opposed to being a note about the game."""
+    return _visibility(event) in FICTION_VISIBILITIES
+
+
 def filter_log(events, involving=None, known_to=None, visibility=None,
-               since_session=None, include_retired=False):
+               since_session=None, include_retired=False, fiction_only=False):
     """Filter a list of event dicts. Never mutates the input.
 
     involving      -- list of entity ids; OR semantics (was anyone here present)
@@ -76,6 +146,8 @@ def filter_log(events, involving=None, known_to=None, visibility=None,
         if not include_retired and not is_live(e.get("canon")):
             continue
         if visibility is not None and _visibility(e) != visibility:
+            continue
+        if fiction_only and not is_fiction(e):
             continue
         if since_session is not None and (e.get("session") or 0) < since_session:
             continue

@@ -50,6 +50,21 @@ attribute myth-combatants-json, value string;      # [{"id":"...","name":"...","
 # World
 attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
 attribute myth-event-type, value string;           # scene | combat | skill-roll | decision | gm-note | session-start | session-end
+# Where the camera was. A SECOND axis from myth-event-type: an offscreen event
+# can still be a combat. Absent means "played", so nothing needs backfilling.
+#   played    - on screen, the party was there
+#   reported  - the party was told about it in the fiction
+#   offscreen - happened elsewhere; GM-side only, players learn via consequences
+#   meta      - bookkeeping ABOUT the campaign, not an event IN it
+attribute myth-event-visibility, value string;
+
+# Canon liveness. Absent means live, so no backfill and every read treats a
+# missing value as authoritative. Superseded canon STAYS in the graph -- deleting
+# it loses the audit trail -- but stops being read as true. This exists because
+# GM truth from a rejected version of a campaign sat in a character's content
+# field looking exactly as authoritative as live canon, and got played.
+attribute myth-canon-status, value string;         # live | superseded | retracted
+attribute myth-superseded-by, value string;        # id of the entry that replaces this
 
 # Rules graph (global, faceted, queryable). See entity myth-rule below.
 # A rule piece carries its canonical hierarchy home (domain > topic) plus a
@@ -116,6 +131,8 @@ entity myth-campaign sub alh-collection,
     plays myth-campaign-membership:campaign;
 
 entity myth-character sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-char-type,
     owns myth-status,
     owns myth-characteristics-json,
@@ -153,6 +170,8 @@ entity myth-creature-template sub alh-domain-thing,
     plays myth-lore-about:subject;
 
 entity myth-location sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-location-type,
     plays myth-campaign-membership:element,
     plays myth-presence:location,
@@ -160,6 +179,8 @@ entity myth-location sub alh-domain-thing,
     plays myth-lore-about:subject;
 
 entity myth-faction sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     plays myth-campaign-membership:element,
     plays myth-faction-membership:faction,
     plays myth-event-involvement:participant,
@@ -174,7 +195,10 @@ entity myth-encounter sub alh-domain-thing,
     plays myth-event-involvement:participant;
 
 entity myth-game-event sub alh-note,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-event-type,
+    owns myth-event-visibility,
     owns myth-session-number,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:event;
@@ -187,6 +211,8 @@ entity myth-game-event sub alh-note,
 attribute myth-lore-category, value string;     # cosmology | species | culture | ...
 attribute myth-lore-visibility, value string;   # gm-only | player-facing
 entity myth-lore sub alh-note,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-lore-category,
     owns myth-lore-visibility,
     plays myth-campaign-membership:element,

@@ -101,6 +101,14 @@ score before the scene, play the ladder in order, and append what happened to
 converges on the GM's own temperament: perceptive, self-aware, and articulate
 about their own motives. See `CHARACTER-SCORES.md`.
 
+**The world between scenes.** A score is who an NPC *is*; its sibling `doing`
+is what they are *up to* on the days the party is elsewhere (`set-doing`).
+Events carry a camera position (`--visibility`) and their participants
+(`--involves`), so **`get-log --known-to <char-id>`** answers what a given
+character could actually know — run it before handing a PC a fact. Canon that
+stops being true is retired, not deleted (`retire-canon`). Pull one NPC with
+`get-character --brief` rather than a full stat block. See `WORLD-STATE.md`.
+
 **Novelization:** to turn a campaign's journal into a typeset PDF novel
 (in a chosen author style -- Hemingway, Tolkien, Moorcock, or freeform),
 read `NOVELIZATION.md` and follow it.

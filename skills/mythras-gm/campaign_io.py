@@ -207,7 +207,8 @@ def export_campaign(campaign_id, outdir):
         for lid in _member_ids(driver, campaign_id, "myth-lore"):
             l = gm._get_entity(driver, "myth-lore", lid,
                                ["description", "content", "myth-lore-category",
-                                "myth-lore-visibility", "created-at"])
+                                "myth-lore-visibility", "myth-canon-status",
+                                "created-at"])
             subjects = gm._fetch(driver, f'''
                 match
                   $l isa myth-lore, has id "{gm.escape_string(lid)}";
@@ -237,7 +238,8 @@ def export_campaign(campaign_id, outdir):
         for eid in _member_ids(driver, campaign_id, "myth-game-event"):
             e = gm._get_entity(driver, "myth-game-event", eid,
                                ["description", "content", "myth-event-type",
-                                "myth-session-number", "created-at"])
+                                "myth-session-number", "myth-event-visibility",
+                                "myth-canon-status", "created-at"])
             involved = gm._fetch(driver, f'''
                 match
                   $e isa myth-game-event, has id "{gm.escape_string(eid)}";
@@ -248,6 +250,8 @@ def export_campaign(campaign_id, outdir):
                 "id": e["id"], "type": e.get("myth-event-type"),
                 "summary": e.get("description"), "narrative": e.get("content"),
                 "session": e.get("myth-session-number"),
+                "visibility": e.get("myth-event-visibility"),
+                "canon": e.get("myth-canon-status"),
                 "involves": sorted(r["pi"] for r in involved),
                 "at": _ts(e.get("created-at") or gm.get_timestamp()),
             })
@@ -284,7 +288,7 @@ def export_campaign(campaign_id, outdir):
         slug = _slugify(l["name"], used)
         vis = l.get("myth-lore-visibility", "player")
         meta = {"id": l["id"], "title": l["name"], "category": cat,
-                "visibility": vis,
+                "visibility": vis, "canon": l.get("myth-canon-status"),
                 "summary": l.get("description"), "about": l.get("about") or None,
                 "created_at": _ts(l.get("created-at") or gm.get_timestamp())}
         _write(os.path.join(outdir, "lore", cat, slug + ".md"),
@@ -708,6 +712,7 @@ def import_campaign(path, new_name=None, new_ids=False):
             gm._write(driver, f'insert $e isa myth-lore, has id "{lid}", '
                       f'has name "{gm.escape_string(l["title"])}", '
                       f'has myth-lore-category "{gm.escape_string(l.get("category") or "uncategorized")}", '
+                      (f'has myth-canon-status "{gm.escape_string(l["canon"])}", ' if l.get("canon") else '') +
                       f'has myth-lore-visibility "{gm.escape_string(l.get("visibility") or "player")}", '
                       f'has created-at {_ts(l.get("created_at"))}'
                       + _opt("description", l.get("summary"))
@@ -752,7 +757,9 @@ def import_campaign(path, new_name=None, new_ids=False):
                       f'has created-at {_ts(ev.get("at"))}'
                       + _opt("content", ev.get("narrative"))
                       + (f', has myth-session-number {ev["session"]}'
-                         if ev.get("session") is not None else "") + ";")
+                         if ev.get("session") is not None else "")
+                      + _opt("myth-event-visibility", ev.get("visibility"))
+                      + _opt("myth-canon-status", ev.get("canon")) + ";")
             link(evid, "myth-game-event")
             for pid in ev.get("involves") or []:
                 pid = rid(pid)
