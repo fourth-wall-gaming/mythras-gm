@@ -75,6 +75,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
 from score_tools import deep_merge, validate_score
+import world_tools as wt
 
 try:
     from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
@@ -1208,6 +1209,28 @@ def cmd_log_event(args):
     out({"success": True, "id": eid})
 
 
+def _event_participants(driver, campaign_id):
+    """Map every event in the campaign to its participants, in ONE round trip.
+
+    myth-event-involvement has been written by every `log-event --involves`
+    since the beginning and never read by anything, which is why the GM could
+    not tell whose story a given scene belonged to. Deliberately not the
+    per-event loop used in campaign_io -- that is N+1 over the whole journal.
+    """
+    rows = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $e) isa myth-campaign-membership;
+          $e isa myth-game-event, has id $ei;
+          (event: $e, participant: $p) isa myth-event-involvement;
+          $p has id $pi, has name $pn;
+        fetch {{ "event": $ei, "pid": $pi, "pname": $pn }};''')
+    by_event = {}
+    for r in rows:
+        by_event.setdefault(r["event"], []).append((r["pid"], r["pname"]))
+    return by_event
+
+
 def cmd_get_log(args):
     with get_driver() as driver:
         rows = _fetch(driver, f'''
@@ -1219,6 +1242,9 @@ def cmd_get_log(args):
               try {{ $e has myth-session-number $sn; }};
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
                      "session": $sn }};''')
+        participants = _event_participants(driver, args.campaign)
+    for r in rows:
+        r["who"] = participants.get(r["id"], [])
     # Order by session first so a re-logged session sorts into place rather than
     # onto the end, then by write time within the session.
     events = sorted(rows, key=lambda r: (r.get("session") is None,
@@ -1227,10 +1253,33 @@ def cmd_get_log(args):
         events = [e for e in events if e["type"] == args.type]
     if getattr(args, "session", None) is not None:
         events = [e for e in events if e.get("session") == args.session]
+    involving = getattr(args, "involving", None)
+    events = wt.filter_log(
+        events,
+        involving=[i.strip() for i in involving.split(",") if i.strip()] if involving else None,
+        known_to=getattr(args, "known_to", None),
+        since_session=getattr(args, "since_session", None),
+    )
     limit = getattr(args, "limit", None)
     if limit and limit > 0:
         events = events[-limit:]
-    out({"success": True, "events": events})
+    # Report names rather than ids: the point is legibility at a glance.
+    for e in events:
+        e["who"] = [n for _, n in e["who"]]
+    payload = {"success": True, "events": events}
+    # A participation filter silently drops every event whose participants were
+    # never recorded. Say so, loudly, or an empty result reads as "this
+    # character knows nothing" when it means "we never wrote down who was there".
+    if involving or getattr(args, "known_to", None):
+        unattributed = wt.count_unattributed(rows)
+        if unattributed:
+            payload["unattributed"] = unattributed
+            payload["warning"] = (
+                f"{unattributed} of {len(rows)} events in this campaign have no "
+                f"recorded participants and were skipped by this filter. They are "
+                f"unattributed, NOT known to be irrelevant. Backfill with "
+                f"'update-event --involves' before trusting this result.")
+    out(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -1673,7 +1722,15 @@ def cmd_get_context(args):
             pcs = [_combat_card(_load_character(driver, r["id"])) for r in active_pcs]
         else:
             pcs = [_load_character(driver, r["id"]) for r in active_pcs]
-        npcs = [r for r in chars if r["type"] != "pc"]
+        # Only NPCs still in play. Without the status filter every NPC ever
+        # spawned -- the dead, the one-scene guards -- stays in the save file
+        # for good, which is both a token leak and a canon-confusion source.
+        npcs = [r for r in chars if r["type"] != "pc" and r["status"] == "active"]
+        # Retired and dead PCs, NAMED. They used to be filtered out entirely
+        # while their events stayed in the log with no visible owner, which is
+        # exactly how one crew's history gets attributed to the crew on screen.
+        former_pcs = [r for r in chars
+                      if r["type"] == "pc" and r["status"] != "active"]
 
         encounters = _fetch(driver, f'''
             match
@@ -1688,15 +1745,38 @@ def cmd_get_context(args):
               (campaign: $camp, element: $e) isa myth-campaign-membership;
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
-            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
+              try {{ $e has myth-session-number $sn; }};
+            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
+                     "session": $sn }};''')
+        participants = _event_participants(driver, args.campaign)
         recent_n = 5 if compact else 15
         recent = sorted(events, key=lambda r: str(r["at"]))[-recent_n:]
+        # Whose scene was this. The cheapest guard in the system against
+        # attributing one crew's history to another.
+        for e in recent:
+            who = [n for _, n in participants.get(e["id"], [])]
+            if who:
+                e["who"] = who
+
+        # Date each former PC by the last session they actually appear in, so a
+        # retired crew reads as a closed chapter rather than a list of names.
+        last_seen = {}
+        for e in events:
+            for pid, _ in participants.get(e["id"], []):
+                s = e.get("session")
+                if s is not None and s > last_seen.get(pid, 0):
+                    last_seen[pid] = s
+        former = [{"id": r["id"], "name": r["name"], "status": r["status"],
+                   "last_session": last_seen.get(r["id"])}
+                  for r in former_pcs][:6]
 
         result = {"success": True, "campaign": camp, "player_characters": pcs,
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
                   "recent_events": recent}
+        if former:
+            result["former_player_characters"] = former
 
         # The lore index is a big static block. In compact mode skip it
         # entirely (use list-lore on demand); only emit it for full context.
@@ -2004,6 +2084,12 @@ def build_parser():
     s.add_argument("--type")
     s.add_argument("--limit", type=int, default=15,
                    help="Return only the last N events (default 15; 0 = all)")
+    s.add_argument("--involving", help="comma-separated entity ids; events any of "
+                                       "them took part in (OR)")
+    s.add_argument("--known-to", help="character id; events this character took part "
+                                      "in AND could know about. Use this before "
+                                      "giving a PC a fact.")
+    s.add_argument("--since-session", type=int, help="events from session N onwards")
 
     s = sub.add_parser("get-context")
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
