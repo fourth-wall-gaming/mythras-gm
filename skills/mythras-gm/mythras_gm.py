@@ -1231,6 +1231,66 @@ def _event_participants(driver, campaign_id):
     return by_event
 
 
+def cmd_update_event(args):
+    """Amend an already-logged event in place.
+
+    Journal entries need correcting after the fact: a one-line summary that grew
+    into an essay, a missing session number, participants that were never linked,
+    or canon that changed after the session was played. Mirrors
+    cmd_update_character. --summary rewrites both name and description so the two
+    stay in step, since name is capped at 80 characters.
+    """
+    updates = {
+        "description": args.summary,
+        "content": args.narrative,
+        "myth-event-type": args.type,
+    }
+    with get_driver() as driver:
+        if not _fetch(driver, f'''
+                match $e isa myth-game-event, has id "{escape_string(args.id)}";
+                fetch {{ "id": $e.id }};'''):
+            fail(f"No myth-game-event with id '{args.id}'")
+
+        if args.summary is not None:
+            _set_attr(driver, "myth-game-event", args.id, "name",
+                      args.summary[:80])
+        for attr, val in updates.items():
+            if val is not None:
+                _set_attr(driver, "myth-game-event", args.id, attr, val)
+        if args.session is not None:
+            _set_attr(driver, "myth-game-event", args.id,
+                      "myth-session-number", args.session, quote=False)
+
+        linked = 0
+        participant_types = ["myth-character", "myth-location", "myth-faction",
+                             "myth-encounter"]
+        for pid in (args.involves or "").split(","):
+            pid = pid.strip()
+            if not pid:
+                continue
+            for ptype in participant_types:
+                if not _fetch(driver, f'''
+                        match $p isa {ptype}, has id "{escape_string(pid)}";
+                        fetch {{ "id": $p.id }};'''):
+                    continue
+                # don't duplicate an existing link
+                if _fetch(driver, f'''
+                        match
+                          $e isa myth-game-event, has id "{escape_string(args.id)}";
+                          $p isa {ptype}, has id "{escape_string(pid)}";
+                          $r isa myth-event-involvement, links (event: $e, participant: $p);
+                        fetch {{ "x": $p.id }};'''):
+                    break
+                _write(driver, f'''
+                    match
+                      $e isa myth-game-event, has id "{escape_string(args.id)}";
+                      $p isa {ptype}, has id "{escape_string(pid)}";
+                    insert (event: $e, participant: $p) isa myth-event-involvement;''')
+                linked += 1
+                break
+    out({"success": True, "id": args.id, "participants_linked": linked})
+
+
 def cmd_get_log(args):
     with get_driver() as driver:
         rows = _fetch(driver, f'''
@@ -2014,6 +2074,17 @@ def build_parser():
     s.add_argument("--narrative")
     s.add_argument("--session", type=int)
     s.add_argument("--involves", help="comma-separated entity ids")
+
+    s = sub.add_parser("update-event", help="Amend an already-logged event in place")
+    s.add_argument("--id", required=True)
+    s.add_argument("--summary", help="one-line summary; also rewrites the name")
+    s.add_argument("--narrative", help="full account (stored in content)")
+    s.add_argument("--type",
+                   choices=["scene", "combat", "skill-roll", "decision",
+                            "gm-note", "session-start", "session-end"])
+    s.add_argument("--session", type=int)
+    s.add_argument("--involves",
+                   help="comma-separated entity ids to link (existing links kept)")
 
     s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
