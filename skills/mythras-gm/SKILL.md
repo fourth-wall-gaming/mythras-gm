@@ -106,8 +106,15 @@ is what they are *up to* on the days the party is elsewhere (`set-doing`).
 Events carry a camera position (`--visibility`) and their participants
 (`--involves`), so **`get-log --known-to <char-id>`** answers what a given
 character could actually know — run it before handing a PC a fact. Canon that
-stops being true is retired, not deleted (`retire-canon`). Pull one NPC with
-`get-character --brief` rather than a full stat block. See `WORLD-STATE.md`.
+stops being true is retired, not deleted (`retire-canon`).
+
+**What they believe.** The journal is the store of facts; `myth-knowledge`
+records what a character was told, shown or inferred, and above all **what they
+think it meant** -- which may be flatly wrong, and usually is what drives them
+(`set-knowledge`, `get-knowledge`). A debt is not a ledger entry: it is a belief
+plus how they feel about it. **`get-character --brief` is the whole pre-scene
+read** -- who they are, what they are up to, and what they believe -- without a
+stat block. See `WORLD-STATE.md`.
 
 **Novelization:** to turn a campaign's journal into a typeset PDF novel
 (in a chosen author style -- Hemingway, Tolkien, Moorcock, or freeform),

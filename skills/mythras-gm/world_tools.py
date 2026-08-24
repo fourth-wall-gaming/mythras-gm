@@ -158,3 +158,52 @@ def filter_log(events, involving=None, known_to=None, visibility=None,
             continue
         out.append(e)
     return out
+
+
+# --- character-centred knowledge ----------------------------------------
+#
+# The journal is the store of facts. Participation in an event already means
+# "was there, saw it". These are the edges for everything else: told, shown,
+# inferred -- and, crucially, what the knower thinks it MEANT. Perspective
+# lives on the edge, so two characters can hold the same event and read it
+# incompatibly without either reading changing the journal.
+
+KNOWLEDGE_DEPTHS = ("glimpsed", "knows", "can-prove")
+KNOWLEDGE_ROUTES = ("witnessed", "told", "shown", "inferred", "bought", "rumour")
+
+
+def validate_knowledge(k):
+    """Warnings about one knowledge edge. Never raises, never blocks a write."""
+    if not isinstance(k, dict):
+        return ["knowledge is not an object"]
+    warnings = []
+    depth = k.get("depth")
+    if depth is not None and depth not in KNOWLEDGE_DEPTHS:
+        warnings.append(f"depth '{depth}' not one of {', '.join(KNOWLEDGE_DEPTHS)}")
+    route = k.get("route")
+    if route is not None and route not in KNOWLEDGE_ROUTES:
+        warnings.append(f"route '{route}' not one of {', '.join(KNOWLEDGE_ROUTES)}")
+    if not k.get("note") and not k.get("attitude"):
+        warnings.append(
+            "no note and no attitude -- an edge with neither says only THAT they "
+            "know, which participation already told you. The value is in what "
+            "they think it meant and how they feel about it")
+    if route == "witnessed" and depth == "glimpsed":
+        warnings.append("witnessed but only glimpsed -- deliberate? say so in the note")
+    return warnings
+
+
+def knowledge_line(k, width=150):
+    """One-line render of an edge for a brief or a report."""
+    if not isinstance(k, dict):
+        return ""
+    bits = []
+    head = " ".join(x for x in (k.get("depth"), k.get("route")) if x)
+    if head:
+        bits.append(head)
+    if k.get("note"):
+        bits.append(f'"{k["note"]}"')
+    if k.get("attitude"):
+        bits.append(f"-- {k['attitude']}")
+    line = "  ".join(bits)
+    return line if len(line) <= width else line[:width - 1].rstrip() + "…"

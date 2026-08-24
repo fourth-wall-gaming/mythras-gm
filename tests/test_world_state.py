@@ -310,3 +310,81 @@ def test_context_excludes_meta_and_surfaces_doing():
     assert "fiction_only=True" in body, "meta notes must not fill recent_events"
     assert "doing_line" in body, "context must surface what NPCs are doing"
     assert "former_player_characters" in body
+
+
+# --- knowledge: the character-centred graph -----------------------------
+
+GOOD_K = {"depth": "knows", "route": "inferred",
+          "note": "they are holding out on me", "attitude": "will not deal until they name it"}
+
+
+def test_valid_knowledge_has_no_warnings():
+    assert wt.validate_knowledge(GOOD_K) == []
+
+
+def test_warns_on_unknown_depth():
+    assert any("depth" in w for w in wt.validate_knowledge(dict(GOOD_K, depth="certain")))
+
+
+def test_warns_on_unknown_route():
+    assert any("route" in w for w in wt.validate_knowledge(dict(GOOD_K, route="osmosis")))
+
+
+def test_warns_when_edge_carries_neither_note_nor_attitude():
+    """An edge with neither says only THAT they know, which participation
+    already told us. The value is the reading and the feeling."""
+    bare = {"depth": "knows", "route": "told"}
+    assert any("note" in w or "attitude" in w for w in wt.validate_knowledge(bare))
+
+
+def test_note_alone_is_enough():
+    assert wt.validate_knowledge({"depth": "knows", "note": "x"}) == []
+
+
+def test_warns_on_witnessed_but_glimpsed():
+    odd = dict(GOOD_K, route="witnessed", depth="glimpsed")
+    assert any("glimpsed" in w for w in wt.validate_knowledge(odd))
+
+
+def test_validate_knowledge_never_raises():
+    assert isinstance(wt.validate_knowledge({}), list)
+    assert isinstance(wt.validate_knowledge("nonsense"), list)
+
+
+def test_knowledge_line_carries_reading_and_feeling():
+    line = wt.knowledge_line(GOOD_K)
+    assert "knows" in line and "holding out" in line and "name it" in line
+
+
+def test_knowledge_line_truncates():
+    assert len(wt.knowledge_line(GOOD_K, width=30)) <= 30
+
+
+def test_knowledge_line_empty_for_nothing():
+    assert wt.knowledge_line(None) == "" and wt.knowledge_line({}) == ""
+
+
+def test_knowledge_commands_registered():
+    s = _gm_source()
+    for cmd in ("set-knowledge", "get-knowledge"):
+        assert f'sub.add_parser("{cmd}"' in s, f"{cmd} not registered"
+    assert 'add_argument("--knower"' in s
+    assert 'add_argument("--attitude"' in s
+
+
+def test_set_knowledge_replaces_rather_than_accumulates():
+    """One edge per (knower, subject) -- a character's understanding is revised
+    as they learn more, not stacked up in duplicate."""
+    body = _gm_source().split("def cmd_set_knowledge(")[1].split("\ndef ")[0]
+    assert "delete $r" in body, "set-knowledge must clear the prior edge first"
+    assert "fail(" in body, "must fail loudly on an unknown knower or subject"
+
+
+def test_schema_declares_the_knowledge_graph():
+    s = _schema()
+    assert "relation myth-knowledge," in s
+    for attr in ("myth-knowledge-depth", "myth-knowledge-route",
+                 "myth-knowledge-note", "myth-attitude"):
+        assert f"attribute {attr}, value string;" in s
+    # the knower is always a named character; subjects are broad
+    assert s.count("plays myth-knowledge:subject") >= 5

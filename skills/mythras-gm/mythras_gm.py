@@ -451,6 +451,16 @@ def cmd_get_character(args):
                 brief["lore"] = lore
             if hist:
                 brief["recent"] = hist[-5:]
+            # What they think is true and how they feel about it. This is the
+            # reason to pull a brief at all: score is temperament, doing is
+            # agenda, and this is why they are in the scene.
+            edges = _knowledge_edges(driver, knower_id=args.id)
+            if edges:
+                brief["knows"] = [
+                    {"subject": (e.get("subject") or (e.get("subject_desc") or "")[:70]),
+                     "depth": e.get("depth"), "route": e.get("route"),
+                     "reads_it_as": e.get("note"), "attitude": e.get("attitude")}
+                    for e in edges]
             out({"success": True, "character": brief})
             return
     if getattr(args, "compact", False):
@@ -775,6 +785,118 @@ def cmd_update_character(args):
 
 CANON_TYPES = ["myth-lore", "myth-game-event", "myth-character",
                "myth-location", "myth-faction"]
+
+KNOWLEDGE_SUBJECT_TYPES = ["myth-game-event", "myth-lore", "myth-character",
+                           "myth-location", "myth-faction"]
+
+
+def cmd_set_knowledge(args):
+    """Record what a character knows, thinks it meant, and how they feel.
+
+    The journal is the store of facts and participation already means "was
+    there, saw it". This records everything else -- told, shown, inferred --
+    and above all the NOTE: their reading of it, which may be flatly wrong.
+    Neask holds a true event and a false reading of it, and the false reading
+    is what drives her next scene.
+    """
+    with get_driver() as driver:
+        if not _fetch(driver, f'''
+                match $k isa myth-character, has id "{escape_string(args.knower)}";
+                fetch {{ "id": $k.id }};'''):
+            fail(f"No myth-character with id '{args.knower}' in database "
+                 f"'{TYPEDB_DATABASE}'")
+        stype = _resolve_entity_type(driver, args.subject, KNOWLEDGE_SUBJECT_TYPES)
+        if not stype:
+            fail(f"No knowable subject with id '{args.subject}' in database "
+                 f"'{TYPEDB_DATABASE}' (events, lore, characters, locations, factions)")
+
+        session = args.session
+        if session is None:
+            rows = _fetch(driver, f'''
+                match $c isa myth-campaign, has id "{escape_string(args.campaign)}",
+                      has myth-session-number $s;
+                fetch {{ "s": $s }};''')
+            session = rows[0]["s"] if rows else None
+
+        # One edge per (knower, subject): replace rather than accumulate, so a
+        # character's understanding can be revised as they learn more.
+        _write(driver, f'''
+            match
+              $k isa myth-character, has id "{escape_string(args.knower)}";
+              $s isa {stype}, has id "{escape_string(args.subject)}";
+              $r isa myth-knowledge, links (knower: $k, subject: $s);
+            delete $r;''')
+
+        parts = []
+        for attr, val in (("myth-knowledge-depth", args.depth),
+                          ("myth-knowledge-route", args.route),
+                          ("myth-knowledge-note", args.note),
+                          ("myth-attitude", args.attitude)):
+            if val:
+                parts.append(f', has {attr} "{escape_string(val)}"')
+        if session is not None:
+            parts.append(f", has myth-session-number {session}")
+        _write(driver, f'''
+            match
+              $k isa myth-character, has id "{escape_string(args.knower)}";
+              $s isa {stype}, has id "{escape_string(args.subject)}";
+            insert $r isa myth-knowledge (knower: $k, subject: $s){"".join(parts)};''')
+
+    payload = {"success": True, "knower": args.knower, "subject": args.subject,
+               "subject_type": stype}
+    warnings = wt.validate_knowledge({"depth": args.depth, "route": args.route,
+                                      "note": args.note, "attitude": args.attitude})
+    if warnings:
+        payload["knowledge_warnings"] = warnings
+    out(payload)
+
+
+def _knowledge_edges(driver, knower_id=None, subject_id=None):
+    """Fetch knowledge edges from either end. Relation attributes must be bound
+    in the match -- $rel.attr is not fetchable in TypeDB 3.x."""
+    if knower_id:
+        anchor = f'$k isa myth-character, has id "{escape_string(knower_id)}";'
+    else:
+        anchor = f'$s has id "{escape_string(subject_id)}";'
+    return _fetch(driver, f'''
+        match
+          {anchor}
+          $r isa myth-knowledge, links (knower: $k, subject: $s);
+          $k has id $ki, has name $kn;
+          $s has id $si;
+          try {{ $s has name $sn; }};
+          try {{ $s has description $sd; }};
+          try {{ $r has myth-knowledge-depth $d; }};
+          try {{ $r has myth-knowledge-route $ro; }};
+          try {{ $r has myth-knowledge-note $no; }};
+          try {{ $r has myth-attitude $at; }};
+          try {{ $r has myth-session-number $sess; }};
+        fetch {{ "knower_id": $ki, "knower": $kn, "subject_id": $si,
+                 "subject": $sn, "subject_desc": $sd, "depth": $d, "route": $ro,
+                 "note": $no, "attitude": $at, "session": $sess }};''')
+
+
+def cmd_get_knowledge(args):
+    """What a character knows, or who knows about a thing.
+
+    With --knower, also reports what they witnessed directly, since
+    participation in an event is implicit knowledge and needs no edge.
+    """
+    with get_driver() as driver:
+        if args.knower:
+            edges = _knowledge_edges(driver, knower_id=args.knower)
+            participants = _event_participants(driver, args.campaign)
+            witnessed = [eid for eid, ps in participants.items()
+                         if any(pid == args.knower for pid, _ in ps)]
+            explicit = {e["subject_id"] for e in edges}
+            # Only list witnessed events that carry no edge of their own -- an
+            # edge means we have recorded their particular reading of it.
+            plain = [e for e in witnessed if e not in explicit]
+            out({"success": True, "knower": args.knower, "knowledge": edges,
+                 "witnessed_without_note": plain})
+        else:
+            out({"success": True, "subject": args.subject,
+                 "known_by": _knowledge_edges(driver, subject_id=args.subject)})
 
 
 def _resolve_entity_type(driver, entity_id, types):
@@ -2076,6 +2198,25 @@ def build_parser():
     s.add_argument("--system")
     s.add_argument("--game-date")
     s.add_argument("--session", type=int, help="the session number now in play")
+
+    s = sub.add_parser("set-knowledge",
+                       help="Record what a character knows, thinks it meant, and feels")
+    s.add_argument("--knower", required=True, help="character id")
+    s.add_argument("--subject", required=True,
+                   help="id of an event, lore entry, character, location or faction")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
+    s.add_argument("--depth", choices=["glimpsed", "knows", "can-prove"])
+    s.add_argument("--route",
+                   choices=["witnessed", "told", "shown", "inferred", "bought", "rumour"])
+    s.add_argument("--note", help="THEIR reading of it -- may be flatly wrong")
+    s.add_argument("--attitude", help="how they feel about it / what it makes them want")
+    s.add_argument("--session", type=int, help="defaults to the campaign's current session")
+
+    s = sub.add_parser("get-knowledge",
+                       help="What a character knows, or who knows about a thing")
+    s.add_argument("--knower", help="character id -- what do they know")
+    s.add_argument("--subject", help="entity id -- who knows about this")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("retire-canon",
                        help="Mark a record no longer true, without deleting it")

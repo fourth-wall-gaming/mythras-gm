@@ -66,6 +66,20 @@ attribute myth-event-visibility, value string;
 attribute myth-canon-status, value string;         # live | superseded | retracted
 attribute myth-superseded-by, value string;        # id of the entry that replaces this
 
+# CHARACTER-CENTRED KNOWLEDGE GRAPH.
+# The JOURNAL is the store of facts: myth-game-event records what happened, and
+# myth-event-involvement already means "was there, saw it". This layer records
+# everything else -- what a character was TOLD, what they INFERRED, what they
+# think it MEANT (which may be wrong), and how they FEEL about it. Subjects are
+# events, lore, places, factions, and other characters.
+#
+# Perspective lives on the edge, not in the world. Two characters can hold the
+# same event and read it incompatibly, and neither reading changes the journal.
+attribute myth-knowledge-depth, value string;      # glimpsed | knows | can-prove
+attribute myth-knowledge-route, value string;      # witnessed | told | shown | inferred | bought | rumour
+attribute myth-knowledge-note, value string;       # THEIR reading of it; may be flatly wrong
+attribute myth-attitude, value string;             # how they feel about it / what it makes them want
+
 # Rules graph (global, faceted, queryable). See entity myth-rule below.
 # A rule piece carries its canonical hierarchy home (domain > topic) plus a
 # coarse category/kind, and is tagged with 1-4 orthogonal facets for live,
@@ -109,6 +123,15 @@ relation myth-template-instance,
 relation myth-lore-about,
     relates lore,
     relates subject;
+
+relation myth-knowledge,
+    relates knower,
+    relates subject,
+    owns myth-knowledge-depth,
+    owns myth-knowledge-route,
+    owns myth-knowledge-note,
+    owns myth-attitude,
+    owns myth-session-number;
 
 # Rules graph relations
 relation myth-rule-tagged,        # rule <-> facet (situational tag)
@@ -154,7 +177,9 @@ entity myth-character sub alh-domain-thing,
     plays myth-event-involvement:participant,
     plays myth-faction-membership:member,
     plays myth-template-instance:instance,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knowledge:knower,
+    plays myth-knowledge:subject;
 
 entity myth-creature-template sub alh-domain-thing,
     owns myth-characteristics-json,
@@ -167,7 +192,8 @@ entity myth-creature-template sub alh-domain-thing,
     owns myth-extras-json,
     plays myth-campaign-membership:element,
     plays myth-template-instance:template,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knowledge:subject;
 
 entity myth-location sub alh-domain-thing,
     owns myth-canon-status,
@@ -176,7 +202,8 @@ entity myth-location sub alh-domain-thing,
     plays myth-campaign-membership:element,
     plays myth-presence:location,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knowledge:subject;
 
 entity myth-faction sub alh-domain-thing,
     owns myth-canon-status,
@@ -184,7 +211,8 @@ entity myth-faction sub alh-domain-thing,
     plays myth-campaign-membership:element,
     plays myth-faction-membership:faction,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knowledge:subject;
 
 entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
@@ -201,7 +229,8 @@ entity myth-game-event sub alh-note,
     owns myth-event-visibility,
     owns myth-session-number,
     plays myth-campaign-membership:element,
-    plays myth-event-involvement:event;
+    plays myth-event-involvement:event,
+    plays myth-knowledge:subject;
 
 # LORE - Generic worldbuilding detail for any campaign.
 # Each entry is a rich-text note (content inherited from alh-note) with a
@@ -211,6 +240,7 @@ entity myth-game-event sub alh-note,
 attribute myth-lore-category, value string;     # cosmology | species | culture | ...
 attribute myth-lore-visibility, value string;   # gm-only | player-facing
 entity myth-lore sub alh-note,
+    plays myth-knowledge:subject,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-lore-category,
@@ -218,7 +248,8 @@ entity myth-lore sub alh-note,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:participant,
     plays myth-lore-about:lore,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knowledge:subject;
 
 # RULES GRAPH - Universal Mythras rules sliced into small, queryable pieces.
 # Unlike lore, rules are GLOBAL (no campaign membership): Mythras Imperative

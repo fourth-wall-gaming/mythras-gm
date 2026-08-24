@@ -1,7 +1,8 @@
 # World State
 
-How the campaign database answers three questions the GM cannot otherwise ask:
-**is this still true**, **who was there and who knows**, and **what happens next**.
+How the campaign database answers four questions the GM cannot otherwise ask:
+**is this still true**, **who was there**, **what do they think it meant**, and
+**what happens next**.
 
 Companion to `CHARACTER-SCORES.md`. A score is *who an NPC is* in a scene; this
 document is about the world between scenes.
@@ -23,12 +24,13 @@ characters to `status == "active"`, so a retired crew **vanished from the save
 file entirely** while every event they were in stayed in the log with no visible
 owner. Orphaned history attaches itself to whoever is currently on screen.
 
-## The three axes
+## The four axes
 
 | Axis | Question | Mechanism |
 |---|---|---|
 | **Liveness** | Is this still true? | `myth-canon-status` — absent means live |
-| **Attribution** | Who was there, and who knows? | `myth-event-involvement`, finally read; `myth-event-visibility` |
+| **Attribution** | Who was there? | `myth-event-involvement`; `myth-event-visibility` |
+| **Perspective** | What do they think it *meant*? | `myth-knowledge` |
 | **Forward** | What happens next? | `doing`, sibling of `score` in `myth-extras-json` |
 
 Every schema addition is optional and absent means the sane default, so nothing
@@ -90,6 +92,57 @@ Offscreen records never appear in player-facing output.
 original — log a *new* `played` event describing the finding out. The record of
 what happened and the record of them learning it are different facts.
 
+## Perspective: the knowledge graph
+
+**The journal is the store of facts.** Events record what happened, and
+participation already means *was there, saw it*. There is deliberately no
+separate "secret" or "fact" entity — a proposition that matters is an event, or
+a lore entry, or a person.
+
+`myth-knowledge` records everything else: what a character was **told**,
+**shown**, or **inferred**, and above all what they think it **meant**.
+
+```bash
+set-knowledge --knower <char> --subject <event|lore|character|location|faction> \
+  --depth glimpsed|knows|can-prove \
+  --route witnessed|told|shown|inferred|bought|rumour \
+  --note "their reading of it -- may be flatly wrong" \
+  --attitude "how they feel / what it makes them want"
+```
+
+**Perspective lives on the edge, not in the world.** Two characters can hold the
+same event and read it incompatibly, and neither reading changes the journal.
+That is how a false belief is represented — not as a false fact, but as a wrong
+reading of a true one:
+
+> *The squad told Neask the plain truth: nobody knows what Vorgath is making, he
+> is off his head, it will not work.* Her edge on that scene reads **"they know
+> exactly, and have decided it is worth more than two coils of rope; the
+> laughing is a good act."** Same event. Her reading is wrong, sincerely held,
+> and it is what drives her next scene.
+
+**A debt is a belief plus a feeling.** There is no separate ledger of
+obligations. Sethelaine is not owed reparations in anybody's book — she *feels
+owed a death*, and that lives in `attitude` on her edge. A villain who feels
+slighted feels they are owed revenge, and that is the whole mechanism.
+
+**Three grades, because they are different scenes.** `suspects` and `can-prove`
+are not degrees of the same thing. **Route matters** because how they came by it
+tells you who else has it.
+
+**Write an edge only when there is something to say.** If all you would record is
+*that* they know, participation already told you; the value is the reading and
+the feeling. `validate_knowledge` warns on a bare edge.
+
+Second-order knowledge needs no machinery: *"Vorgath does not know his counsel
+has been cut"* is an absent edge, and *"Othric knows and nobody knows he knows"*
+is one edge with one knower.
+
+```bash
+get-knowledge --knower <char>     # what they know, plus what they witnessed with no note
+get-knowledge --subject <id>      # who holds this, at what depth, with what slant
+```
+
 ## Forward state: `doing`
 
 Sits beside `score` in `myth-extras-json`.
@@ -137,8 +190,10 @@ Written down so the next design pass does not re-propose them:
 1. **Session start.** `get-context --compact` gives the live PCs, the former
    crews (named and dated), one `doing` line per active NPC, recent play with
    participants, and any offscreen developments.
-2. **Before a scene.** `get-character --brief <id>` — score, doing, lore written
-   about them, and the last five events they were actually in. Not a stat block.
+2. **Before a scene.** `get-character --brief <id>` — score (who they are),
+   doing (what they are up to), **knows** (what they think is true and how they
+   feel about it), lore written about them, and the last five events they were
+   in. Not a stat block. This one call is the whole pre-scene read.
 3. **During.** `log-event` with `--involves` and, when the camera was elsewhere,
    `--visibility`.
 4. **Before giving a PC a fact.** `get-log --known-to <them>`.
