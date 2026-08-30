@@ -712,7 +712,7 @@ def import_campaign(path, new_name=None, new_ids=False):
             gm._write(driver, f'insert $e isa myth-lore, has id "{lid}", '
                       f'has name "{gm.escape_string(l["title"])}", '
                       f'has myth-lore-category "{gm.escape_string(l.get("category") or "uncategorized")}", '
-                      (f'has myth-canon-status "{gm.escape_string(l["canon"])}", ' if l.get("canon") else '') +
+                      + (f'has myth-canon-status "{gm.escape_string(l["canon"])}", ' if l.get("canon") else '') +
                       f'has myth-lore-visibility "{gm.escape_string(l.get("visibility") or "player")}", '
                       f'has created-at {_ts(l.get("created_at"))}'
                       + _opt("description", l.get("summary"))
