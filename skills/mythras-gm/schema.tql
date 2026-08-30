@@ -12,7 +12,7 @@ define
 #   and campaign persistence.
 # - Rich narrative text (backstory, location descriptions, event narration)
 #   lives in the inherited `content` attribute.
-# - myth-campaign is an alh-collection; everything in a campaign is linked
+# - myth-campaign is an myth-collection; everything in a campaign is linked
 #   via myth-campaign-membership.
 # =============================================================================
 
@@ -146,14 +146,14 @@ relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-r
 # ENTITIES
 # =============================================================================
 
-entity myth-campaign sub alh-collection,
+entity myth-campaign sub myth-collection,
     owns myth-system,
     owns myth-game-date,
     owns myth-current-scene,
     owns myth-session-number,
     plays myth-campaign-membership:campaign;
 
-entity myth-character sub alh-domain-thing,
+entity myth-character sub myth-domain-thing,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-char-type,
@@ -181,7 +181,7 @@ entity myth-character sub alh-domain-thing,
     plays myth-knowledge:knower,
     plays myth-knowledge:subject;
 
-entity myth-creature-template sub alh-domain-thing,
+entity myth-creature-template sub myth-domain-thing,
     owns myth-characteristics-json,
     owns myth-attributes-json,
     owns myth-skills-json,
@@ -195,7 +195,7 @@ entity myth-creature-template sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-knowledge:subject;
 
-entity myth-location sub alh-domain-thing,
+entity myth-location sub myth-domain-thing,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-location-type,
@@ -205,7 +205,7 @@ entity myth-location sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-knowledge:subject;
 
-entity myth-faction sub alh-domain-thing,
+entity myth-faction sub myth-domain-thing,
     owns myth-canon-status,
     owns myth-superseded-by,
     plays myth-campaign-membership:element,
@@ -214,7 +214,7 @@ entity myth-faction sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-knowledge:subject;
 
-entity myth-encounter sub alh-domain-thing,
+entity myth-encounter sub myth-domain-thing,
     owns myth-encounter-status,
     owns myth-round,
     owns myth-combatants-json,
@@ -222,7 +222,7 @@ entity myth-encounter sub alh-domain-thing,
     plays myth-participation:encounter,
     plays myth-event-involvement:participant;
 
-entity myth-game-event sub alh-note,
+entity myth-game-event sub myth-note,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-event-type,
@@ -233,13 +233,13 @@ entity myth-game-event sub alh-note,
     plays myth-knowledge:subject;
 
 # LORE - Generic worldbuilding detail for any campaign.
-# Each entry is a rich-text note (content inherited from alh-note) with a
+# Each entry is a rich-text note (content inherited from myth-note) with a
 # free-form category (cosmology, species, culture, magic-system, careers,
 # history, religion, economy, bestiary, house-rules, ...) and a visibility
 # flag so GM-only material can live alongside player-facing canon.
 attribute myth-lore-category, value string;     # cosmology | species | culture | ...
 attribute myth-lore-visibility, value string;   # gm-only | player-facing
-entity myth-lore sub alh-note,
+entity myth-lore sub myth-note,
     plays myth-knowledge:subject,
     owns myth-canon-status,
     owns myth-superseded-by,
@@ -254,18 +254,18 @@ entity myth-lore sub alh-note,
 # RULES GRAPH - Universal Mythras rules sliced into small, queryable pieces.
 # Unlike lore, rules are GLOBAL (no campaign membership): Mythras Imperative
 # rules are universal; setting-specific house rules stay as campaign myth-lore.
-# Each piece is a rich-text note (content inherited from alh-note) with a
+# Each piece is a rich-text note (content inherited from myth-note) with a
 # hierarchy home (domain > topic), a coarse category/kind, faceted tags for
 # situational retrieval, and optional links to related pieces.
 #
 # A facet is a (dimension, value) pair modeled as a first-class entity so it is
 # precisely queryable; its `name` is the facet value (e.g. "impale") and
 # myth-facet-dim is the axis (e.g. "effect").
-entity myth-rule-facet sub alh-identifiable-entity,   # name = the facet value
+entity myth-rule-facet sub myth-identifiable-entity,   # name = the facet value
     owns myth-facet-dim,
     plays myth-rule-tagged:facet;
 
-entity myth-rule sub alh-note,
+entity myth-rule sub myth-note,
     owns myth-rule-system,
     owns myth-rule-category,
     owns myth-rule-kind,

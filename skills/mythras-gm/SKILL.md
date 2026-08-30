@@ -32,9 +32,8 @@ PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
 uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 ```
 
-**Database and campaign defaults.** `TYPEDB_DATABASE` defaults to **`alh_mythras`**,
-which is this skill's database under the per-repo split -- you no longer need to
-prefix every call. `--campaign` may be omitted: it resolves from
+**Database and campaign defaults.** `TYPEDB_DATABASE` defaults to **`mythras`**,
+this skill's own standalone database -- you no longer need to prefix every call. `--campaign` may be omitted: it resolves from
 `$MYTHRAS_CAMPAIGN`, or from the only campaign in the database if there is exactly
 one. With several and no hint the CLI **refuses and lists them** rather than
 guessing. Set `MYTHRAS_CAMPAIGN` once at the start of a session and drop the flag.

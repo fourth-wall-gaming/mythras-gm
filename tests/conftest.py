@@ -7,21 +7,22 @@ hook early enough to matter.
 
 Why this exists: `test_novelist.py::test_extract_seeded_campaign` seeds a real
 campaign through the real CLI in a subprocess that inherits the environment. It
-therefore wrote to whatever the CLI defaulted to, and never cleaned up. That was
-harmless while the default was the retired `alhazen_notebook` -- and became
-harmful in August 2026 when the default was corrected to `alh_mythras`, the live
-game database. Twenty `ztest-novelist` campaigns had accumulated before anyone
-looked. A test suite must not be able to touch real data by default.
+therefore wrote to whatever the CLI defaulted to, and never cleaned up. Twenty
+`ztest-novelist` campaigns had accumulated in the live game database before
+anyone looked. A test suite must not be able to touch real data by default.
 """
 
 import os
 import sys
 
-TEST_DB = "alh_mythras_pytest"
+TEST_DB = "mythras_pytest"
 
-# Databases the suite must never write to, whatever the environment says.
-LIVE_DATABASES = {"alh_mythras", "alh_core", "alh_deep_research", "alh_personal",
-                  "alh_biorodeo", "dismech", "alhazen_notebook"}
+# Databases the suite must never write to, whatever the environment says. The
+# skill's own live DB is `mythras`; the rest are the former Alhazen split DBs
+# (guarded so an inherited shell export can never redirect a run onto them) and
+# the retired `alh_mythras` fallback.
+LIVE_DATABASES = {"mythras", "alh_mythras", "alh_core", "alh_deep_research",
+                  "alh_personal", "alh_biorodeo", "dismech", "alhazen_notebook"}
 
 _inherited = os.environ.get("TYPEDB_DATABASE")
 if _inherited in LIVE_DATABASES:

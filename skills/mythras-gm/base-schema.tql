@@ -1,27 +1,21 @@
 define
 
 # =============================================================================
-# Minimal standalone base for mythras-gm.
+# Standalone base schema for mythras-gm.
 #
-# schema.tql inherits from four types it does not define -- alh-identifiable-
-# entity, alh-domain-thing, alh-collection and alh-note -- which normally come
-# from alhazen-core. That made mythras-gm unable to provision a database of its
-# own, which in turn made test isolation impossible: the suite had no throwaway
-# database to write to, so it wrote to the live game and left 21 fixture
-# campaigns behind before anyone looked.
+# mythras-gm owns its own TypeDB database ("mythras") and its own root type
+# hierarchy. This file defines the small set of base types that the myth- game
+# types inherit from: an identity, a name, a description, some prose, and a
+# timestamp.
 #
-# This file is that base, reduced to exactly what the myth- types use: an
-# identity, a name, a description, some prose, and a timestamp. None of
-# alhazen's classification, tagging, provenance, aboutness or citation
-# machinery is used by this skill.
+# History: these types were once inherited from alhazen-core (as alh-identifiable
+# -entity, alh-domain-thing, alh-collection, alh-note). The skill was decoupled
+# from Alhazen in August 2026 -- own database, own base types, own session hook,
+# vendored helpers -- so nothing here depends on Alhazen any more. The names were
+# renamed alh- -> myth- at the same time; there is zero alh- anywhere in the
+# skill now.
 #
-# Definitions are a strict SUBSET of alhazen-core's, with matching names,
-# abstractness and cardinality, so loading this into a database that already
-# has the full core schema is a no-op. Loading it into an empty database gives
-# mythras-gm a home of its own.
-#
-# First step of the standalone-database pivot; the type names stay `alh-` for
-# now so schema.tql needs no edit.
+# Load order: this file first, then schema.tql (which subtypes these).
 # =============================================================================
 
 attribute id, value string;
@@ -30,19 +24,19 @@ attribute description, value string;
 attribute content, value string;
 attribute created-at, value datetime;
 
-entity alh-identifiable-entity @abstract,
+entity myth-identifiable-entity @abstract,
     owns id @key,
     owns name,
     owns description,
     owns created-at;
 
-entity alh-domain-thing sub alh-identifiable-entity,
+entity myth-domain-thing sub myth-identifiable-entity,
     owns content;
 
-entity alh-collection sub alh-identifiable-entity,
+entity myth-collection sub myth-identifiable-entity,
     owns content;
 
-entity alh-information-content-entity @abstract, sub alh-identifiable-entity,
+entity myth-information-content-entity @abstract, sub myth-identifiable-entity,
     owns content;
 
-entity alh-note sub alh-information-content-entity;
+entity myth-note sub myth-information-content-entity;

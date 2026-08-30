@@ -11,10 +11,9 @@
   "homepage": "https://github.com/fourth-wall-gaming/mythras-gm",
   "license": "MIT",
   "requires": {
-    "plugins": ["alhazen-core"],
     "system": {
       "bins": ["uv", "docker"],
-      "description": "Run /alhazen-core:init first to set up TypeDB and base schema. Novelization PDF builds additionally need pandoc and typst (brew install pandoc typst)."
+      "description": "Standalone: the skill's SessionStart hook starts TypeDB (Docker) and provisions its own 'mythras' database -- no other plugin required. Novelization PDF builds additionally need pandoc and typst (brew install pandoc typst)."
     }
   }
 }

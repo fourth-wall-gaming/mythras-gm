@@ -1,12 +1,14 @@
 name: mythras-gm
 version: 0.1.0
 description: Gamesmaster system for Mythras Imperative -- persistent RPG campaigns (characters, encounters, worldbuilding, session journal) in TypeDB, with the original Veilwrack sky-realm setting.
-author: skillful-alhazen
+author: fourth-wall-gaming
 license: MIT
 typedb_schema: schema.tql
+base_schema: base-schema.tql
 cli: mythras_gm.py
-dependencies:
-  - alhazen-core
+# Standalone as of August 2026: own "mythras" database, own base types, no
+# Alhazen dependency. Requires only TypeDB (via Docker) and uv.
+dependencies: []
 schema:
   namespace: myth
   depends_on: []

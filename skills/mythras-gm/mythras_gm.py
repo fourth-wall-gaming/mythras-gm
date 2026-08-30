@@ -83,32 +83,16 @@ except ImportError:
     print(json.dumps({"success": False, "error": "typedb-driver not installed"}))
     sys.exit(1)
 
-try:
-    _SKILL_DIR = os.path.dirname(os.path.realpath(__file__))
-    _PROJECT_ROOT = os.path.abspath(os.path.join(_SKILL_DIR, "..", ".."))
-    sys.path.insert(0, _PROJECT_ROOT)
-    from src.skillful_alhazen.utils.skill_helpers import escape_string, generate_id, get_timestamp
-except ImportError:
-    import uuid
-    from datetime import datetime, timezone
-
-    def escape_string(s):
-        if s is None:
-            return ""
-        return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "")
-
-    def generate_id(prefix):
-        return f"{prefix}-{uuid.uuid4().hex[:12]}"
-
-    def get_timestamp():
-        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+_SKILL_DIR = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, _SKILL_DIR)
+from skill_helpers import escape_string, generate_id, get_timestamp  # noqa: E402
 
 TYPEDB_HOST = os.getenv("TYPEDB_HOST", "localhost")
 TYPEDB_PORT = int(os.getenv("TYPEDB_PORT", "1729"))
-# This skill owns the alh_mythras database under the per-repo split. The old
-# shared "alhazen_notebook" was retired in June 2026; defaulting to it meant
-# every un-prefixed invocation wrote somewhere nothing could read it back.
-TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alh_mythras")
+# This skill owns the "mythras" database. It is fully standalone -- no Alhazen.
+# (Before the August 2026 decouple it lived in "alh_mythras" under Alhazen's
+# per-repo split; that database is retained only as a migration fallback.)
+TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "mythras")
 TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
 

@@ -83,26 +83,20 @@ keep as many parallel novelizations as you like.
 The fastest way to play. Requires [Claude Code](https://claude.ai/code)
 v1.0.33+, Docker, and [uv](https://docs.astral.sh/uv/).
 
-### Step 1: Install the alhazen-core infrastructure plugin
+### Step 1: Install mythras-gm
 
-mythras-gm stores all game state in TypeDB. The `alhazen-core` plugin
-handles TypeDB startup and provides the base schema that mythras-gm extends.
-
-```
-/plugin marketplace add sciknow-io/skillful-alhazen
-/plugin install alhazen-core@skillful-alhazen
-/alhazen-core:init
-```
-
-### Step 2: Install mythras-gm
+mythras-gm is standalone -- it stores all game state in its own TypeDB
+database (`mythras`) and needs no other plugin. You need only Docker and
+[uv](https://docs.astral.sh/uv/) installed.
 
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
 /plugin install mythras-gm@fourth-wall-gaming
 ```
 
-The plugin's SessionStart hook auto-loads the myth- namespace schema
-into TypeDB on every new session.
+The plugin's SessionStart hook starts TypeDB (Docker), creates the
+`mythras` database with the myth- namespace schema if absent, and loads
+the rules graph -- all idempotently, on every new session.
 
 ### Step 3: Load a campaign
 
