@@ -3,9 +3,11 @@
 
 Run at SessionStart (see hooks/hooks.json). Idempotent:
 
-  1. Ensure a TypeDB server is reachable at $TYPEDB_HOST:$TYPEDB_PORT. If not,
-     try `docker start` on $MYTHRAS_TYPEDB_CONTAINER (default: alhazen-typedb,
-     the shared local container) and wait for it.
+  1. Ensure a TypeDB server is reachable at $TYPEDB_HOST:$TYPEDB_PORT. If one is
+     already up (e.g. an existing TypeDB on 1729) it is ADOPTED as-is. Otherwise
+     start -- creating it the first time -- our own container
+     $MYTHRAS_TYPEDB_CONTAINER (default: mythras-typedb) with its own data
+     volume, and wait for it. No other tool or plugin is required.
   2. Create the $TYPEDB_DATABASE database (default: mythras) if absent, loading
      base-schema.tql then schema.tql.
   3. Load the rules graph (mythras_gm.py load-rules), which is itself idempotent.
@@ -22,7 +24,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 HOST = os.getenv("TYPEDB_HOST", "localhost")
 PORT = os.getenv("TYPEDB_PORT", "1729")
 DB = os.getenv("TYPEDB_DATABASE", "mythras")
-CONTAINER = os.getenv("MYTHRAS_TYPEDB_CONTAINER", "alhazen-typedb")
+CONTAINER = os.getenv("MYTHRAS_TYPEDB_CONTAINER", "mythras-typedb")
+IMAGE = os.getenv("MYTHRAS_TYPEDB_IMAGE", "typedb/typedb:3.8.0")
 
 
 def _driver():
@@ -45,16 +48,36 @@ def _connect(retries=1):
     raise last
 
 
+def _container_exists():
+    r = subprocess.run(
+        ["docker", "ps", "-a", "--filter", f"name=^{CONTAINER}$",
+         "--format", "{{.Names}}"],
+        capture_output=True, text=True)
+    return CONTAINER in r.stdout.split()
+
+
 def ensure_server():
+    # Already reachable? Adopt it. On a machine that already runs a TypeDB
+    # (e.g. an existing Alhazen container on 1729) we use that server and leave
+    # any existing 'mythras' database completely untouched.
     try:
         _connect().close()
         return True
     except Exception:
         pass
-    # try to start the shared local container, then wait
-    subprocess.run(["docker", "start", CONTAINER],
-                   capture_output=True, text=True)
-    for _ in range(30):
+    # Nothing reachable: bring up our OWN container, creating it the first time
+    # with its own named data volume -- no other tool or plugin required.
+    if _container_exists():
+        subprocess.run(["docker", "start", CONTAINER],
+                       capture_output=True, text=True)
+    else:
+        subprocess.run(
+            ["docker", "run", "-d", "--name", CONTAINER,
+             "-p", f"{PORT}:1729",
+             "-v", f"{CONTAINER}-data:/var/lib/typedb/data",
+             IMAGE],
+            capture_output=True, text=True)
+    for _ in range(60):
         try:
             _connect().close()
             return True
