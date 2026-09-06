@@ -295,6 +295,77 @@ When play makes a plan stale, change the plan:
 The test of a good beat is that it would happen without the PCs. If it only
 makes sense when they are watching, it is a scene, not a beat.
 
+## Facts and Knowledge (who knows what)
+
+The state model. **Ground truth lives in exactly one place; everything else is
+a query into it.** There is no per-character state store -- a character's
+knowledge is a filtered read of the campaign's fact graph, which is what makes
+it reconcilable by construction.
+
+### The model
+
+- **`myth-fact`** -- one proposition ("Santo carved Emmeralda at the Sylph's
+  Embrace"). It has a **status** (`not-yet-true` -> `established` ->
+  `superseded`), a **truth** (`true | false | partial`), and the world-clock
+  index at which it became true. Facts are owned by the beat that produces
+  them, so the campaign ships with its future already enumerated but not yet
+  real.
+- **`myth-knows`** -- the edge from a character or faction to a fact, carrying
+  **certainty** (`knows | believes | suspects | wrong`), **source**
+  (`witnessed | told | deduced | rumor`) and **since** (when they learned it).
+
+Status and truth are independent on purpose. `truth: false` is how you model
+the rumour that drives a manhunt -- a proposition that is not true, that people
+nonetheless act on.
+
+### The loop
+
+```bash
+# what can this character legitimately act on right now?
+character-view --campaign C --id <pc> --compact
+
+# a beat fires -> its facts become real -> the people present learn them
+establish-fact --id F --when "d-3/night"
+learn --knower <pc> --fact F --certainty knows --source witnessed --at "d-3/night"
+
+# who could betray this?
+who-knows --campaign C --fact F
+
+# reconcile everything against everything
+check-consistency --campaign C
+```
+
+`check-consistency` reports:
+
+| Problem | Meaning |
+|---|---|
+| `knows-unestablished` | someone knows a thing that has not happened yet |
+| `knew-too-early` | learned before the fact became true |
+| `dangling-knowledge` | edge points at a fact that no longer exists |
+| `overdue-fact` | scheduled in the past but never established |
+
+### Knowledge-gated agendas
+
+```bash
+require-fact --agenda <a> --fact <f>
+```
+
+A **dormant** agenda whose holder knows all its required facts is activated
+automatically by `tick`, which reports it in `activated_agendas`. This is how
+"the Baron acts the moment he learns he has another son" stops being a note in
+a file and becomes a computed consequence of what the players let him see.
+
+### What is a fact, and what is not
+
+**If two characters could act differently depending on whether they know it,
+it is a fact. Otherwise it is colour.** A campaign this size wants roughly
+20-40 facts, not 500. Weather is not a fact. Who owns the knife is.
+
+Character prose describes **character** -- temperament, skill, history. It must
+never assert situation: a sheet that says "he attempted the ritual and fled"
+cannot be reconciled against a clock, and will be wrong the moment play
+diverges.
+
 ## Worldbuilding During Play
 
 New places, factions, and recurring NPCs the fiction generates should be

@@ -1679,6 +1679,23 @@ def cmd_tick(args):
                       "myth-game-date", args.set_date)
 
         agendas = _campaign_agendas(driver, args.campaign)
+
+        # Fact-gated agendas: a dormant agenda whose holder now knows everything
+        # it requires wakes up here, rather than when the GM remembers to.
+        edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
+        reqs = _agenda_requirements(driver, args.campaign)
+        ready = eng.agendas_to_activate(
+            [{"id": a["id"], "title": a["title"], "status": a["status"],
+              "holder": (a.get("holder") or {}).get("id"),
+              "priority": a["priority"]} for a in agendas],
+            reqs, edges)
+        activated = []
+        for a in ready:
+            _set_attr(driver, "myth-agenda", a["id"], "myth-agenda-status", "active")
+            activated.append({"id": a["id"], "title": a["title"]})
+        if activated:
+            agendas = _campaign_agendas(driver, args.campaign)
+
         clocks = {a["id"]: a["clock"]["filled"] for a in agendas}
         active = {a["id"] for a in agendas
                   if a["status"] in ("active", "pending")}
@@ -1692,10 +1709,333 @@ def cmd_tick(args):
     out({"success": True,
          "from": eng.format_time_key(was) if was is not None else None,
          "now": args.to, "time_index": now,
+         "activated_agendas": activated,
          "pc_locations": pc_places,
          "due_beats": due,
          "onscreen": [b["id"] for b in due if b["staging"] == "onscreen"],
          "offscreen": [b["id"] for b in due if b["staging"] == "offscreen"]})
+
+
+# ---------------------------------------------------------------------------
+# Epistemics: facts, knowledge, and reconciliation
+#
+# Situational truth lives in ONE place -- the fact graph -- and what a character
+# knows is a projection of it (myth-knows edges), never a separate store. That
+# is what makes per-character knowledge reconcilable: two views cannot disagree
+# when there is only one source and everything else is a query into it.
+#
+# Character prose describes CHARACTER. Facts carry SITUATION.
+# ---------------------------------------------------------------------------
+
+FACT_ATTRS = ["description", "content", "myth-fact-status", "myth-fact-truth",
+              "myth-time-index"]
+FACT_SUBJECT_TYPES = ["myth-character", "myth-location", "myth-faction",
+                      "myth-agenda", "myth-beat"]
+KNOWER_TYPES = ["myth-character", "myth-faction"]
+FACT_ORIGIN_TYPES = ["myth-beat", "myth-game-event"]
+
+
+def _fact_record(driver, fid):
+    f = _get_entity(driver, "myth-fact", fid, FACT_ATTRS)
+    if not f:
+        return None
+    about = _fetch(driver, f'''
+        match
+          $f isa myth-fact, has id "{escape_string(fid)}";
+          (fact: $f, subject: $s) isa myth-fact-about;
+          $s has id $si, has name $sn;
+        fetch {{ "id": $si, "name": $sn }};''')
+    origin = _fetch(driver, f'''
+        match
+          $f isa myth-fact, has id "{escape_string(fid)}";
+          (fact: $f, origin: $o) isa myth-fact-from;
+          $o has id $oi, has name $on;
+        fetch {{ "id": $oi, "name": $on }};''')
+    return {
+        "id": f["id"], "title": f["name"], "statement": f.get("description"),
+        "status": f.get("myth-fact-status") or "established",
+        "truth": f.get("myth-fact-truth") or "true",
+        "time_index": f.get("myth-time-index"),
+        "when": (eng.format_time_key(f["myth-time-index"])
+                 if f.get("myth-time-index") is not None else None),
+        "narrative": f.get("content"),
+        "about": [a["id"] for a in about], "about_names": [a["name"] for a in about],
+        "from": origin[0]["id"] if origin else None,
+        "from_name": origin[0]["name"] if origin else None,
+    }
+
+
+def _campaign_facts(driver, campaign_id):
+    rows = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $f) isa myth-campaign-membership;
+          $f isa myth-fact, has id $i;
+        fetch {{ "id": $i }};''')
+    return [_fact_record(driver, r["id"]) for r in rows]
+
+
+def _knowledge_edges(driver, campaign_id):
+    """Every (knower, fact) edge in the campaign, with how and when."""
+    return _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $f) isa myth-campaign-membership;
+          $f isa myth-fact, has id $fi;
+          $r isa myth-knows (knower: $k, fact: $f);
+          $k has id $ki, has name $kn;
+          $r has myth-knowledge-certainty $c;
+        fetch {{
+          "knower": $ki, "knower_name": $kn, "fact": $fi, "certainty": $c,
+          "source": [ $r.myth-knowledge-source ],
+          "since": [ $r.myth-knowledge-since ]
+        }};''')
+
+
+def _flatten_edges(rows):
+    """The fetch above returns list-valued optional attributes; flatten them."""
+    out = []
+    for r in rows:
+        e = dict(r)
+        for k in ("source", "since"):
+            v = e.get(k)
+            e[k] = (v[0] if isinstance(v, list) and v else (None if isinstance(v, list) else v))
+        out.append(e)
+    return out
+
+
+def _agenda_requirements(driver, campaign_id):
+    return _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $a) isa myth-campaign-membership;
+          $a isa myth-agenda, has id $ai;
+          (agenda: $a, fact: $f) isa myth-agenda-requires;
+          $f has id $fi;
+        fetch {{ "agenda": $ai, "fact": $fi }};''')
+
+
+def cmd_add_fact(args):
+    fid = generate_id("myth-fact")
+    ts = get_timestamp()
+    time_index = None
+    if args.when:
+        try:
+            time_index = eng.parse_time_key(args.when)
+        except ValueError as e:
+            fail(str(e))
+    if args.status == "established" and time_index is None:
+        fail("An established fact needs --when (when it became true)")
+    q = f'''insert $f isa myth-fact,
+        has id "{fid}",
+        has name "{escape_string(args.title or args.statement[:60])}",
+        has description "{escape_string(args.statement)}",
+        has myth-fact-status "{escape_string(args.status)}",
+        has myth-fact-truth "{escape_string(args.truth)}",
+        has created-at {ts}'''
+    if time_index is not None:
+        q += f", has myth-time-index {time_index}"
+    if args.narrative:
+        q += f', has content "{escape_string(args.narrative)}"'
+    q += ";"
+    with get_driver() as driver:
+        _write(driver, q)
+        _link_to_campaign(driver, args.campaign, fid, "myth-fact")
+        about = []
+        for sid in (args.about or "").split(","):
+            sid = sid.strip()
+            if sid and _link_relation(driver, "myth-fact-about", "fact", "myth-fact",
+                                      fid, "subject", FACT_SUBJECT_TYPES, sid):
+                about.append(sid)
+        origin = None
+        if args.origin:
+            origin = _link_relation(driver, "myth-fact-from", "fact", "myth-fact",
+                                    fid, "origin", FACT_ORIGIN_TYPES, args.origin)
+            if not origin:
+                fail(f"No beat or event with id '{args.origin}'")
+    out({"success": True, "id": fid, "status": args.status, "truth": args.truth,
+         "when": args.when, "about": about, "from": args.origin})
+
+
+def cmd_list_facts(args):
+    with get_driver() as driver:
+        facts = _campaign_facts(driver, args.campaign)
+        edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
+    if args.status:
+        facts = [f for f in facts if f["status"] == args.status]
+    if args.truth:
+        facts = [f for f in facts if f["truth"] == args.truth]
+    if args.about:
+        facts = [f for f in facts if args.about in f["about"]]
+    if args.known_by:
+        known = {e["fact"] for e in edges if e["knower"] == args.known_by}
+        facts = [f for f in facts if f["id"] in known]
+    knowers = {}
+    for e in edges:
+        knowers.setdefault(e["fact"], []).append(e["knower_name"])
+    for f in facts:
+        f["known_by"] = sorted(knowers.get(f["id"], []))
+    facts.sort(key=lambda f: (f["time_index"] if f["time_index"] is not None else 1 << 30))
+    out({"success": True, "facts": facts})
+
+
+def cmd_get_fact(args):
+    with get_driver() as driver:
+        f = _fact_record(driver, args.id)
+        if not f:
+            fail(f"No fact '{args.id}'")
+        edges = _flatten_edges(_knowledge_edges(driver, args.campaign)) if args.campaign else []
+        f["known_by"] = [e for e in edges if e["fact"] == args.id]
+    out({"success": True, "fact": f})
+
+
+def cmd_establish_fact(args):
+    """Flip a fact from not-yet-true to established at a point in world time."""
+    with get_driver() as driver:
+        f = _fact_record(driver, args.id)
+        if not f:
+            fail(f"No fact '{args.id}'")
+        try:
+            idx = eng.parse_time_key(args.when)
+        except ValueError as e:
+            fail(str(e))
+        _set_attr(driver, "myth-fact", args.id, "myth-fact-status", "established")
+        _set_attr(driver, "myth-fact", args.id, "myth-time-index", idx, quote=False)
+        if args.truth:
+            _set_attr(driver, "myth-fact", args.id, "myth-fact-truth", args.truth)
+    out({"success": True, "id": args.id, "status": "established", "when": args.when})
+
+
+def cmd_learn(args):
+    """Record that someone learned something -- the knowledge edge."""
+    with get_driver() as driver:
+        f = _fact_record(driver, args.fact)
+        if not f:
+            fail(f"No fact '{args.fact}'")
+        if f["status"] == "not-yet-true" and not args.force:
+            fail(f"Fact '{args.fact}' has not happened yet "
+                 f"(status not-yet-true) -- establish it first, or pass --force")
+        since = None
+        if args.at:
+            try:
+                since = eng.parse_time_key(args.at)
+            except ValueError as e:
+                fail(str(e))
+        elif args.campaign:
+            camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
+            since = camp.get("myth-time-index") if camp else None
+        ktype = None
+        for kt in KNOWER_TYPES:
+            if _fetch(driver, f'''
+                    match $k isa {kt}, has id "{escape_string(args.knower)}";
+                    fetch {{ "id": $k.id }};'''):
+                ktype = kt
+                break
+        if not ktype:
+            fail(f"No character or faction with id '{args.knower}'")
+        # one edge per (knower, fact): replace rather than duplicate
+        _write(driver, f'''
+            match
+              $k isa {ktype}, has id "{escape_string(args.knower)}";
+              $f isa myth-fact, has id "{escape_string(args.fact)}";
+              $r isa myth-knows (knower: $k, fact: $f);
+            delete $r;''')
+        q = (f'match $k isa {ktype}, has id "{escape_string(args.knower)}"; '
+             f'$f isa myth-fact, has id "{escape_string(args.fact)}"; '
+             f'insert $r isa myth-knows (knower: $k, fact: $f), '
+             f'has myth-knowledge-certainty "{escape_string(args.certainty)}"')
+        if args.source:
+            q += f', has myth-knowledge-source "{escape_string(args.source)}"'
+        if since is not None:
+            q += f", has myth-knowledge-since {since}"
+        q += ";"
+        _write(driver, q)
+    out({"success": True, "knower": args.knower, "fact": args.fact,
+         "certainty": args.certainty, "source": args.source, "since": since})
+
+
+def cmd_forget(args):
+    with get_driver() as driver:
+        for kt in KNOWER_TYPES:
+            _write(driver, f'''
+                match
+                  $k isa {kt}, has id "{escape_string(args.knower)}";
+                  $f isa myth-fact, has id "{escape_string(args.fact)}";
+                  $r isa myth-knows (knower: $k, fact: $f);
+                delete $r;''')
+    out({"success": True, "knower": args.knower, "fact": args.fact, "forgotten": True})
+
+
+def cmd_who_knows(args):
+    with get_driver() as driver:
+        edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
+    rows = [e for e in edges if e["fact"] == args.fact]
+    for e in rows:
+        e["since_key"] = (eng.format_time_key(e["since"]) if e.get("since") is not None else None)
+    rows.sort(key=lambda e: (e["since"] if e.get("since") is not None else 1 << 30))
+    out({"success": True, "fact": args.fact, "knowers": rows})
+
+
+def cmd_character_view(args):
+    """Everything this character can legitimately act on. A projection."""
+    with get_driver() as driver:
+        camp_id = args.campaign
+        facts = _campaign_facts(driver, camp_id)
+        edges = _flatten_edges(_knowledge_edges(driver, camp_id))
+        who = _get_entity(driver, "myth-character", args.id, ["myth-char-type"])
+    view = eng.character_view(facts, edges, args.id)
+    for f in view:
+        f["since_key"] = (eng.format_time_key(f["since"]) if f.get("since") is not None else None)
+    if args.compact:
+        view = [{"statement": f["statement"], "certainty": f["certainty"],
+                 "source": f.get("source"), "since": f.get("since_key"),
+                 "truth": f["truth"]} for f in view]
+    out({"success": True, "character": args.id,
+         "name": who["name"] if who else None, "knows": view})
+
+
+def cmd_require_fact(args):
+    """Gate an agenda on its holder knowing something."""
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-agenda", args.agenda, []):
+            fail(f"No agenda '{args.agenda}'")
+        if not _get_entity(driver, "myth-fact", args.fact, []):
+            fail(f"No fact '{args.fact}'")
+        _write(driver, f'''
+            match
+              $a isa myth-agenda, has id "{escape_string(args.agenda)}";
+              $f isa myth-fact, has id "{escape_string(args.fact)}";
+            insert (agenda: $a, fact: $f) isa myth-agenda-requires;''')
+    out({"success": True, "agenda": args.agenda, "requires": args.fact})
+
+
+def cmd_check_consistency(args):
+    """Reconcile the knowledge graph against the fact graph and the agendas."""
+    with get_driver() as driver:
+        facts = _campaign_facts(driver, args.campaign)
+        edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
+        agendas = _campaign_agendas(driver, args.campaign)
+        reqs = _agenda_requirements(driver, args.campaign)
+        camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
+    now = camp.get("myth-time-index") if camp else None
+    problems = eng.knowledge_violations(facts, edges)
+    # a fact scheduled in the past that never got established
+    for f in facts:
+        if (f["status"] == "not-yet-true" and f["time_index"] is not None
+                and now is not None and f["time_index"] <= now):
+            problems.append({"kind": "overdue-fact", "fact": f["id"],
+                             "statement": f["statement"],
+                             "detail": "due by the world clock but still not-yet-true"})
+    holders = {a["id"]: (a.get("holder") or {}).get("id") for a in agendas}
+    for a in agendas:
+        a["holder_id"] = holders.get(a["id"])
+    ready = eng.agendas_to_activate(
+        [{"id": a["id"], "title": a["title"], "status": a["status"],
+          "holder": a["holder_id"], "priority": a["priority"]} for a in agendas],
+        reqs, edges)
+    out({"success": True, "facts": len(facts), "knowledge_edges": len(edges),
+         "problems": problems, "ok": not problems,
+         "agendas_ready_to_activate": [{"id": a["id"], "title": a["title"]} for a in ready]})
 
 
 # ---------------------------------------------------------------------------
@@ -2376,6 +2716,74 @@ def build_parser():
                    help="also update the campaign's prose game-date")
     s.add_argument("--rewind", action="store_true",
                    help="allow moving the world clock backwards")
+
+    # --- Epistemics (facts, knowledge, reconciliation) ---
+    s = sub.add_parser("add-fact",
+                       help="Record one proposition about the world")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--statement", required=True,
+                   help="the proposition, e.g. 'Santo carved Emmeralda'")
+    s.add_argument("--title", help="short label (defaults to the statement)")
+    s.add_argument("--status", default="not-yet-true",
+                   choices=["not-yet-true", "established", "superseded"])
+    s.add_argument("--truth", default="true", choices=["true", "false", "partial"],
+                   help="a believed falsehood is still a fact node")
+    s.add_argument("--when", help="time key it became true, e.g. 'd-3/night'")
+    s.add_argument("--about", help="comma-separated ids this fact is about")
+    s.add_argument("--origin", dest="origin",
+                   help="id of the beat or event that produces it")
+    s.add_argument("--narrative")
+
+    s = sub.add_parser("list-facts", help="The fact graph: what is true, and who knows")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--status")
+    s.add_argument("--truth")
+    s.add_argument("--about", help="filter to facts about this entity id")
+    s.add_argument("--known-by", dest="known_by", help="filter to what this id knows")
+
+    s = sub.add_parser("get-fact", help="One fact, with its knowers")
+    s.add_argument("--id", required=True)
+    s.add_argument("--campaign", help="include the list of who knows it")
+
+    s = sub.add_parser("establish-fact",
+                       help="Flip a fact from not-yet-true to established")
+    s.add_argument("--id", required=True)
+    s.add_argument("--when", required=True, help="time key it became true")
+    s.add_argument("--truth", choices=["true", "false", "partial"])
+
+    s = sub.add_parser("learn", help="Record that someone learned something")
+    s.add_argument("--knower", required=True, help="character or faction id")
+    s.add_argument("--fact", required=True)
+    s.add_argument("--certainty", default="knows",
+                   choices=["knows", "believes", "suspects", "wrong"])
+    s.add_argument("--source", choices=["witnessed", "told", "deduced", "rumor"])
+    s.add_argument("--at", help="time key learned (defaults to the world clock)")
+    s.add_argument("--campaign", help="used to default --at to the world clock")
+    s.add_argument("--force", action="store_true",
+                   help="allow knowing a fact that has not been established")
+
+    s = sub.add_parser("forget", help="Remove a knowledge edge")
+    s.add_argument("--knower", required=True)
+    s.add_argument("--fact", required=True)
+
+    s = sub.add_parser("who-knows", help="Everyone who holds a given fact")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--fact", required=True)
+
+    s = sub.add_parser("character-view",
+                       help="What one character can legitimately act on")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--id", required=True)
+    s.add_argument("--compact", action="store_true")
+
+    s = sub.add_parser("require-fact",
+                       help="Gate an agenda on its holder knowing something")
+    s.add_argument("--agenda", required=True)
+    s.add_argument("--fact", required=True)
+
+    s = sub.add_parser("check-consistency",
+                       help="Reconcile knowledge against facts, agendas and the clock")
+    s.add_argument("--campaign", required=True)
 
     # --- Rules graph (global, faceted) ---
     s = sub.add_parser("load-rules",

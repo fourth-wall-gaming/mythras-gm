@@ -83,6 +83,34 @@ Clocks advance when the fiction earns it (`advance-agenda`), agendas can be
 and `revise-beat` bends any plan that play has made stale. The structure keeps
 the world moving consistently between sessions; it is not a rail.
 
+## What each character knows
+
+The world engine says what is happening; the fact graph says who is aware of it.
+
+Situational truth lives in exactly one place -- a graph of **facts**, each one a
+proposition with a status (`not-yet-true` -> `established`), a truth value, and
+the moment it became true. What a character knows is a **projection** of that
+graph through `myth-knows` edges carrying certainty, source and when they
+learned it. There is no per-character state store, so two views cannot drift
+apart.
+
+```bash
+character-view --campaign C --id <pc> --compact   # what they can act on
+who-knows --campaign C --fact F                   # who could betray this
+check-consistency --campaign C                    # reconcile it all
+```
+
+Because status and truth are independent, a **believed falsehood is a
+first-class object** -- the rumour that sends a city hunting the wrong man is
+data, not GM improvisation. And agendas can be gated on knowledge: a dormant
+agenda whose holder learns its trigger fact is activated by `tick` itself, so
+"the Baron acts the moment he sees that face" is computed rather than
+remembered.
+
+`check-consistency` catches a character knowing something that has not happened
+yet, or learning it before it was true -- the class of error that otherwise
+hides in prose until it contradicts play.
+
 ## Novelization
 
 Turn a campaign's journal into a typeset PDF novel. Claude reads the event

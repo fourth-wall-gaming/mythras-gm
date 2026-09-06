@@ -461,3 +461,85 @@ def beat_staging(beat: dict, pc_location_ids, pc_ids) -> str:
     if people.intersection(beat.get("cast") or ()):
         return "onscreen"
     return "offscreen"
+
+
+# ---------------------------------------------------------------------------
+# Epistemics: facts, knowledge, and reconciliation
+# ---------------------------------------------------------------------------
+#
+# Ground truth lives in the fact graph; a character's knowledge is a projection
+# of it. These functions are the reconciliation rules -- pure, so the awkward
+# cases are testable without a database.
+
+def character_view(facts, edges, knower_id):
+    """The facts one character can legitimately act on, newest first.
+
+    A projection, never a stored blob: there is exactly one copy of the truth
+    and this is a filtered read of it. `edges` are {knower, fact, certainty,
+    source, since} records.
+    """
+    by_id = {f["id"]: f for f in facts}
+    view = []
+    for e in edges:
+        if e.get("knower") != knower_id:
+            continue
+        f = by_id.get(e.get("fact"))
+        if not f:
+            continue
+        view.append({**f, "certainty": e.get("certainty") or "knows",
+                     "source": e.get("source"), "since": e.get("since")})
+    return sorted(view, key=lambda f: (f.get("since") if f.get("since") is not None else -1),
+                  reverse=True)
+
+
+def knowledge_violations(facts, edges):
+    """Every way the knowledge graph currently contradicts the fact graph.
+
+    This is the check that would have caught character sheets asserting events
+    that had not happened yet.
+    """
+    by_id = {f["id"]: f for f in facts}
+    problems = []
+    for e in edges:
+        f = by_id.get(e.get("fact"))
+        if f is None:
+            problems.append({"kind": "dangling-knowledge", "knower": e.get("knower"),
+                             "fact": e.get("fact"),
+                             "detail": "knowledge edge points at a fact that does not exist"})
+            continue
+        status = f.get("status") or "established"
+        if status == "not-yet-true":
+            problems.append({"kind": "knows-unestablished", "knower": e.get("knower"),
+                             "fact": f["id"], "statement": f.get("statement"),
+                             "detail": "knows something that has not happened yet"})
+            continue
+        since, when = e.get("since"), f.get("time_index")
+        if since is not None and when is not None and since < when:
+            problems.append({"kind": "knew-too-early", "knower": e.get("knower"),
+                             "fact": f["id"], "statement": f.get("statement"),
+                             "detail": f"learned at {since} but only became true at {when}"})
+    return problems
+
+
+def agendas_to_activate(agendas, requirements, edges):
+    """Dormant agendas whose holder now knows everything the agenda needs.
+
+    This is what turns "activates the moment the Baron sees that face" from a
+    prose note into something the world clock can evaluate.
+    """
+    known = {}
+    for e in edges:
+        known.setdefault(e.get("knower"), set()).add(e.get("fact"))
+    needed = {}
+    for r in requirements:
+        needed.setdefault(r.get("agenda"), set()).add(r.get("fact"))
+    ready = []
+    for a in agendas:
+        if a.get("status") != "dormant":
+            continue
+        req = needed.get(a["id"])
+        if not req:
+            continue
+        if req.issubset(known.get(a.get("holder"), set())):
+            ready.append(a)
+    return sorted(ready, key=lambda a: (-(a.get("priority") or 3), a.get("title") or ""))

@@ -94,6 +94,39 @@ holds an **agenda** -- a goal with a progress clock -- and each agenda schedules
   barge, that is an `advance-agenda` on someone's clock and probably a new
   agenda for whoever lost money. Add agendas mid-play with `add-agenda`.
 
+## What each character knows
+
+Situational truth lives in ONE place -- the fact graph -- and a character's
+knowledge is a **projection** of it, never a separate store. Two views cannot
+disagree when there is only one source.
+
+- **`character-view --id <pc> --compact` before you speak for anyone.** It
+  returns exactly what that character can act on. This is the mechanism behind
+  the "character knowledge is per-character" rule: use it instead of trusting
+  your memory of who was in the room.
+- **Facts exist before they are true.** A beat owns its facts as
+  `not-yet-true`; firing the beat is what establishes them, at a world-clock
+  index. `learn` refuses to attach knowledge to something that has not
+  happened -- that guard is deliberate, do not `--force` past it in play.
+- **A false fact is still a fact.** Rumour and mistaken identity drive these
+  stories: record the lie with `--truth false` and let people `believe` it.
+  Someone acting on a falsehood is the good stuff.
+- **`learn --knower X --fact F --source witnessed|told|deduced|rumor`** every
+  time a character learns something on screen. If you narrate a PC finding out,
+  the edge gets written in the same beat -- otherwise the next session's GM
+  (you, with no memory) will hand them knowledge they never earned.
+- **`check-consistency`** after any messy sequence. It catches knowledge of
+  unestablished facts, learning-before-it-was-true, and facts overdue on the
+  clock.
+- **Prose describes character; facts carry situation.** Never write "what has
+  happened" into a character's narrative -- it cannot be reconciled against
+  anything.
+
+Agendas can be **gated on knowledge**: `require-fact` makes a dormant agenda
+wake up during `tick` the moment its holder learns the trigger fact. That is
+how "the Baron acts once he sees that face" becomes something the world clock
+evaluates rather than something you remember.
+
 **Before executing commands, read USAGE.md for the complete reference
 (GM operating rules, character creation, combat cheat sheet, worldbuilding,
 campaign publishing).**

@@ -193,3 +193,88 @@ def test_beat_staging_follows_actual_pc_presence():
     # a PC in the cast pulls it onscreen wherever it is
     assert eng.beat_staging({"place": "loc-x", "cast": ["pc-randall"]},
                             ["loc-oyster"], ["pc-randall"]) == "onscreen"
+
+
+# --- epistemics: facts, knowledge, reconciliation ----------------------------
+
+FACTS = [
+    {"id": "f-carved", "statement": "Santo carved Emmeralda", "status": "established",
+     "truth": "true", "time_index": eng.parse_time_key("d-3/night")},
+    {"id": "f-locket", "statement": "Nus lifted the binding locket",
+     "status": "not-yet-true", "truth": "true", "time_index": None},
+    {"id": "f-runner", "statement": "The runner who fled was Lord Santo",
+     "status": "established", "truth": "false",
+     "time_index": eng.parse_time_key("d-3/night")},
+]
+
+
+def test_character_view_is_a_projection_newest_first():
+    edges = [
+        {"knower": "pc-magda", "fact": "f-carved", "certainty": "knows",
+         "source": "witnessed", "since": eng.parse_time_key("d-3/night")},
+        {"knower": "pc-magda", "fact": "f-runner", "certainty": "believes",
+         "source": "rumor", "since": eng.parse_time_key("d-2/dawn")},
+        {"knower": "npc-blau", "fact": "f-carved", "certainty": "suspects",
+         "source": "deduced", "since": eng.parse_time_key("d-2/day")},
+    ]
+    view = eng.character_view(FACTS, edges, "pc-magda")
+    assert [f["id"] for f in view] == ["f-runner", "f-carved"]   # newest first
+    assert view[0]["certainty"] == "believes"
+    # Blau's knowledge is not in Magda's head
+    assert all(f["id"] != "f-nothing" for f in view) and len(view) == 2
+
+
+def test_a_false_fact_is_still_knowable():
+    """Rumour and mistaken identity are the engine of this story."""
+    edges = [{"knower": "npc-blau", "fact": "f-runner", "certainty": "believes",
+              "source": "told", "since": eng.parse_time_key("d-2/dawn")}]
+    view = eng.character_view(FACTS, edges, "npc-blau")
+    assert view[0]["truth"] == "false"
+    assert not eng.knowledge_violations(FACTS, edges)   # believing a lie is legal
+
+
+def test_knowing_something_that_has_not_happened_is_a_violation():
+    """The bug that shipped in v1: a sheet asserting a future event."""
+    edges = [{"knower": "npc-ila", "fact": "f-locket", "certainty": "knows",
+              "source": "witnessed", "since": eng.parse_time_key("d-3/dawn")}]
+    v = eng.knowledge_violations(FACTS, edges)
+    assert len(v) == 1 and v[0]["kind"] == "knows-unestablished"
+
+
+def test_learning_before_it_was_true_is_a_violation():
+    edges = [{"knower": "pc-randall", "fact": "f-carved", "certainty": "knows",
+              "source": "witnessed", "since": eng.parse_time_key("d-3/dawn")}]
+    v = eng.knowledge_violations(FACTS, edges)
+    assert len(v) == 1 and v[0]["kind"] == "knew-too-early"
+
+
+def test_dangling_knowledge_edge_is_a_violation():
+    v = eng.knowledge_violations(FACTS, [{"knower": "x", "fact": "f-missing"}])
+    assert len(v) == 1 and v[0]["kind"] == "dangling-knowledge"
+
+
+def test_dormant_agenda_activates_only_when_its_holder_knows():
+    agendas = [{"id": "a-bastard", "title": "A di Teufel who is not his",
+                "status": "dormant", "holder": "npc-hanzo", "priority": 5}]
+    reqs = [{"agenda": "a-bastard", "fact": "f-carved"}]
+    # somebody else knowing it does nothing
+    assert eng.agendas_to_activate(agendas, reqs,
+        [{"knower": "pc-magda", "fact": "f-carved"}]) == []
+    # the holder knowing it activates the agenda
+    ready = eng.agendas_to_activate(agendas, reqs,
+        [{"knower": "npc-hanzo", "fact": "f-carved"}])
+    assert [a["id"] for a in ready] == ["a-bastard"]
+
+
+def test_activation_needs_every_required_fact():
+    agendas = [{"id": "a", "status": "dormant", "holder": "h", "priority": 3}]
+    reqs = [{"agenda": "a", "fact": "f-carved"}, {"agenda": "a", "fact": "f-runner"}]
+    assert eng.agendas_to_activate(agendas, reqs, [{"knower": "h", "fact": "f-carved"}]) == []
+    both = [{"knower": "h", "fact": "f-carved"}, {"knower": "h", "fact": "f-runner"}]
+    assert len(eng.agendas_to_activate(agendas, reqs, both)) == 1
+
+
+def test_already_active_agendas_are_not_reactivated():
+    agendas = [{"id": "a", "status": "active", "holder": "h", "priority": 3}]
+    reqs = [{"agenda": "a", "fact": "f-carved"}]
+    assert eng.agendas_to_activate(agendas, reqs, [{"knower": "h", "fact": "f-carved"}]) == []

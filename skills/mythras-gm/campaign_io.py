@@ -271,6 +271,31 @@ def export_campaign(campaign_id, outdir):
             b["cast"] = sorted(r["mi"] for r in cast)
             beats.append(b)
 
+        # --- facts, knowledge edges, and agenda requirements
+        facts = []
+        for fid in _member_ids(driver, campaign_id, "myth-fact"):
+            f = gm._get_entity(driver, "myth-fact", fid,
+                               ["description", "content", "myth-fact-status",
+                                "myth-fact-truth", "myth-time-index", "created-at"])
+            about = gm._fetch(driver, f'''
+                match
+                  $f isa myth-fact, has id "{gm.escape_string(fid)}";
+                  (fact: $f, subject: $s) isa myth-fact-about;
+                  $s has id $si;
+                fetch {{ "si": $si }};''')
+            origin = gm._fetch(driver, f'''
+                match
+                  $f isa myth-fact, has id "{gm.escape_string(fid)}";
+                  (fact: $f, origin: $o) isa myth-fact-from;
+                  $o has id $oi;
+                fetch {{ "oi": $oi }};''')
+            f["about"] = sorted(r["si"] for r in about)
+            f["origin"] = origin[0]["oi"] if origin else None
+            facts.append(f)
+
+        knowledge = gm._flatten_edges(gm._knowledge_edges(driver, campaign_id))
+        requirements = gm._agenda_requirements(driver, campaign_id)
+
         # --- encounters
         encounters = []
         for eid in _member_ids(driver, campaign_id, "myth-encounter"):
@@ -383,6 +408,27 @@ def export_campaign(campaign_id, outdir):
         _write(os.path.join(outdir, "beats", slug + ".md"),
                _emit_frontmatter(meta) + "\n\n" + (b.get("content") or ""))
     counts["beats"] = len(beats)
+
+    used = set()
+    for f in facts:
+        slug = _slugify(f["name"], used)
+        meta = {"id": f["id"], "title": f["name"],
+                "statement": f.get("description"),
+                "status": f.get("myth-fact-status") or "established",
+                "truth": f.get("myth-fact-truth") or "true",
+                "time_index": f.get("myth-time-index"),
+                "about": f.get("about") or None, "origin": f.get("origin"),
+                "created_at": _ts(f.get("created-at") or gm.get_timestamp())}
+        _write(os.path.join(outdir, "facts", slug + ".md"),
+               _emit_frontmatter(meta) + "\n\n" + (f.get("content") or ""))
+    counts["facts"] = len(facts)
+
+    # Knowledge is a set of edges, not documents: one file keeps it diffable.
+    _write_json(os.path.join(outdir, "knowledge.json"),
+                {"knows": sorted(knowledge, key=lambda e: (e["fact"], e["knower"])),
+                 "agenda_requires": sorted(requirements,
+                                           key=lambda r: (r["agenda"], r["fact"]))})
+    counts["knowledge"] = len(knowledge)
 
     used = set()
     subdir = {"pc": "pcs", "npc": "npcs", "creature": "creatures"}
@@ -527,6 +573,8 @@ campaign format (v{FORMAT_VERSION}).
 | Journal events | {counts['events']} |
 | Agendas | {counts['agendas']} |
 | Beats | {counts['beats']} |
+| Facts | {counts['facts']} |
+| Knowledge edges | {counts['knowledge']} |
 
 ## Repository layout
 
@@ -540,7 +588,9 @@ campaign format (v{FORMAT_VERSION}).
 | `encounters/` | Combat encounter state (JSON) |
 | `journal/` | The campaign event log (JSON) |
 | `agendas/` | What each NPC and faction wants, on a progress clock |
-| `beats/` | What happens next if nobody interferes, scheduled in world time |{novels_row}
+| `beats/` | What happens next if nobody interferes, scheduled in world time |
+| `facts/` | Situational truth: one proposition per file, with when it became true |
+| `knowledge.json` | Who knows which fact, how, and since when |{novels_row}
 {setting_note}
 ## The living world (agendas)
 
@@ -633,6 +683,10 @@ def _read_tree(path):
         "lore": md_records("lore"),
         "agendas": md_records("agendas"),
         "beats": md_records("beats"),
+        "facts": md_records("facts"),
+        "knowledge": (json.load(open(os.path.join(path, "knowledge.json")))
+                      if os.path.exists(os.path.join(path, "knowledge.json"))
+                      else {"knows": [], "agenda_requires": []}),
         "locations": md_records("locations"),
         "factions": md_records("factions"),
         "characters": json_records("characters"),
@@ -658,7 +712,7 @@ def import_campaign(path, new_name=None, new_ids=False):
     all_ids = ([man["id"]]
                + [r["id"] for key in ("lore", "locations", "factions",
                                       "characters", "templates", "encounters",
-                                      "agendas", "beats")
+                                      "agendas", "beats", "facts")
                   for r in tree[key]]
                + [e["id"] for e in tree["events"]])
     if new_ids:
@@ -844,6 +898,55 @@ def import_campaign(path, new_name=None, new_ids=False):
                                   rid(b["id"]), "member", gm.AGENDA_HOLDER_TYPES,
                                   rid(member_id))
 
+        # --- facts, then the knowledge edges over them (deferred: knowers,
+        #     subjects and origins must all exist first)
+        for f in tree["facts"]:
+            fid = rid(f["id"])
+            q = (f'insert $e isa myth-fact, has id "{fid}", '
+                 f'has name "{gm.escape_string(f["title"])}", '
+                 f'has myth-fact-status "{gm.escape_string(f.get("status") or "established")}", '
+                 f'has myth-fact-truth "{gm.escape_string(f.get("truth") or "true")}", '
+                 f'has created-at {_ts(f.get("created_at"))}'
+                 + _opt("description", f.get("statement"))
+                 + _opt("myth-time-index", f.get("time_index"), quote=False)
+                 + _opt("content", f.get("content")) + ";")
+            gm._write(driver, q)
+            link(fid, "myth-fact")
+        for f in tree["facts"]:
+            for sid in f.get("about") or []:
+                gm._link_relation(driver, "myth-fact-about", "fact", "myth-fact",
+                                  rid(f["id"]), "subject", gm.FACT_SUBJECT_TYPES,
+                                  rid(sid))
+            if f.get("origin"):
+                gm._link_relation(driver, "myth-fact-from", "fact", "myth-fact",
+                                  rid(f["id"]), "origin", gm.FACT_ORIGIN_TYPES,
+                                  rid(f["origin"]))
+
+        know = tree.get("knowledge") or {}
+        for e in know.get("knows") or []:
+            ktype = None
+            for kt in gm.KNOWER_TYPES:
+                if gm._fetch(driver, f'''
+                        match $k isa {kt}, has id "{gm.escape_string(rid(e["knower"]))}";
+                        fetch {{ "i": $k.id }};'''):
+                    ktype = kt
+                    break
+            if not ktype:
+                continue
+            q = (f'match $k isa {ktype}, has id "{gm.escape_string(rid(e["knower"]))}"; '
+                 f'$f isa myth-fact, has id "{gm.escape_string(rid(e["fact"]))}"; '
+                 f'insert $r isa myth-knows (knower: $k, fact: $f), '
+                 f'has myth-knowledge-certainty "{gm.escape_string(e.get("certainty") or "knows")}"'
+                 + _opt("myth-knowledge-source", e.get("source"))
+                 + _opt("myth-knowledge-since", e.get("since"), quote=False) + ";")
+            gm._write(driver, q)
+        for r in know.get("agenda_requires") or []:
+            gm._write(driver, f'''
+                match
+                  $a isa myth-agenda, has id "{gm.escape_string(rid(r["agenda"]))}";
+                  $f isa myth-fact, has id "{gm.escape_string(rid(r["fact"]))}";
+                insert (agenda: $a, fact: $f) isa myth-agenda-requires;''')
+
         # --- encounters (+ participation, combatant ids remapped)
         for e in tree["encounters"]:
             eid = rid(e["id"])
@@ -898,7 +1001,8 @@ def import_campaign(path, new_name=None, new_ids=False):
             "imported": {k: len(tree[k]) for k in
                          ("lore", "locations", "factions", "characters",
                           "templates", "encounters", "events",
-                          "agendas", "beats")},
+                          "agendas", "beats", "facts")},
+            "knowledge_edges": len((tree.get("knowledge") or {}).get("knows") or []),
             "new_ids": new_ids})
 
 

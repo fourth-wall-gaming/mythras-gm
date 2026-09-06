@@ -65,6 +65,16 @@ attribute myth-beat-trigger, value string;         # "time" | "clock>=N"
 attribute myth-beat-onscreen-if, value string;     # prose condition, e.g. "any PC at the Sylph's Embrace"
 attribute myth-time-index, value integer;          # ordinal world clock (campaign: now; beat: when it fires)
 
+# Epistemics (facts and who knows them). See entity myth-fact below.
+# Ground truth lives in exactly one place -- the fact graph -- and a character's
+# knowledge is a PROJECTION of it (myth-knows edges), never a separate store.
+# That is what makes per-character knowledge reconcilable by construction.
+attribute myth-fact-status, value string;          # not-yet-true | established | superseded
+attribute myth-fact-truth, value string;           # true | false | partial (a believed falsehood is still a fact node)
+attribute myth-knowledge-certainty, value string;  # knows | believes | suspects | wrong
+attribute myth-knowledge-source, value string;     # witnessed | told | deduced | rumor
+attribute myth-knowledge-since, value integer;     # world-clock index when this knower learned it
+
 # Rules graph (global, faceted, queryable). See entity myth-rule below.
 # A rule piece carries its canonical hierarchy home (domain > topic) plus a
 # coarse category/kind, and is tagged with 1-4 orthogonal facets for live,
@@ -132,6 +142,26 @@ relation myth-beat-outcome,       # beat -> the journal event it produced when f
     relates beat,
     relates event;
 
+# Epistemic relations
+relation myth-fact-from,          # fact -> the beat or journal event that made it true
+    relates fact,
+    relates origin;
+
+relation myth-fact-about,         # fact -> what it is about
+    relates fact,
+    relates subject;
+
+relation myth-knows,              # knower -> fact. The edge carries HOW and WHEN.
+    owns myth-knowledge-certainty,
+    owns myth-knowledge-source,
+    owns myth-knowledge-since,
+    relates knower,
+    relates fact;
+
+relation myth-agenda-requires,    # agenda -> fact its holder must know before acting
+    relates agenda,
+    relates fact;
+
 # Rules graph relations
 relation myth-rule-tagged,        # rule <-> facet (situational tag)
     relates rule,
@@ -177,7 +207,9 @@ entity myth-character sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-agenda-holder:holder,
     plays myth-agenda-target:target,
-    plays myth-beat-cast:member;
+    plays myth-beat-cast:member,
+    plays myth-knows:knower,
+    plays myth-fact-about:subject;
 
 entity myth-creature-template sub alh-domain-thing,
     owns myth-characteristics-json,
@@ -199,7 +231,8 @@ entity myth-location sub alh-domain-thing,
     plays myth-event-involvement:participant,
     plays myth-lore-about:subject,
     plays myth-agenda-target:target,
-    plays myth-beat-at:place;
+    plays myth-beat-at:place,
+    plays myth-fact-about:subject;
 
 entity myth-faction sub alh-domain-thing,
     plays myth-campaign-membership:element,
@@ -208,7 +241,9 @@ entity myth-faction sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-agenda-holder:holder,
     plays myth-agenda-target:target,
-    plays myth-beat-cast:member;
+    plays myth-beat-cast:member,
+    plays myth-knows:knower,
+    plays myth-fact-about:subject;
 
 entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
@@ -223,7 +258,8 @@ entity myth-game-event sub alh-note,
     owns myth-session-number,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:event,
-    plays myth-beat-outcome:event;
+    plays myth-beat-outcome:event,
+    plays myth-fact-from:origin;
 
 # LIVING WORLD - What the world is doing while the PCs are elsewhere.
 #
@@ -247,8 +283,10 @@ entity myth-agenda sub alh-note,
     plays myth-agenda-holder:agenda,
     plays myth-agenda-target:agenda,
     plays myth-beat-of:agenda,
+    plays myth-agenda-requires:agenda,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-fact-about:subject;
 
 entity myth-beat sub alh-note,
     owns myth-beat-status,
@@ -261,8 +299,10 @@ entity myth-beat sub alh-note,
     plays myth-beat-at:beat,
     plays myth-beat-cast:beat,
     plays myth-beat-outcome:beat,
+    plays myth-fact-from:origin,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-fact-about:subject;
 
 # LORE - Generic worldbuilding detail for any campaign.
 # Each entry is a rich-text note (content inherited from alh-note) with a
@@ -277,6 +317,32 @@ entity myth-lore sub alh-note,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:participant,
     plays myth-lore-about:lore,
+    plays myth-lore-about:subject;
+
+# FACTS - The single home of situational truth.
+#
+# A fact is one proposition about the world ("Santo carved Emmeralda at the
+# Sylph's Embrace"). It exists BEFORE it is true: a beat owns its facts with
+# status `not-yet-true`, and firing the beat establishes them at a world-clock
+# index. Nothing can be known before it is established -- which is checkable.
+#
+# `myth-fact-truth` is separate from status on purpose. A false proposition that
+# people believe ("the runner who fled the woods was Lord Santo") is a real
+# object in this game, and rumour, lies and mistaken identity are the engine of
+# the story -- so belief and truth must be independently representable.
+#
+# Character prose describes CHARACTER; facts carry SITUATION. A character sheet
+# that asserts what has happened cannot be reconciled against anything.
+entity myth-fact sub alh-note,          # description = the proposition itself
+    owns myth-fact-status,
+    owns myth-fact-truth,
+    owns myth-time-index,               # when it became true
+    plays myth-campaign-membership:element,
+    plays myth-fact-from:fact,
+    plays myth-fact-about:fact,
+    plays myth-knows:fact,
+    plays myth-agenda-requires:fact,
+    plays myth-event-involvement:participant,
     plays myth-lore-about:subject;
 
 # RULES GRAPH - Universal Mythras rules sliced into small, queryable pieces.
