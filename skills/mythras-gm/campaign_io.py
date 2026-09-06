@@ -295,6 +295,21 @@ def export_campaign(campaign_id, outdir):
 
         knowledge = gm._flatten_edges(gm._knowledge_edges(driver, campaign_id))
         requirements = gm._agenda_requirements(driver, campaign_id)
+        consequences = []
+        for c in gm._consequences(driver, campaign_id):
+            amt = c.get("amount")
+            consequences.append({"fact": c["fact"], "agenda": c["agenda"],
+                                 "effect": c["effect"],
+                                 "amount": (amt[0] if isinstance(amt, list) and amt
+                                            else (None if isinstance(amt, list) else amt))})
+        supersedes = gm._fetch(driver, f'''
+            match
+              $camp isa myth-campaign, has id "{gm.escape_string(campaign_id)}";
+              (campaign: $camp, element: $new) isa myth-campaign-membership;
+              $new isa myth-fact, has id $ni;
+              (superseding: $new, superseded: $old) isa myth-fact-supersedes;
+              $old has id $oi;
+            fetch {{ "superseding": $ni, "superseded": $oi }};''')
 
         # --- encounters
         encounters = []
@@ -427,7 +442,11 @@ def export_campaign(campaign_id, outdir):
     _write_json(os.path.join(outdir, "knowledge.json"),
                 {"knows": sorted(knowledge, key=lambda e: (e["fact"], e["knower"])),
                  "agenda_requires": sorted(requirements,
-                                           key=lambda r: (r["agenda"], r["fact"]))})
+                                           key=lambda r: (r["agenda"], r["fact"])),
+                 "consequences": sorted(consequences,
+                                        key=lambda c: (c["fact"], c["agenda"])),
+                 "supersedes": sorted(supersedes,
+                                      key=lambda s: (s["superseding"], s["superseded"]))})
     counts["knowledge"] = len(knowledge)
 
     used = set()
@@ -697,6 +716,8 @@ def _read_tree(path):
 
 
 def _opt(attr, value, quote=True):
+    if isinstance(value, list):          # optional-attribute fetches come back as lists
+        value = value[0] if value else None
     if value is None or value == "":
         return ""
     if quote:
@@ -940,6 +961,19 @@ def import_campaign(path, new_name=None, new_ids=False):
                  + _opt("myth-knowledge-source", e.get("source"))
                  + _opt("myth-knowledge-since", e.get("since"), quote=False) + ";")
             gm._write(driver, q)
+        for c in know.get("consequences") or []:
+            q = (f'match $f isa myth-fact, has id "{gm.escape_string(rid(c["fact"]))}"; '
+                 f'$a isa myth-agenda, has id "{gm.escape_string(rid(c["agenda"]))}"; '
+                 f'insert $r isa myth-consequence (fact: $f, agenda: $a), '
+                 f'has myth-consequence-effect "{gm.escape_string(c["effect"])}"'
+                 + _opt("myth-consequence-amount", c.get("amount"), quote=False) + ";")
+            gm._write(driver, q)
+        for s in know.get("supersedes") or []:
+            gm._write(driver, f'''
+                match
+                  $new isa myth-fact, has id "{gm.escape_string(rid(s["superseding"]))}";
+                  $old isa myth-fact, has id "{gm.escape_string(rid(s["superseded"]))}";
+                insert (superseding: $new, superseded: $old) isa myth-fact-supersedes;''')
         for r in know.get("agenda_requires") or []:
             gm._write(driver, f'''
                 match
@@ -1003,6 +1037,7 @@ def import_campaign(path, new_name=None, new_ids=False):
                           "templates", "encounters", "events",
                           "agendas", "beats", "facts")},
             "knowledge_edges": len((tree.get("knowledge") or {}).get("knows") or []),
+            "consequences": len((tree.get("knowledge") or {}).get("consequences") or []),
             "new_ids": new_ids})
 
 

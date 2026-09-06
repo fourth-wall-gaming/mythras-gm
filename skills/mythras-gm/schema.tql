@@ -75,6 +75,13 @@ attribute myth-knowledge-certainty, value string;  # knows | believes | suspects
 attribute myth-knowledge-source, value string;     # witnessed | told | deduced | rumor
 attribute myth-knowledge-since, value integer;     # world-clock index when this knower learned it
 
+# Consequence: how an established fact changes what people are trying to do.
+# The inverse of myth-agenda-requires. `requires` is KNOWLEDGE-gated (a holder
+# must learn something before they can want it); a consequence is WORLD-gated
+# (a dead man's agenda ends whether or not anyone has heard).
+attribute myth-consequence-effect, value string;   # thwart | abandon | stall | advance | complete | activate
+attribute myth-consequence-amount, value integer;  # clock segments, for stall/advance
+
 # Rules graph (global, faceted, queryable). See entity myth-rule below.
 # A rule piece carries its canonical hierarchy home (domain > topic) plus a
 # coarse category/kind, and is tagged with 1-4 orthogonal facets for live,
@@ -161,6 +168,16 @@ relation myth-knows,              # knower -> fact. The edge carries HOW and WHE
 relation myth-agenda-requires,    # agenda -> fact its holder must know before acting
     relates agenda,
     relates fact;
+
+relation myth-consequence,        # established fact -> what it does to an agenda
+    owns myth-consequence-effect,
+    owns myth-consequence-amount,
+    relates fact,
+    relates agenda;
+
+relation myth-fact-supersedes,    # a rewritten future keeps its history
+    relates superseding,
+    relates superseded;
 
 # Rules graph relations
 relation myth-rule-tagged,        # rule <-> facet (situational tag)
@@ -284,6 +301,7 @@ entity myth-agenda sub alh-note,
     plays myth-agenda-target:agenda,
     plays myth-beat-of:agenda,
     plays myth-agenda-requires:agenda,
+    plays myth-consequence:agenda,
     plays myth-event-involvement:participant,
     plays myth-lore-about:subject,
     plays myth-fact-about:subject;
@@ -342,6 +360,9 @@ entity myth-fact sub alh-note,          # description = the proposition itself
     plays myth-fact-about:fact,
     plays myth-knows:fact,
     plays myth-agenda-requires:fact,
+    plays myth-consequence:fact,
+    plays myth-fact-supersedes:superseding,
+    plays myth-fact-supersedes:superseded,
     plays myth-event-involvement:participant,
     plays myth-lore-about:subject;
 

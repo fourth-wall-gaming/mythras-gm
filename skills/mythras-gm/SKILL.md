@@ -122,6 +122,14 @@ disagree when there is only one source.
   happened" into a character's narrative -- it cannot be reconciled against
   anything.
 
+**When an event changes what someone wants, say so in data.**
+`add-consequence --fact F --agenda A --effect thwart|abandon|stall|advance`
+fires the moment F is established, and the cascade then cancels the beats that
+dead agenda was going to produce and retires the futures they promised. Run
+`cascade --campaign C` after anything messy. `fire-beat` settles its own facts:
+`played`/`narrated` establishes them (pass `--witnesses` so the people who were
+there actually know), `preempted`/`cancelled` retires them.
+
 Agendas can be **gated on knowledge**: `require-fact` makes a dormant agenda
 wake up during `tick` the moment its holder learns the trigger fact. That is
 how "the Baron acts once he sees that face" becomes something the world clock

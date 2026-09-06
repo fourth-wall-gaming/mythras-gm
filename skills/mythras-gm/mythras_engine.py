@@ -543,3 +543,84 @@ def agendas_to_activate(agendas, requirements, edges):
         if req.issubset(known.get(a.get("holder"), set())):
             ready.append(a)
     return sorted(ready, key=lambda a: (-(a.get("priority") or 3), a.get("title") or ""))
+
+
+# ---------------------------------------------------------------------------
+# Consequence: rewriting intentions and futures when events land
+# ---------------------------------------------------------------------------
+#
+# An established fact can change what people are trying to do. When an agenda
+# dies, the beats it was going to produce must die with it, and the futures
+# those beats were going to make true must be retired -- otherwise the graph
+# keeps believing in a night that can no longer happen.
+
+CONSEQUENCE_EFFECTS = ("thwart", "abandon", "complete", "activate", "stall", "advance")
+
+# An agenda in one of these states is no longer being pursued by anybody.
+DEAD_AGENDA_STATUSES = ("thwarted", "abandoned", "achieved")
+
+
+def apply_consequences(established_fact_ids, consequences, agendas):
+    """The agenda changes implied by facts that have just become true.
+
+    Returns a list of {agenda, effect, from_status, to_status, clock_from,
+    clock_to}. Pure: the caller performs the writes.
+    """
+    established = set(established_fact_ids or ())
+    by_id = {a["id"]: a for a in agendas}
+    changes = []
+    for c in consequences:
+        if c.get("fact") not in established:
+            continue
+        a = by_id.get(c.get("agenda"))
+        if not a:
+            continue
+        status = a.get("status")
+        if status in DEAD_AGENDA_STATUSES:
+            continue                      # already settled; do not disturb it
+        effect = c.get("effect")
+        clock = a.get("clock") or {}
+        filled, size = clock.get("filled") or 0, clock.get("size") or 0
+        change = {"agenda": a["id"], "title": a.get("title"), "effect": effect,
+                  "from_status": status, "to_status": status,
+                  "clock_from": filled, "clock_to": filled, "fact": c["fact"]}
+        if effect == "thwart":
+            change["to_status"] = "thwarted"
+        elif effect == "abandon":
+            change["to_status"] = "abandoned"
+        elif effect == "complete":
+            change["to_status"] = "achieved"
+        elif effect == "activate":
+            change["to_status"] = "active"
+        elif effect in ("stall", "advance"):
+            amount = c.get("amount") or 1
+            delta = -amount if effect == "stall" else amount
+            change["clock_to"] = max(0, min(filled + delta, size)) if size else 0
+        else:
+            continue
+        # reflect the change so several consequences on one agenda compose
+        a["status"] = change["to_status"]
+        a.setdefault("clock", {})["filled"] = change["clock_to"]
+        changes.append(change)
+    return changes
+
+
+def beats_to_cancel(agendas, beats):
+    """Pending beats produced by an agenda nobody is pursuing any more."""
+    dead = {a["id"] for a in agendas if a.get("status") in DEAD_AGENDA_STATUSES}
+    return [b for b in beats
+            if (b.get("status") or "pending") == "pending" and b.get("agenda") in dead]
+
+
+def orphaned_futures(facts, beats):
+    """not-yet-true facts that no live beat will ever establish.
+
+    Only facts owned by a beat are considered: a fact with no origin is the
+    GM's to establish by hand, and one owned by a journal event has already
+    happened.
+    """
+    beat_ids = {b["id"] for b in beats}
+    live = {b["id"] for b in beats if (b.get("status") or "pending") == "pending"}
+    return [f for f in facts
+            if (f.get("status") == "not-yet-true"
+                and f.get("from") in beat_ids and f.get("from") not in live)]

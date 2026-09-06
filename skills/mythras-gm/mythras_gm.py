@@ -1638,6 +1638,52 @@ def cmd_fire_beat(args):
                             insert (event: $e, participant: $p) isa myth-event-involvement;''')
                         break
             event_id = eid
+        # The beat is what makes its facts true -- or what makes them
+        # impossible. Either way its futures stop being pending here.
+        beat_facts = _fetch(driver, f'''
+            match
+              $b isa myth-beat, has id "{escape_string(args.id)}";
+              (fact: $f, origin: $b) isa myth-fact-from;
+              $f has id $fi, has myth-fact-status $fs;
+            fetch {{ "id": $fi, "status": $fs }};''')
+        established_now, retired_now = [], []
+        if not args.no_facts:
+            camp = _get_entity(driver, "myth-campaign", args.campaign,
+                               ["myth-time-index"]) if args.campaign else None
+            now = camp.get("myth-time-index") if camp else None
+            for bf in beat_facts:
+                if bf["status"] != "not-yet-true":
+                    continue
+                if args.outcome in ("played", "narrated"):
+                    _set_attr(driver, "myth-fact", bf["id"],
+                              "myth-fact-status", "established")
+                    if now is not None:
+                        _set_attr(driver, "myth-fact", bf["id"],
+                                  "myth-time-index", now, quote=False)
+                    established_now.append(bf["id"])
+                else:
+                    _supersede_fact(driver, bf["id"])
+                    retired_now.append(bf["id"])
+            # whoever was there to see it now knows it
+            for wid in (args.witnesses or "").split(","):
+                wid = wid.strip()
+                if not wid or not established_now:
+                    continue
+                for kt in KNOWER_TYPES:
+                    if _fetch(driver, f'''
+                            match $k isa {kt}, has id "{escape_string(wid)}";
+                            fetch {{ "id": $k.id }};'''):
+                        for fid in established_now:
+                            q = (f'match $k isa {kt}, has id "{escape_string(wid)}"; '
+                                 f'$f isa myth-fact, has id "{escape_string(fid)}"; '
+                                 f'insert $r isa myth-knows (knower: $k, fact: $f), '
+                                 f'has myth-knowledge-certainty "knows", '
+                                 f'has myth-knowledge-source "witnessed"')
+                            if now is not None:
+                                q += f", has myth-knowledge-since {now}"
+                            _write(driver, q + ";")
+                        break
+
         clock = None
         if args.advance and beat["agenda"]:
             agenda = _agenda_record(driver, beat["agenda"], holder=False)
@@ -1647,8 +1693,12 @@ def cmd_fire_beat(args):
                       "myth-agenda-clock-filled", filled, quote=False)
             clock = {"agenda": beat["agenda"], "filled": filled,
                      "size": agenda["clock"]["size"], "completed": completed}
+        cascade = _cascade(driver, args.campaign,
+                           established=established_now) if args.campaign else {}
     out({"success": True, "id": args.id, "outcome": args.outcome,
-         "event": event_id, "clock": clock})
+         "event": event_id, "clock": clock,
+         "facts_established": established_now, "facts_retired": retired_now,
+         "cascade": cascade})
 
 
 def cmd_tick(args):
@@ -1680,20 +1730,12 @@ def cmd_tick(args):
 
         agendas = _campaign_agendas(driver, args.campaign)
 
-        # Fact-gated agendas: a dormant agenda whose holder now knows everything
-        # it requires wakes up here, rather than when the GM remembers to.
-        edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
-        reqs = _agenda_requirements(driver, args.campaign)
-        ready = eng.agendas_to_activate(
-            [{"id": a["id"], "title": a["title"], "status": a["status"],
-              "holder": (a.get("holder") or {}).get("id"),
-              "priority": a["priority"]} for a in agendas],
-            reqs, edges)
-        activated = []
-        for a in ready:
-            _set_attr(driver, "myth-agenda", a["id"], "myth-agenda-status", "active")
-            activated.append({"id": a["id"], "title": a["title"]})
-        if activated:
+        # Re-settle the world before reading it: wake knowledge-gated agendas,
+        # cancel beats whose agenda has died, retire futures that cannot happen.
+        settle = _cascade(driver, args.campaign)
+        activated = settle["activated_agendas"]
+        if (settle["activated_agendas"] or settle["cancelled_beats"]
+                or settle["retired_facts"]):
             agendas = _campaign_agendas(driver, args.campaign)
 
         clocks = {a["id"]: a["clock"]["filled"] for a in agendas}
@@ -1710,6 +1752,8 @@ def cmd_tick(args):
          "from": eng.format_time_key(was) if was is not None else None,
          "now": args.to, "time_index": now,
          "activated_agendas": activated,
+         "cancelled_beats": settle["cancelled_beats"],
+         "retired_facts": settle["retired_facts"],
          "pc_locations": pc_places,
          "due_beats": due,
          "onscreen": [b["id"] for b in due if b["staging"] == "onscreen"],
@@ -1903,7 +1947,137 @@ def cmd_establish_fact(args):
         _set_attr(driver, "myth-fact", args.id, "myth-time-index", idx, quote=False)
         if args.truth:
             _set_attr(driver, "myth-fact", args.id, "myth-fact-truth", args.truth)
-    out({"success": True, "id": args.id, "status": "established", "when": args.when})
+        # A fact landing can change what people are trying to do, which can
+        # cancel futures that were only ever going to happen because of them.
+        report = _cascade(driver, args.campaign, established=[args.id]) if args.campaign else {}
+    out({"success": True, "id": args.id, "status": "established", "when": args.when,
+         "cascade": report})
+
+
+def _consequences(driver, campaign_id):
+    return _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $a) isa myth-campaign-membership;
+          $a isa myth-agenda, has id $ai;
+          $r isa myth-consequence (fact: $f, agenda: $a);
+          $f has id $fi;
+          $r has myth-consequence-effect $e;
+        fetch {{ "fact": $fi, "agenda": $ai, "effect": $e,
+                 "amount": [ $r.myth-consequence-amount ] }};''')
+
+
+def _supersede_fact(driver, fid, by=None):
+    """Retire a future that can no longer happen, keeping the trail."""
+    _set_attr(driver, "myth-fact", fid, "myth-fact-status", "superseded")
+    if by:
+        _write(driver, f'''
+            match
+              $new isa myth-fact, has id "{escape_string(by)}";
+              $old isa myth-fact, has id "{escape_string(fid)}";
+            insert (superseding: $new, superseded: $old) isa myth-fact-supersedes;''')
+
+
+def _cascade(driver, campaign_id, established=()):
+    """Propagate an event through intentions and the futures they promised.
+
+        fact established
+          -> consequences change agendas      (thwart/abandon/stall/advance)
+          -> dead agendas cancel their beats  (the future is rewritten)
+          -> those beats' futures are retired (no orphaned not-yet-true facts)
+          -> knowledge-gated agendas activate
+          -> and any agenda that just died cancels its beats too
+
+    Everything except the consequence step is convergent, so this is safe to
+    run on every tick. Consequences fire only for facts named in `established`
+    -- the moment of transition -- because stall/advance are not idempotent.
+    """
+    report = {"agenda_changes": [], "cancelled_beats": [], "retired_facts": [],
+              "activated_agendas": []}
+
+    agendas = _campaign_agendas(driver, campaign_id)
+    flat = [{"id": a["id"], "title": a["title"], "status": a["status"],
+             "clock": dict(a["clock"]), "priority": a["priority"],
+             "holder": (a.get("holder") or {}).get("id")} for a in agendas]
+
+    if established:
+        cons = []
+        for c in _consequences(driver, campaign_id):
+            amount = c.get("amount")
+            cons.append({"fact": c["fact"], "agenda": c["agenda"],
+                         "effect": c["effect"],
+                         "amount": (amount[0] if isinstance(amount, list) and amount
+                                    else amount)})
+        for ch in eng.apply_consequences(established, cons, flat):
+            if ch["to_status"] != ch["from_status"]:
+                _set_attr(driver, "myth-agenda", ch["agenda"],
+                          "myth-agenda-status", ch["to_status"])
+            if ch["clock_to"] != ch["clock_from"]:
+                _set_attr(driver, "myth-agenda", ch["agenda"],
+                          "myth-agenda-clock-filled", ch["clock_to"], quote=False)
+            report["agenda_changes"].append(ch)
+
+    # knowledge-gated activations (idempotent)
+    edges = _flatten_edges(_knowledge_edges(driver, campaign_id))
+    reqs = _agenda_requirements(driver, campaign_id)
+    for a in eng.agendas_to_activate(flat, reqs, edges):
+        _set_attr(driver, "myth-agenda", a["id"], "myth-agenda-status", "active")
+        for f in flat:
+            if f["id"] == a["id"]:
+                f["status"] = "active"
+        report["activated_agendas"].append({"id": a["id"], "title": a["title"]})
+
+    # dead agendas cancel the beats they were going to produce
+    beats = _campaign_beats(driver, campaign_id)
+    for b in eng.beats_to_cancel(flat, beats):
+        _set_attr(driver, "myth-beat", b["id"], "myth-beat-status", "cancelled")
+        b["status"] = "cancelled"
+        report["cancelled_beats"].append({"id": b["id"], "title": b["title"]})
+
+    # and futures no live beat will ever make true are retired
+    facts = _campaign_facts(driver, campaign_id)
+    for f in eng.orphaned_futures(facts, beats):
+        _supersede_fact(driver, f["id"])
+        report["retired_facts"].append({"id": f["id"], "statement": f["statement"]})
+    return report
+
+
+def cmd_add_consequence(args):
+    """Say what an established fact does to somebody's intentions."""
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-fact", args.fact, []):
+            fail(f"No fact '{args.fact}'")
+        if not _get_entity(driver, "myth-agenda", args.agenda, []):
+            fail(f"No agenda '{args.agenda}'")
+        q = (f'match $f isa myth-fact, has id "{escape_string(args.fact)}"; '
+             f'$a isa myth-agenda, has id "{escape_string(args.agenda)}"; '
+             f'insert $r isa myth-consequence (fact: $f, agenda: $a), '
+             f'has myth-consequence-effect "{escape_string(args.effect)}"')
+        if args.amount is not None:
+            q += f", has myth-consequence-amount {args.amount}"
+        q += ";"
+        _write(driver, q)
+    out({"success": True, "fact": args.fact, "agenda": args.agenda,
+         "effect": args.effect, "amount": args.amount})
+
+
+def cmd_supersede_fact(args):
+    with get_driver() as driver:
+        if not _fact_record(driver, args.id):
+            fail(f"No fact '{args.id}'")
+        if args.by and not _fact_record(driver, args.by):
+            fail(f"No fact '{args.by}'")
+        _supersede_fact(driver, args.id, args.by)
+        report = _cascade(driver, args.campaign) if args.campaign else {}
+    out({"success": True, "id": args.id, "superseded_by": args.by,
+         "cascade": report})
+
+
+def cmd_cascade(args):
+    """Re-settle the world: cancel dead futures, wake what should be awake."""
+    with get_driver() as driver:
+        report = _cascade(driver, args.campaign)
+    out({"success": True, **report})
 
 
 def cmd_revise_fact(args):
@@ -2051,6 +2225,7 @@ def cmd_check_consistency(args):
         edges = _flatten_edges(_knowledge_edges(driver, args.campaign))
         agendas = _campaign_agendas(driver, args.campaign)
         reqs = _agenda_requirements(driver, args.campaign)
+        all_beats = _campaign_beats(driver, args.campaign)
         camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
     now = camp.get("myth-time-index") if camp else None
     problems = eng.knowledge_violations(facts, edges)
@@ -2061,6 +2236,18 @@ def cmd_check_consistency(args):
             problems.append({"kind": "overdue-fact", "fact": f["id"],
                              "statement": f["statement"],
                              "detail": "due by the world clock but still not-yet-true"})
+    beats = all_beats
+    for f in eng.orphaned_futures(facts, beats):
+        problems.append({"kind": "orphaned-future", "fact": f["id"],
+                         "statement": f["statement"],
+                         "detail": "no live beat will ever establish this -- "
+                                   "run `cascade` to retire it"})
+    for b in eng.beats_to_cancel(
+            [{"id": a["id"], "status": a["status"]} for a in agendas], beats):
+        problems.append({"kind": "beat-on-dead-agenda", "beat": b["id"],
+                         "statement": b["title"],
+                         "detail": "still pending, but its agenda is no longer "
+                                   "being pursued -- run `cascade`"})
     holders = {a["id"]: (a.get("holder") or {}).get("id") for a in agendas}
     for a in agendas:
         a["holder_id"] = holders.get(a["id"])
@@ -2742,6 +2929,10 @@ def build_parser():
     s.add_argument("--session", type=int)
     s.add_argument("--advance", type=int,
                    help="also fill N segments on the parent agenda's clock")
+    s.add_argument("--witnesses",
+                   help="comma-separated ids who saw it and now know its facts")
+    s.add_argument("--no-facts", dest="no_facts", action="store_true",
+                   help="do not establish or retire this beat's facts")
 
     s = sub.add_parser("tick",
                        help="Advance world time; report what came due, onscreen or off")
@@ -2783,6 +2974,7 @@ def build_parser():
     s = sub.add_parser("establish-fact",
                        help="Flip a fact from not-yet-true to established")
     s.add_argument("--id", required=True)
+    s.add_argument("--campaign", help="run the consequence cascade after establishing")
     s.add_argument("--when", required=True, help="time key it became true")
     s.add_argument("--truth", choices=["true", "false", "partial"])
 
@@ -2820,6 +3012,24 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--id", required=True)
     s.add_argument("--compact", action="store_true")
+
+    s = sub.add_parser("add-consequence",
+                       help="What an established fact does to somebody's intentions")
+    s.add_argument("--fact", required=True)
+    s.add_argument("--agenda", required=True)
+    s.add_argument("--effect", required=True,
+                   choices=list(eng.CONSEQUENCE_EFFECTS))
+    s.add_argument("--amount", type=int, help="clock segments for stall/advance")
+
+    s = sub.add_parser("supersede-fact",
+                       help="Retire a fact, optionally naming what replaced it")
+    s.add_argument("--id", required=True)
+    s.add_argument("--by", help="id of the fact that replaces it")
+    s.add_argument("--campaign", help="run the cascade afterwards")
+
+    s = sub.add_parser("cascade",
+                       help="Re-settle intentions and futures without moving time")
+    s.add_argument("--campaign", required=True)
 
     s = sub.add_parser("require-fact",
                        help="Gate an agenda on its holder knowing something")

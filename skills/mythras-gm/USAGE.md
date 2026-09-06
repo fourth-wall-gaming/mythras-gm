@@ -366,6 +366,62 @@ never assert situation: a sheet that says "he attempted the ritual and fled"
 cannot be reconciled against a clock, and will be wrong the moment play
 diverges.
 
+## Consequence (when events rewrite intentions)
+
+Facts change what people want. When an agenda dies, the beats it was going to
+produce must die with it, and the futures those beats promised must be retired
+-- otherwise the graph keeps believing in a night that can no longer happen.
+
+```bash
+add-consequence --fact <f> --agenda <a> --effect abandon
+add-consequence --fact <f> --agenda <a> --effect stall --amount 2
+```
+
+Effects: `thwart` `abandon` `complete` `activate` (status) and `stall`
+`advance` (clock). Consequences fire at the **moment a fact is established**,
+because `stall`/`advance` are not idempotent.
+
+Note this is the opposite gate from `require-fact`:
+
+| | gated on | example |
+|---|---|---|
+| `require-fact` | the holder **knowing** | Blau wants revenge once he *learns* Santo is dead |
+| `add-consequence` | the fact being **true** | Santo's own agenda ends whether anyone knows or not |
+
+### The cascade
+
+`establish-fact --campaign C`, `fire-beat --campaign C` and every `tick` run it;
+`cascade --campaign C` runs it alone.
+
+```
+fact established
+  -> consequences change agendas          thwart / abandon / stall / advance
+  -> knowledge-gated agendas activate
+  -> dead agendas cancel their pending beats        <- futures rewritten
+  -> facts no live beat can establish are superseded
+```
+
+Everything but the consequence step is convergent, so it is safe to re-run.
+
+**`fire-beat` now settles its own facts.** `--outcome played|narrated`
+establishes the beat's not-yet-true facts at the current world clock;
+`preempted|cancelled|rewritten` supersedes them. Pass `--witnesses id,id` and
+those characters learn what they saw. `--no-facts` opts out.
+
+**`supersede-fact --id F --by G`** retires a fact and records what replaced it,
+so a corrected belief keeps its history -- the people who learned the old one
+still believe it, which is the point.
+
+Two more checks in `check-consistency`: `orphaned-future` (a not-yet-true fact
+no live beat will ever establish) and `beat-on-dead-agenda`.
+
+### Intentions are discoverable
+
+A fact can take an **agenda** as its subject, so *"Hanzo means to win the
+Tourney with a possessed champion"* is itself a fact people can learn, believe,
+or be wrong about. That is most of what the party actually plays for. Use
+`--truth partial` for a belief that is right but incomplete.
+
 ## Worldbuilding During Play
 
 New places, factions, and recurring NPCs the fiction generates should be

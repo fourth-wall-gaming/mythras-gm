@@ -278,3 +278,73 @@ def test_already_active_agendas_are_not_reactivated():
     agendas = [{"id": "a", "status": "active", "holder": "h", "priority": 3}]
     reqs = [{"agenda": "a", "fact": "f-carved"}]
     assert eng.agendas_to_activate(agendas, reqs, [{"knower": "h", "fact": "f-carved"}]) == []
+
+
+# --- consequence: rewriting intentions and futures ---------------------------
+
+def _agenda(id, status="active", filled=0, size=6, title=None):
+    return {"id": id, "title": title or id, "status": status,
+            "clock": {"filled": filled, "size": size}, "priority": 3}
+
+
+def test_death_of_santo_abandons_his_agenda_and_thwarts_nothing_else():
+    agendas = [_agenda("a-bind"), _agenda("a-cleanup")]
+    cons = [{"fact": "f-santo-dead", "agenda": "a-bind", "effect": "abandon"}]
+    ch = eng.apply_consequences(["f-santo-dead"], cons, agendas)
+    assert len(ch) == 1
+    assert ch[0]["to_status"] == "abandoned" and ch[0]["from_status"] == "active"
+    assert agendas[1]["status"] == "active"      # untouched
+
+
+def test_stall_and_advance_move_the_clock_not_the_status():
+    agendas = [_agenda("a", filled=4, size=8)]
+    cons = [{"fact": "f", "agenda": "a", "effect": "stall", "amount": 3}]
+    ch = eng.apply_consequences(["f"], cons, agendas)
+    assert ch[0]["clock_from"] == 4 and ch[0]["clock_to"] == 1
+    assert ch[0]["to_status"] == "active"
+    # and it floors at zero rather than going negative
+    ch2 = eng.apply_consequences(["f"], [{"fact": "f", "agenda": "a",
+                                          "effect": "stall", "amount": 99}], agendas)
+    assert ch2[0]["clock_to"] == 0
+
+
+def test_consequences_compose_on_one_agenda():
+    agendas = [_agenda("a", filled=2, size=8)]
+    cons = [{"fact": "f1", "agenda": "a", "effect": "advance", "amount": 3},
+            {"fact": "f2", "agenda": "a", "effect": "thwart"}]
+    ch = eng.apply_consequences(["f1", "f2"], cons, agendas)
+    assert [c["effect"] for c in ch] == ["advance", "thwart"]
+    assert agendas[0]["clock"]["filled"] == 5 and agendas[0]["status"] == "thwarted"
+
+
+def test_a_settled_agenda_is_not_disturbed():
+    agendas = [_agenda("a", status="thwarted")]
+    assert eng.apply_consequences(["f"], [{"fact": "f", "agenda": "a",
+                                           "effect": "advance", "amount": 2}], agendas) == []
+
+
+def test_unestablished_facts_have_no_consequences():
+    agendas = [_agenda("a")]
+    cons = [{"fact": "f-later", "agenda": "a", "effect": "thwart"}]
+    assert eng.apply_consequences([], cons, agendas) == []
+
+
+def test_dead_agendas_cancel_their_pending_beats():
+    agendas = [_agenda("a-bind", status="abandoned"), _agenda("a-live")]
+    beats = [{"id": "b1", "agenda": "a-bind", "status": "pending"},
+             {"id": "b2", "agenda": "a-bind", "status": "played"},
+             {"id": "b3", "agenda": "a-live", "status": "pending"}]
+    assert [b["id"] for b in eng.beats_to_cancel(agendas, beats)] == ["b1"]
+
+
+def test_orphaned_futures_are_the_demonstrated_leak():
+    """Santo dies, his beat is preempted -- the night it promised cannot happen."""
+    beats = [{"id": "b-carve", "status": "preempted"},
+             {"id": "b-live", "status": "pending"}]
+    facts = [
+        {"id": "f1", "status": "not-yet-true", "from": "b-carve"},   # orphan
+        {"id": "f2", "status": "not-yet-true", "from": "b-live"},    # still coming
+        {"id": "f3", "status": "established", "from": "b-carve"},    # already true
+        {"id": "f4", "status": "not-yet-true", "from": None},        # GM's to place
+    ]
+    assert [f["id"] for f in eng.orphaned_futures(facts, beats)] == ["f1"]
