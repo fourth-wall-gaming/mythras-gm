@@ -396,7 +396,7 @@ def _transform_sheet(sheet, char_type):
     if not locations:
         locations = eng.build_hit_locations(chars, "humanoid")
 
-    # Attributes: keep source values, fill gaps from the engine.
+    # Attributes: keep source values, fill gaps from the eng.
     derived = eng.derive_attributes(chars, "humanoid")
     src_attrs = dict(sheet.get("attributes") or {})
     strike_rank = src_attrs.pop("strike_rank", None)
@@ -1195,6 +1195,510 @@ def cmd_update_lore(args):
 
 
 # ---------------------------------------------------------------------------
+# Living world: agendas, clocks, beats
+#
+# What the world is doing while the PCs are elsewhere. An agenda is a goal held
+# by a character or faction, tracked on a progress clock; a beat is the next
+# concrete thing that agenda produces if nobody interferes. `tick` advances
+# world time and reports what has come due, staged against where the PCs
+# actually are -- so the same beat plays as a scene or resolves off-camera
+# depending only on where the party went.
+# ---------------------------------------------------------------------------
+
+AGENDA_ATTRS = ["description", "content", "myth-agenda-status",
+                "myth-agenda-clock-size", "myth-agenda-clock-filled",
+                "myth-agenda-priority"]
+BEAT_ATTRS = ["description", "content", "myth-beat-status", "myth-beat-when",
+              "myth-beat-trigger", "myth-beat-onscreen-if", "myth-time-index"]
+
+# Anything that can hold or be targeted by an agenda, or be cast in a beat.
+AGENDA_HOLDER_TYPES = ["myth-character", "myth-faction"]
+AGENDA_TARGET_TYPES = ["myth-character", "myth-faction", "myth-location"]
+
+
+def _link_relation(driver, rel, role_a, type_a, id_a, role_b, candidate_types, id_b):
+    """Insert a binary relation, resolving the second player's concrete type."""
+    for tb in candidate_types:
+        if _fetch(driver, f'''
+                match $b isa {tb}, has id "{escape_string(id_b)}";
+                fetch {{ "id": $b.id }};'''):
+            _write(driver, f'''
+                match
+                  $a isa {type_a}, has id "{escape_string(id_a)}";
+                  $b isa {tb}, has id "{escape_string(id_b)}";
+                insert ({role_a}: $a, {role_b}: $b) isa {rel};''')
+            return tb
+    return None
+
+
+def _agenda_record(driver, aid, holder=True):
+    """One agenda as a flat dict: clock, status, priority, and its holder."""
+    a = _get_entity(driver, "myth-agenda", aid, AGENDA_ATTRS)
+    if not a:
+        return None
+    rec = {
+        "id": a["id"], "title": a["name"], "goal": a.get("description"),
+        "status": a.get("myth-agenda-status") or "active",
+        "clock": {"filled": a.get("myth-agenda-clock-filled") or 0,
+                  "size": a.get("myth-agenda-clock-size") or 0},
+        "priority": a.get("myth-agenda-priority") or 3,
+        "narrative": a.get("content"),
+    }
+    if holder:
+        rows = _fetch(driver, f'''
+            match
+              $a isa myth-agenda, has id "{escape_string(aid)}";
+              (agenda: $a, holder: $h) isa myth-agenda-holder;
+              $h has id $hi, has name $hn;
+            fetch {{ "id": $hi, "name": $hn }};''')
+        rec["holder"] = rows[0] if rows else None
+        targets = _fetch(driver, f'''
+            match
+              $a isa myth-agenda, has id "{escape_string(aid)}";
+              (agenda: $a, target: $t) isa myth-agenda-target;
+              $t has id $ti, has name $tn;
+            fetch {{ "id": $ti, "name": $tn }};''')
+        rec["targets"] = targets
+    return rec
+
+
+def _beat_record(driver, bid):
+    """One beat as a flat dict, with its agenda, place and cast resolved."""
+    b = _get_entity(driver, "myth-beat", bid, BEAT_ATTRS)
+    if not b:
+        return None
+    agenda = _fetch(driver, f'''
+        match
+          $b isa myth-beat, has id "{escape_string(bid)}";
+          (beat: $b, agenda: $a) isa myth-beat-of;
+          $a has id $ai, has name $an, has myth-agenda-priority $ap,
+             has myth-agenda-clock-filled $af;
+        fetch {{ "id": $ai, "name": $an, "priority": $ap, "filled": $af }};''')
+    place = _fetch(driver, f'''
+        match
+          $b isa myth-beat, has id "{escape_string(bid)}";
+          (beat: $b, place: $p) isa myth-beat-at;
+          $p has id $pi, has name $pn;
+        fetch {{ "id": $pi, "name": $pn }};''')
+    cast = _fetch(driver, f'''
+        match
+          $b isa myth-beat, has id "{escape_string(bid)}";
+          (beat: $b, member: $m) isa myth-beat-cast;
+          $m has id $mi, has name $mn;
+        fetch {{ "id": $mi, "name": $mn }};''')
+    ag = agenda[0] if agenda else None
+    return {
+        "id": b["id"], "title": b["name"], "summary": b.get("description"),
+        "status": b.get("myth-beat-status") or "pending",
+        "when": b.get("myth-beat-when"),
+        "time_index": b.get("myth-time-index"),
+        "trigger": b.get("myth-beat-trigger") or "time",
+        "onscreen_if": b.get("myth-beat-onscreen-if"),
+        "narrative": b.get("content"),
+        "agenda": ag["id"] if ag else None,
+        "agenda_title": ag["name"] if ag else None,
+        "priority": ag["priority"] if ag else 3,
+        "place": place[0]["id"] if place else None,
+        "place_name": place[0]["name"] if place else None,
+        "cast": [c["id"] for c in cast],
+        "cast_names": [c["name"] for c in cast],
+    }
+
+
+def _campaign_beats(driver, campaign_id):
+    ids = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $b) isa myth-campaign-membership;
+          $b isa myth-beat, has id $i;
+        fetch {{ "id": $i }};''')
+    return [_beat_record(driver, r["id"]) for r in ids]
+
+
+def _campaign_agendas(driver, campaign_id):
+    ids = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $a) isa myth-campaign-membership;
+          $a isa myth-agenda, has id $i;
+        fetch {{ "id": $i }};''')
+    return [_agenda_record(driver, r["id"]) for r in ids]
+
+
+def _pc_presence(driver, campaign_id):
+    """(pc ids, location ids the PCs are standing in) for beat staging."""
+    pcs = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $c) isa myth-campaign-membership;
+          $c isa myth-character, has id $i, has myth-char-type "pc",
+             has myth-status "active";
+        fetch {{ "id": $i }};''')
+    pc_ids = [r["id"] for r in pcs]
+    places = []
+    for pid in pc_ids:
+        rows = _fetch(driver, f'''
+            match
+              $c isa myth-character, has id "{escape_string(pid)}";
+              (located: $c, location: $l) isa myth-presence;
+              $l has id $li;
+            fetch {{ "id": $li }};''')
+        places.extend(r["id"] for r in rows)
+    return pc_ids, places
+
+
+def cmd_add_agenda(args):
+    aid = generate_id("myth-agenda")
+    ts = get_timestamp()
+    q = f'''insert $a isa myth-agenda,
+        has id "{aid}",
+        has name "{escape_string(args.title)}",
+        has myth-agenda-status "{escape_string(args.status)}",
+        has myth-agenda-clock-size {args.clock},
+        has myth-agenda-clock-filled {args.filled},
+        has myth-agenda-priority {args.priority},
+        has created-at {ts}'''
+    if args.goal:
+        q += f', has description "{escape_string(args.goal)}"'
+    if args.narrative:
+        q += f', has content "{escape_string(args.narrative)}"'
+    q += ";"
+    with get_driver() as driver:
+        _write(driver, q)
+        _link_to_campaign(driver, args.campaign, aid, "myth-agenda")
+        holder_type = _link_relation(driver, "myth-agenda-holder", "agenda",
+                                     "myth-agenda", aid, "holder",
+                                     AGENDA_HOLDER_TYPES, args.holder)
+        if not holder_type:
+            fail(f"No character or faction with id '{args.holder}'")
+        targets = []
+        for tid in (args.target or "").split(","):
+            tid = tid.strip()
+            if tid and _link_relation(driver, "myth-agenda-target", "agenda",
+                                      "myth-agenda", aid, "target",
+                                      AGENDA_TARGET_TYPES, tid):
+                targets.append(tid)
+    out({"success": True, "id": aid, "holder": args.holder,
+         "holder_type": holder_type, "targets": targets})
+
+
+def cmd_list_agendas(args):
+    with get_driver() as driver:
+        agendas = _campaign_agendas(driver, args.campaign)
+    if args.status:
+        agendas = [a for a in agendas if a["status"] == args.status]
+    if args.holder:
+        agendas = [a for a in agendas
+                   if a.get("holder") and a["holder"]["id"] == args.holder]
+    agendas.sort(key=lambda a: (-a["priority"], a["title"]))
+    if args.compact:
+        agendas = [{"id": a["id"], "title": a["title"],
+                    "holder": (a.get("holder") or {}).get("name"),
+                    "clock": f'{a["clock"]["filled"]}/{a["clock"]["size"]}',
+                    "status": a["status"], "priority": a["priority"]}
+                   for a in agendas]
+    out({"success": True, "agendas": agendas})
+
+
+def cmd_get_agenda(args):
+    with get_driver() as driver:
+        agenda = _agenda_record(driver, args.id)
+        if not agenda:
+            fail(f"No agenda '{args.id}'")
+        beat_ids = _fetch(driver, f'''
+            match
+              $a isa myth-agenda, has id "{escape_string(args.id)}";
+              (beat: $b, agenda: $a) isa myth-beat-of;
+              $b has id $bi;
+            fetch {{ "id": $bi }};''')
+        agenda["beats"] = sorted(
+            [_beat_record(driver, r["id"]) for r in beat_ids],
+            key=lambda b: (b["time_index"] if b["time_index"] is not None else 1 << 30))
+    out({"success": True, "agenda": agenda})
+
+
+def cmd_advance_agenda(args):
+    with get_driver() as driver:
+        agenda = _agenda_record(driver, args.id, holder=False)
+        if not agenda:
+            fail(f"No agenda '{args.id}'")
+        filled, completed = eng.advance_clock(
+            agenda["clock"]["filled"], agenda["clock"]["size"], args.by)
+        _set_attr(driver, "myth-agenda", args.id,
+                  "myth-agenda-clock-filled", filled, quote=False)
+        if completed and args.complete_status:
+            _set_attr(driver, "myth-agenda", args.id,
+                      "myth-agenda-status", args.complete_status)
+        # Beats gated on this agenda's clock may now be due.
+        beat_ids = _fetch(driver, f'''
+            match
+              $a isa myth-agenda, has id "{escape_string(args.id)}";
+              (beat: $b, agenda: $a) isa myth-beat-of;
+              $b has id $bi;
+            fetch {{ "id": $bi }};''')
+        beats = [_beat_record(driver, r["id"]) for r in beat_ids]
+        triggered = [b for b in beats
+                     if eng.beat_is_due(b, 1 << 30, clock_filled=filled)
+                     and str(b["trigger"]).lower().startswith("clock")]
+        if args.note and args.campaign:
+            _log_world_note(driver, args.campaign, args.note)
+    out({"success": True, "id": args.id,
+         "clock": {"filled": filled, "size": agenda["clock"]["size"]},
+         "completed": completed, "triggered_beats": triggered})
+
+
+def _log_world_note(driver, campaign_id, text):
+    """A gm-note journal entry recording an off-camera world movement."""
+    eid = generate_id("myth-event")
+    _write(driver, f'''insert $e isa myth-game-event,
+        has id "{eid}", has name "World note",
+        has description "{escape_string(text)}",
+        has myth-event-type "gm-note",
+        has created-at {get_timestamp()};''')
+    _link_to_campaign(driver, campaign_id, eid, "myth-game-event")
+    return eid
+
+
+def cmd_set_agenda_status(args):
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-agenda", args.id, []):
+            fail(f"No agenda '{args.id}'")
+        _set_attr(driver, "myth-agenda", args.id,
+                  "myth-agenda-status", args.status)
+        if args.note and args.campaign:
+            _log_world_note(driver, args.campaign, args.note)
+    out({"success": True, "id": args.id, "status": args.status})
+
+
+def cmd_add_beat(args):
+    bid = generate_id("myth-beat")
+    ts = get_timestamp()
+    time_index = None
+    if args.when:
+        try:
+            time_index = eng.parse_time_key(args.when)
+        except ValueError as e:
+            fail(str(e))
+    trigger = args.trigger or "time"
+    if trigger == "time" and time_index is None:
+        fail("A time-triggered beat needs --when (e.g. 'd-3/night')")
+    q = f'''insert $b isa myth-beat,
+        has id "{bid}",
+        has name "{escape_string(args.title)}",
+        has myth-beat-status "{escape_string(args.status)}",
+        has myth-beat-trigger "{escape_string(trigger)}",
+        has created-at {ts}'''
+    if args.when:
+        q += f', has myth-beat-when "{escape_string(args.when)}"'
+        q += f', has myth-time-index {time_index}'
+    if args.summary:
+        q += f', has description "{escape_string(args.summary)}"'
+    if args.onscreen_if:
+        q += f', has myth-beat-onscreen-if "{escape_string(args.onscreen_if)}"'
+    if args.narrative:
+        q += f', has content "{escape_string(args.narrative)}"'
+    q += ";"
+    with get_driver() as driver:
+        agenda = _get_entity(driver, "myth-agenda", args.agenda, [])
+        if not agenda:
+            fail(f"No agenda '{args.agenda}'")
+        _write(driver, q)
+        _link_to_campaign(driver, args.campaign, bid, "myth-beat")
+        _write(driver, f'''
+            match
+              $b isa myth-beat, has id "{bid}";
+              $a isa myth-agenda, has id "{escape_string(args.agenda)}";
+            insert (beat: $b, agenda: $a) isa myth-beat-of;''')
+        if args.at:
+            if not _link_relation(driver, "myth-beat-at", "beat", "myth-beat",
+                                  bid, "place", ["myth-location"], args.at):
+                fail(f"No location '{args.at}'")
+        cast = []
+        for cid in (args.cast or "").split(","):
+            cid = cid.strip()
+            if cid and _link_relation(driver, "myth-beat-cast", "beat", "myth-beat",
+                                      bid, "member", AGENDA_HOLDER_TYPES, cid):
+                cast.append(cid)
+    out({"success": True, "id": bid, "when": args.when,
+         "time_index": time_index, "cast": cast})
+
+
+def cmd_list_beats(args):
+    with get_driver() as driver:
+        beats = _campaign_beats(driver, args.campaign)
+        camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
+        now = camp.get("myth-time-index") if camp else None
+        clocks = {a["id"]: a["clock"]["filled"]
+                  for a in _campaign_agendas(driver, args.campaign)}
+    if args.pending:
+        beats = [b for b in beats if b["status"] == "pending"]
+    if args.at:
+        beats = [b for b in beats if b["place"] == args.at]
+    if args.involving:
+        beats = [b for b in beats if args.involving in b["cast"]]
+    if args.due:
+        if now is None:
+            fail("Campaign has no world clock yet -- run `tick` first")
+        beats = [b for b in beats
+                 if eng.beat_is_due(b, now, clocks.get(b["agenda"]))]
+    beats.sort(key=lambda b: (b["time_index"] if b["time_index"] is not None else 1 << 30,
+                              -b["priority"]))
+    out({"success": True, "now": eng.format_time_key(now) if now is not None else None,
+         "beats": beats})
+
+
+def cmd_revise_beat(args):
+    """Bend a planned beat to match what play has made true."""
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-beat", args.id, []):
+            fail(f"No beat '{args.id}'")
+        if args.when is not None:
+            try:
+                idx = eng.parse_time_key(args.when)
+            except ValueError as e:
+                fail(str(e))
+            _set_attr(driver, "myth-beat", args.id, "myth-beat-when", args.when)
+            _set_attr(driver, "myth-beat", args.id, "myth-time-index", idx, quote=False)
+        if args.title is not None:
+            _set_attr(driver, "myth-beat", args.id, "name", args.title)
+        if args.summary is not None:
+            _set_attr(driver, "myth-beat", args.id, "description", args.summary)
+        if args.narrative is not None:
+            _set_attr(driver, "myth-beat", args.id, "content", args.narrative)
+        if args.onscreen_if is not None:
+            _set_attr(driver, "myth-beat", args.id,
+                      "myth-beat-onscreen-if", args.onscreen_if)
+        if args.trigger is not None:
+            _set_attr(driver, "myth-beat", args.id, "myth-beat-trigger", args.trigger)
+        if args.status is not None:
+            _set_attr(driver, "myth-beat", args.id, "myth-beat-status", args.status)
+        if args.at is not None:
+            _write(driver, f'''
+                match
+                  $b isa myth-beat, has id "{escape_string(args.id)}";
+                  $r isa myth-beat-at (beat: $b);
+                delete $r;''')
+            if args.at and not _link_relation(driver, "myth-beat-at", "beat",
+                                              "myth-beat", args.id, "place",
+                                              ["myth-location"], args.at):
+                fail(f"No location '{args.at}'")
+        if args.cast is not None:
+            _write(driver, f'''
+                match
+                  $b isa myth-beat, has id "{escape_string(args.id)}";
+                  $r isa myth-beat-cast (beat: $b);
+                delete $r;''')
+            for cid in args.cast.split(","):
+                cid = cid.strip()
+                if cid:
+                    _link_relation(driver, "myth-beat-cast", "beat", "myth-beat",
+                                   args.id, "member", AGENDA_HOLDER_TYPES, cid)
+        beat = _beat_record(driver, args.id)
+    out({"success": True, "beat": beat})
+
+
+def cmd_fire_beat(args):
+    """Resolve a beat: mark how it went and, with --log, journal it."""
+    with get_driver() as driver:
+        beat = _beat_record(driver, args.id)
+        if not beat:
+            fail(f"No beat '{args.id}'")
+        _set_attr(driver, "myth-beat", args.id, "myth-beat-status", args.outcome)
+        event_id = None
+        if args.log:
+            summary = args.summary or beat["summary"] or beat["title"]
+            eid = generate_id("myth-event")
+            q = (f'insert $e isa myth-game-event, has id "{eid}", '
+                 f'has name "{escape_string(beat["title"])}", '
+                 f'has description "{escape_string(summary)}", '
+                 f'has myth-event-type "{escape_string(args.type)}", '
+                 f'has created-at {get_timestamp()}')
+            if args.narrative:
+                q += f', has content "{escape_string(args.narrative)}"'
+            if args.session is not None:
+                q += f', has myth-session-number {args.session}'
+            q += ";"
+            _write(driver, q)
+            _link_to_campaign(driver, args.campaign, eid, "myth-game-event")
+            _write(driver, f'''
+                match
+                  $b isa myth-beat, has id "{escape_string(args.id)}";
+                  $e isa myth-game-event, has id "{eid}";
+                insert (beat: $b, event: $e) isa myth-beat-outcome;''')
+            # Everyone in the beat's cast took part in the event it became.
+            for cid in beat["cast"]:
+                for ptype in AGENDA_HOLDER_TYPES:
+                    if _fetch(driver, f'''
+                            match $p isa {ptype}, has id "{escape_string(cid)}";
+                            fetch {{ "id": $p.id }};'''):
+                        _write(driver, f'''
+                            match
+                              $e isa myth-game-event, has id "{eid}";
+                              $p isa {ptype}, has id "{escape_string(cid)}";
+                            insert (event: $e, participant: $p) isa myth-event-involvement;''')
+                        break
+            event_id = eid
+        clock = None
+        if args.advance and beat["agenda"]:
+            agenda = _agenda_record(driver, beat["agenda"], holder=False)
+            filled, completed = eng.advance_clock(agenda["clock"]["filled"],
+                                                  agenda["clock"]["size"], args.advance)
+            _set_attr(driver, "myth-agenda", beat["agenda"],
+                      "myth-agenda-clock-filled", filled, quote=False)
+            clock = {"agenda": beat["agenda"], "filled": filled,
+                     "size": agenda["clock"]["size"], "completed": completed}
+    out({"success": True, "id": args.id, "outcome": args.outcome,
+         "event": event_id, "clock": clock})
+
+
+def cmd_tick(args):
+    """Advance world time and report what has come due, staged against the PCs.
+
+    This is the GM's between-scenes move: the world does not wait for the
+    party. Every beat whose trigger has been met comes back flagged `onscreen`
+    (the PCs are there to witness or interrupt it) or `offscreen` (it happens
+    regardless, and becomes something they may discover later).
+    """
+    with get_driver() as driver:
+        camp = _get_entity(driver, "myth-campaign", args.campaign,
+                           ["myth-time-index", "myth-game-date"])
+        if not camp:
+            fail(f"No campaign '{args.campaign}'")
+        was = camp.get("myth-time-index")
+        try:
+            now = eng.parse_time_key(args.to)
+        except ValueError as e:
+            fail(str(e))
+        if was is not None and now < was and not args.rewind:
+            fail(f"Refusing to move the clock backwards "
+                 f"({eng.format_time_key(was)} -> {args.to}); pass --rewind to force")
+        _set_attr(driver, "myth-campaign", args.campaign,
+                  "myth-time-index", now, quote=False)
+        if args.set_date:
+            _set_attr(driver, "myth-campaign", args.campaign,
+                      "myth-game-date", args.set_date)
+
+        agendas = _campaign_agendas(driver, args.campaign)
+        clocks = {a["id"]: a["clock"]["filled"] for a in agendas}
+        active = {a["id"] for a in agendas
+                  if a["status"] in ("active", "pending")}
+        beats = [b for b in _campaign_beats(driver, args.campaign)
+                 if b["agenda"] is None or b["agenda"] in active]
+        due = eng.due_beats(beats, now, clocks)
+        pc_ids, pc_places = _pc_presence(driver, args.campaign)
+        for b in due:
+            b["staging"] = eng.beat_staging(b, pc_places, pc_ids)
+
+    out({"success": True,
+         "from": eng.format_time_key(was) if was is not None else None,
+         "now": args.to, "time_index": now,
+         "pc_locations": pc_places,
+         "due_beats": due,
+         "onscreen": [b["id"] for b in due if b["staging"] == "onscreen"],
+         "offscreen": [b["id"] for b in due if b["staging"] == "offscreen"]})
+
+
+# ---------------------------------------------------------------------------
 # Rules graph (global, faceted, queryable -- mirrors the lore pattern)
 # ---------------------------------------------------------------------------
 
@@ -1440,7 +1944,8 @@ def cmd_get_context(args):
     with get_driver() as driver:
         camp = _get_entity(driver, "myth-campaign", args.campaign,
                            ["description", "content", "myth-game-date",
-                            "myth-current-scene", "myth-session-number"])
+                            "myth-current-scene", "myth-session-number",
+                            "myth-time-index"])
         if not camp:
             fail(f"No campaign '{args.campaign}'")
 
@@ -1489,6 +1994,32 @@ def cmd_get_context(args):
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
                   "recent_events": recent}
+
+        # The living world: what is in motion, and what is already due. Kept
+        # small enough for compact mode -- a resumed session must know what the
+        # world is mid-way through doing, not just where the party is standing.
+        agendas = [a for a in _campaign_agendas(driver, args.campaign)
+                   if a["status"] in ("active", "pending")]
+        agendas.sort(key=lambda a: (-a["priority"], a["title"]))
+        result["agendas"] = [
+            {"id": a["id"], "title": a["title"],
+             "holder": (a.get("holder") or {}).get("name"),
+             "clock": f'{a["clock"]["filled"]}/{a["clock"]["size"]}',
+             "priority": a["priority"], "status": a["status"]}
+            for a in agendas]
+        now = camp.get("myth-time-index")
+        if now is not None:
+            clocks = {a["id"]: a["clock"]["filled"] for a in agendas}
+            active_ids = {a["id"] for a in agendas}
+            pending = [b for b in _campaign_beats(driver, args.campaign)
+                       if b["agenda"] is None or b["agenda"] in active_ids]
+            pc_ids, pc_places = _pc_presence(driver, args.campaign)
+            result["world_clock"] = eng.format_time_key(now)
+            result["due_beats"] = [
+                {"id": b["id"], "title": b["title"], "when": b["when"],
+                 "place": b["place_name"], "agenda": b["agenda_title"],
+                 "staging": eng.beat_staging(b, pc_places, pc_ids)}
+                for b in eng.due_beats(pending, now, clocks)]
 
         # The lore index is a big static block. In compact mode skip it
         # entirely (use list-lore on demand); only emit it for full context.
@@ -1736,6 +2267,115 @@ def build_parser():
     s.add_argument("--narrative")
     s.add_argument("--summary")
     s.add_argument("--visibility", choices=["player", "gm"])
+
+    # --- Living world (agendas, clocks, beats) ---
+    s = sub.add_parser("add-agenda",
+                       help="Create a goal held by an NPC or faction, with a progress clock")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--holder", required=True,
+                   help="character or faction id that wants this")
+    s.add_argument("--title", required=True)
+    s.add_argument("--goal", help="one-line statement of what they want")
+    s.add_argument("--clock", type=int, default=6, help="segments to completion")
+    s.add_argument("--filled", type=int, default=0, help="segments already filled")
+    s.add_argument("--priority", type=int, default=3,
+                   help="1-5; who acts first when agendas collide")
+    s.add_argument("--status", default="active",
+                   choices=["pending", "active", "achieved", "thwarted",
+                            "abandoned", "dormant"])
+    s.add_argument("--target", help="comma-separated ids this agenda is aimed at")
+    s.add_argument("--narrative",
+                   help="how they pursue it, and what would change their mind")
+
+    s = sub.add_parser("list-agendas", help="Who wants what, and how close they are")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--holder")
+    s.add_argument("--status")
+    s.add_argument("--compact", action="store_true")
+
+    s = sub.add_parser("get-agenda", help="One agenda in full, with its beats")
+    s.add_argument("--id", required=True)
+
+    s = sub.add_parser("advance-agenda", help="Fill clock segments toward completion")
+    s.add_argument("--id", required=True)
+    s.add_argument("--by", type=int, default=1)
+    s.add_argument("--campaign", help="required with --note")
+    s.add_argument("--note", help="journal a gm-note recording the movement")
+    s.add_argument("--complete-status", default="achieved",
+                   help="status to set when the clock fills (default: achieved)")
+
+    s = sub.add_parser("set-agenda-status", help="Mark an agenda achieved/thwarted/etc")
+    s.add_argument("--id", required=True)
+    s.add_argument("--status", required=True,
+                   choices=["pending", "active", "achieved", "thwarted",
+                            "abandoned", "dormant"])
+    s.add_argument("--campaign", help="required with --note")
+    s.add_argument("--note")
+
+    s = sub.add_parser("add-beat",
+                       help="Schedule the next concrete thing an agenda produces")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--agenda", required=True)
+    s.add_argument("--title", required=True)
+    s.add_argument("--when", help="time key, e.g. 'd-3/night' (day/watch)")
+    s.add_argument("--trigger", default="time",
+                   help="'time' (default) or 'clock>=N' to fire on agenda progress")
+    s.add_argument("--at", help="location id where it happens")
+    s.add_argument("--cast", help="comma-separated character/faction ids involved")
+    s.add_argument("--onscreen-if", dest="onscreen_if",
+                   help="prose note on what would put the PCs in the scene")
+    s.add_argument("--summary")
+    s.add_argument("--narrative")
+    s.add_argument("--status", default="pending",
+                   choices=["pending", "played", "narrated", "preempted",
+                            "rewritten", "cancelled"])
+
+    s = sub.add_parser("list-beats", help="What is about to happen, and where")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--pending", action="store_true")
+    s.add_argument("--due", action="store_true", help="only beats already triggered")
+    s.add_argument("--at", help="filter by location id")
+    s.add_argument("--involving", help="filter by character id in the cast")
+
+    s = sub.add_parser("revise-beat",
+                       help="Bend a planned beat to match what play has made true")
+    s.add_argument("--id", required=True)
+    s.add_argument("--title")
+    s.add_argument("--when")
+    s.add_argument("--trigger")
+    s.add_argument("--at", help="new location id ('' to clear)")
+    s.add_argument("--cast", help="replacement cast ids ('' to clear)")
+    s.add_argument("--onscreen-if", dest="onscreen_if")
+    s.add_argument("--summary")
+    s.add_argument("--narrative")
+    s.add_argument("--status",
+                   choices=["pending", "played", "narrated", "preempted",
+                            "rewritten", "cancelled"])
+
+    s = sub.add_parser("fire-beat", help="Resolve a beat and optionally journal it")
+    s.add_argument("--id", required=True)
+    s.add_argument("--outcome", required=True,
+                   choices=["played", "narrated", "preempted", "rewritten",
+                            "cancelled"])
+    s.add_argument("--campaign", help="required with --log")
+    s.add_argument("--log", action="store_true",
+                   help="write a linked journal event for what happened")
+    s.add_argument("--type", default="scene",
+                   help="event type for --log (default: scene)")
+    s.add_argument("--summary")
+    s.add_argument("--narrative")
+    s.add_argument("--session", type=int)
+    s.add_argument("--advance", type=int,
+                   help="also fill N segments on the parent agenda's clock")
+
+    s = sub.add_parser("tick",
+                       help="Advance world time; report what came due, onscreen or off")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--to", required=True, help="time key, e.g. 'd-2/dawn'")
+    s.add_argument("--set-date", dest="set_date",
+                   help="also update the campaign's prose game-date")
+    s.add_argument("--rewind", action="store_true",
+                   help="allow moving the world clock backwards")
 
     # --- Rules graph (global, faceted) ---
     s = sub.add_parser("load-rules",

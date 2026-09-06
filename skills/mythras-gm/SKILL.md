@@ -29,12 +29,18 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 2. `get-context --campaign <id> --compact` -- load scene, PC **combat cards**
    (live state only), NPC names, factions, last 5 events. **This is your save
    file.** Use `--compact` for play; drop it only when you need full sheets.
-3. **Do NOT preload the rules.** The CLI adjudicates every roll deterministically
+3. **`tick --campaign <id> --to "<time key>"` -- the world moves.** Before each
+   new scene (and never narrate a day forward without it), advance the world
+   clock. It returns every NPC/faction beat that has come due, flagged
+   `onscreen` (the PCs are there to witness or interrupt it) or `offscreen`
+   (it happens anyway, and becomes something they may discover later).
+   `list-agendas --compact` shows who wants what and how close they are.
+4. **Do NOT preload the rules.** The CLI adjudicates every roll deterministically
    (`roll-skill`, `roll-opposed`, `resolve-attack`...), so you rarely need the
    prose at all. When a situation needs a rule the engine doesn't fully encode,
    fetch only the relevant pieces from the rules graph (see below) -- never read
    `rules/*.md` wholesale into context.
-4. Recap the situation in 2-4 sentences, then play.
+5. Recap the situation in 2-4 sentences, then play.
 
 ## Context discipline (load lazily -- keep the window small)
 
@@ -63,6 +69,30 @@ Every token you load is re-sent on every turn. Load the minimum:
   recent events in context (default 15).
 - For a heavy one-off lookup, dispatch a subagent so the big result never lands
   in play context.
+
+## The world moves (agendas, clocks, beats)
+
+NPCs are not scenery waiting to be visited. Every significant NPC and faction
+holds an **agenda** -- a goal with a progress clock -- and each agenda schedules
+**beats**, the concrete things it produces if nobody interferes.
+
+- **Run `tick` between scenes.** The party spending a day at the docks is a day
+  the Baron also spent. What came due while they were elsewhere is not a
+  narrative choice; it is what the clocks say.
+- **Staging is decided by presence, not preference.** A due beat is `onscreen`
+  only when a PC is at its location or in its cast. Play those. Resolve the
+  `offscreen` ones with `fire-beat --outcome narrated --log` so they enter the
+  journal as facts the PCs can later learn -- rumor, evidence, a body.
+- **Advance clocks when the fiction earns it,** not on a timer:
+  `advance-agenda --id <a> --by N --note "..."`. Thwart an agenda outright with
+  `set-agenda-status --status thwarted`.
+- **Rewrite freely.** When play makes a planned beat stale or boring, bend it:
+  `revise-beat` changes when, where, who, and what. A plan that survives contact
+  with the players unchanged was not a plan, it was a rail. The clocks exist to
+  keep the world honest, not to force a story.
+- **PC action should change the board.** If the party burns the Baron's supply
+  barge, that is an `advance-agenda` on someone's clock and probably a new
+  agenda for whoever lost money. Add agendas mid-play with `add-agenda`.
 
 **Before executing commands, read USAGE.md for the complete reference
 (GM operating rules, character creation, combat cheat sheet, worldbuilding,

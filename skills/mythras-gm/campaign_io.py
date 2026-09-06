@@ -32,7 +32,7 @@ import sys
 
 import mythras_gm as gm
 
-FORMAT_VERSION = "1.0"
+FORMAT_VERSION = "1.1"
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +126,8 @@ def export_campaign(campaign_id, outdir):
     with gm.get_driver() as driver:
         camp = gm._get_entity(driver, "myth-campaign", campaign_id,
                               ["description", "content", "myth-game-date",
-                               "myth-current-scene", "myth-session-number", "created-at"])
+                               "myth-current-scene", "myth-session-number",
+                               "myth-time-index", "created-at"])
         if not camp:
             gm.fail(f"No campaign '{campaign_id}'")
 
@@ -217,6 +218,59 @@ def export_campaign(campaign_id, outdir):
             l["about"] = sorted(r["si"] for r in subjects)
             lore_entries.append(l)
 
+        # --- living world: agendas and beats (with holder/target/cast links)
+        agendas = []
+        for aid in _member_ids(driver, campaign_id, "myth-agenda"):
+            a = gm._get_entity(driver, "myth-agenda", aid,
+                               ["description", "content", "myth-agenda-status",
+                                "myth-agenda-clock-size", "myth-agenda-clock-filled",
+                                "myth-agenda-priority", "created-at"])
+            holders = gm._fetch(driver, f'''
+                match
+                  $a isa myth-agenda, has id "{gm.escape_string(aid)}";
+                  (agenda: $a, holder: $h) isa myth-agenda-holder;
+                  $h has id $hi;
+                fetch {{ "hi": $hi }};''')
+            targets = gm._fetch(driver, f'''
+                match
+                  $a isa myth-agenda, has id "{gm.escape_string(aid)}";
+                  (agenda: $a, target: $t) isa myth-agenda-target;
+                  $t has id $ti;
+                fetch {{ "ti": $ti }};''')
+            a["holder"] = holders[0]["hi"] if holders else None
+            a["targets"] = sorted(r["ti"] for r in targets)
+            agendas.append(a)
+
+        beats = []
+        for bid in _member_ids(driver, campaign_id, "myth-beat"):
+            b = gm._get_entity(driver, "myth-beat", bid,
+                               ["description", "content", "myth-beat-status",
+                                "myth-beat-when", "myth-beat-trigger",
+                                "myth-beat-onscreen-if", "myth-time-index",
+                                "created-at"])
+            of = gm._fetch(driver, f'''
+                match
+                  $b isa myth-beat, has id "{gm.escape_string(bid)}";
+                  (beat: $b, agenda: $a) isa myth-beat-of;
+                  $a has id $ai;
+                fetch {{ "ai": $ai }};''')
+            at = gm._fetch(driver, f'''
+                match
+                  $b isa myth-beat, has id "{gm.escape_string(bid)}";
+                  (beat: $b, place: $p) isa myth-beat-at;
+                  $p has id $pi;
+                fetch {{ "pi": $pi }};''')
+            cast = gm._fetch(driver, f'''
+                match
+                  $b isa myth-beat, has id "{gm.escape_string(bid)}";
+                  (beat: $b, member: $m) isa myth-beat-cast;
+                  $m has id $mi;
+                fetch {{ "mi": $mi }};''')
+            b["agenda"] = of[0]["ai"] if of else None
+            b["place"] = at[0]["pi"] if at else None
+            b["cast"] = sorted(r["mi"] for r in cast)
+            beats.append(b)
+
         # --- encounters
         encounters = []
         for eid in _member_ids(driver, campaign_id, "myth-encounter"):
@@ -266,6 +320,7 @@ def export_campaign(campaign_id, outdir):
         "description": camp.get("description"),
         "game_date": camp.get("myth-game-date"),
         "current_scene": camp.get("myth-current-scene"),
+        "time_index": camp.get("myth-time-index"),
         "session_number": camp.get("myth-session-number"),
         "created_at": _ts(camp.get("created-at") or gm.get_timestamp()),
         "exported_at": gm.get_timestamp(),
@@ -291,6 +346,43 @@ def export_campaign(campaign_id, outdir):
                _emit_frontmatter(meta) + "\n\n" + (l.get("content") or ""))
         lore_index.append((cat, l["name"], vis, f"lore/{cat}/{slug}.md"))
     counts["lore"] = len(lore_entries)
+
+    used = set()
+    agenda_index = []  # (title, holder, clock, relpath) for the README
+    for a in agendas:
+        slug = _slugify(a["name"], used)
+        size = a.get("myth-agenda-clock-size") or 0
+        filled = a.get("myth-agenda-clock-filled") or 0
+        meta = {"id": a["id"], "title": a["name"],
+                "goal": a.get("description"),
+                "status": a.get("myth-agenda-status") or "active",
+                "clock_size": size, "clock_filled": filled,
+                "priority": a.get("myth-agenda-priority") or 3,
+                "holder": a.get("holder"),
+                "targets": a.get("targets") or None,
+                "created_at": _ts(a.get("created-at") or gm.get_timestamp())}
+        _write(os.path.join(outdir, "agendas", slug + ".md"),
+               _emit_frontmatter(meta) + "\n\n" + (a.get("content") or ""))
+        agenda_index.append((a["name"], a.get("holder"), f"{filled}/{size}",
+                             f"agendas/{slug}.md"))
+    counts["agendas"] = len(agendas)
+
+    used = set()
+    for b in beats:
+        slug = _slugify(b["name"], used)
+        meta = {"id": b["id"], "title": b["name"],
+                "summary": b.get("description"),
+                "status": b.get("myth-beat-status") or "pending",
+                "when": b.get("myth-beat-when"),
+                "time_index": b.get("myth-time-index"),
+                "trigger": b.get("myth-beat-trigger") or "time",
+                "onscreen_if": b.get("myth-beat-onscreen-if"),
+                "agenda": b.get("agenda"), "place": b.get("place"),
+                "cast": b.get("cast") or None,
+                "created_at": _ts(b.get("created-at") or gm.get_timestamp())}
+        _write(os.path.join(outdir, "beats", slug + ".md"),
+               _emit_frontmatter(meta) + "\n\n" + (b.get("content") or ""))
+    counts["beats"] = len(beats)
 
     used = set()
     subdir = {"pc": "pcs", "npc": "npcs", "creature": "creatures"}
@@ -350,6 +442,14 @@ def export_campaign(campaign_id, outdir):
             lore_md.append(f"- [{name}]({rel}){mark}")
         lore_md.append("")
     lore_section = "\n".join(lore_md).rstrip()
+
+    holder_names = {r["id"]: r["name"] for r in characters}
+    holder_names.update({f["id"]: f["name"] for f in faction_records})
+    agenda_md = []
+    for title, holder, clock, rel in sorted(agenda_index):
+        who = holder_names.get(holder, "unattributed")
+        agenda_md.append(f"- [{title}]({rel}) -- *{who}* ({clock})")
+    agenda_section = "\n".join(agenda_md) or "_None._"
 
     # Dramatis personae
     type_label = {"pc": "Player characters", "npc": "NPCs", "creature": "Creatures"}
@@ -425,6 +525,8 @@ campaign format (v{FORMAT_VERSION}).
 | Factions | {counts['factions']} |
 | Encounters | {counts['encounters']} |
 | Journal events | {counts['events']} |
+| Agendas | {counts['agendas']} |
+| Beats | {counts['beats']} |
 
 ## Repository layout
 
@@ -436,8 +538,19 @@ campaign format (v{FORMAT_VERSION}).
 | `locations/` | Places (markdown + frontmatter) |
 | `factions/` | Factions and organizations (markdown + frontmatter) |
 | `encounters/` | Combat encounter state (JSON) |
-| `journal/` | The campaign event log (JSON) |{novels_row}
+| `journal/` | The campaign event log (JSON) |
+| `agendas/` | What each NPC and faction wants, on a progress clock |
+| `beats/` | What happens next if nobody interferes, scheduled in world time |{novels_row}
 {setting_note}
+## The living world (agendas)
+
+What the world is doing while the PCs are elsewhere. Each agenda is a goal held
+by a character or faction, tracked on a clock; the `beats/` directory holds the
+concrete things those goals produce, scheduled against the world clock. Run
+`tick` between scenes to find out what has come due.
+
+{agenda_section}
+
 ## The worldbook (lore index)
 
 {lore_section}
@@ -518,6 +631,8 @@ def _read_tree(path):
     return {
         "manifest": manifest,
         "lore": md_records("lore"),
+        "agendas": md_records("agendas"),
+        "beats": md_records("beats"),
         "locations": md_records("locations"),
         "factions": md_records("factions"),
         "characters": json_records("characters"),
@@ -542,7 +657,8 @@ def import_campaign(path, new_name=None, new_ids=False):
     # --- id mapping
     all_ids = ([man["id"]]
                + [r["id"] for key in ("lore", "locations", "factions",
-                                      "characters", "templates", "encounters")
+                                      "characters", "templates", "encounters",
+                                      "agendas", "beats")
                   for r in tree[key]]
                + [e["id"] for e in tree["events"]])
     if new_ids:
@@ -570,7 +686,8 @@ def import_campaign(path, new_name=None, new_ids=False):
              + _opt("description", man.get("description"))
              + _opt("content", man.get("content"))
              + _opt("myth-game-date", man.get("game_date"))
-             + _opt("myth-current-scene", man.get("current_scene")) + ";")
+             + _opt("myth-current-scene", man.get("current_scene"))
+             + _opt("myth-time-index", man.get("time_index"), quote=False) + ";")
         gm._write(driver, q)
 
         def link(eid, etype):
@@ -674,6 +791,59 @@ def import_campaign(path, new_name=None, new_ids=False):
             for sid in l.get("about") or []:
                 gm._link_lore_about(driver, rid(l["id"]), rid(sid))
 
+        # --- living world: agendas then beats (relations deferred until
+        #     holders, places and cast all exist)
+        for a in tree["agendas"]:
+            aid = rid(a["id"])
+            gm._write(driver, f'insert $e isa myth-agenda, has id "{aid}", '
+                      f'has name "{gm.escape_string(a["title"])}", '
+                      f'has myth-agenda-status "{gm.escape_string(a.get("status") or "active")}", '
+                      f'has myth-agenda-clock-size {a.get("clock_size") or 0}, '
+                      f'has myth-agenda-clock-filled {a.get("clock_filled") or 0}, '
+                      f'has myth-agenda-priority {a.get("priority") or 3}, '
+                      f'has created-at {_ts(a.get("created_at"))}'
+                      + _opt("description", a.get("goal"))
+                      + _opt("content", a.get("content")) + ";")
+            link(aid, "myth-agenda")
+
+        for b in tree["beats"]:
+            bid = rid(b["id"])
+            q = (f'insert $e isa myth-beat, has id "{bid}", '
+                 f'has name "{gm.escape_string(b["title"])}", '
+                 f'has myth-beat-status "{gm.escape_string(b.get("status") or "pending")}", '
+                 f'has myth-beat-trigger "{gm.escape_string(b.get("trigger") or "time")}", '
+                 f'has created-at {_ts(b.get("created_at"))}'
+                 + _opt("myth-beat-when", b.get("when"))
+                 + _opt("myth-time-index", b.get("time_index"), quote=False)
+                 + _opt("myth-beat-onscreen-if", b.get("onscreen_if"))
+                 + _opt("description", b.get("summary"))
+                 + _opt("content", b.get("content")) + ";")
+            gm._write(driver, q)
+            link(bid, "myth-beat")
+
+        for a in tree["agendas"]:
+            if a.get("holder"):
+                gm._link_relation(driver, "myth-agenda-holder", "agenda",
+                                  "myth-agenda", rid(a["id"]), "holder",
+                                  gm.AGENDA_HOLDER_TYPES, rid(a["holder"]))
+            for tid in a.get("targets") or []:
+                gm._link_relation(driver, "myth-agenda-target", "agenda",
+                                  "myth-agenda", rid(a["id"]), "target",
+                                  gm.AGENDA_TARGET_TYPES, rid(tid))
+        for b in tree["beats"]:
+            if b.get("agenda"):
+                gm._link_relation(driver, "myth-beat-of", "beat", "myth-beat",
+                                  rid(b["id"]), "agenda", ["myth-agenda"],
+                                  rid(b["agenda"]))
+            if b.get("place"):
+                gm._link_relation(driver, "myth-beat-at", "beat", "myth-beat",
+                                  rid(b["id"]), "place", ["myth-location"],
+                                  rid(b["place"]))
+            for member_id in b.get("cast") or []:
+                gm._link_relation(driver, "myth-beat-cast", "beat", "myth-beat",
+                                  rid(b["id"]), "member", gm.AGENDA_HOLDER_TYPES,
+                                  rid(member_id))
+
         # --- encounters (+ participation, combatant ids remapped)
         for e in tree["encounters"]:
             eid = rid(e["id"])
@@ -727,7 +897,8 @@ def import_campaign(path, new_name=None, new_ids=False):
     gm.out({"success": True, "id": cid, "name": name,
             "imported": {k: len(tree[k]) for k in
                          ("lore", "locations", "factions", "characters",
-                          "templates", "encounters", "events")},
+                          "templates", "encounters", "events",
+                          "agendas", "beats")},
             "new_ids": new_ids})
 
 

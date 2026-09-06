@@ -31,10 +31,13 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
      ranked by how many of the situation's facets a rule matches.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
    (See **Rules Graph** below for the facet vocabulary.)
-4. Setting knowledge lives in the campaign's **lore entries** — browse with
+4. **`tick --campaign <id> --to "<time key>"`** before each new scene — advance
+   the world clock and see what the NPCs did while the party was elsewhere.
+   (See **Living World** below.)
+5. Setting knowledge lives in the campaign's **lore entries** — browse with
    `list-lore`, read with `get-lore`; never show the player entries with
    visibility `gm`.
-5. Recap the situation to the player in 2-4 sentences, then play.
+6. Recap the situation to the player in 2-4 sentences, then play.
 
 ## Rules Graph (faceted, load-on-demand)
 
@@ -167,6 +170,11 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 | Fight status | `get-encounter` (live HP per location, AP, initiative order) |
 | Out-of-combat damage (falls, fire) | `apply-damage --id X --location Chest --damage 6 --ignore-armor` |
 | Spawn a monster | `spawn --template <tmpl-id> --name "Stillwight A" --campaign C` |
+| Advance world time | `tick --campaign C --to "d-2/dawn"` |
+| Who wants what | `list-agendas --campaign C --compact` |
+| What happens next | `list-beats --campaign C --pending` |
+| Resolve a due beat | `fire-beat --id B --outcome played\|narrated --campaign C --log` |
+| Bend a stale beat | `revise-beat --id B --when "d-1/dusk" --at <loc>` |
 | Browse worldbuilding | `list-lore --campaign C [--category magic-system] [--visibility player]` |
 | Read a lore entry | `get-lore --id <lore-id>` (full rich text + linked entities) |
 | Record new canon | `add-lore --campaign C --title T --category culture --narrative "..."` |
@@ -216,6 +224,76 @@ Walk the player through it conversationally, then persist once:
 
    Non-weapon gear may stay as plain strings.
 5. `create-character --campaign <id> --name ... --narrative "<backstory>"`.
+
+## Living World (agendas, clocks, beats)
+
+The simulation layer: what the world is doing while the PCs are somewhere else.
+It exists so the story is driven by what NPCs *want* rather than by a fixed
+sequence of scenes, and so player action visibly changes the board.
+
+### The model
+
+- **Agenda** — a goal held by a character or faction, with a progress clock.
+  *"Santo means to bind a demon into a courtesan and prove himself to his
+  father."* `clock 0/6`, `priority 5`.
+- **Beat** — the next concrete thing that agenda produces if nobody interferes,
+  scheduled against world time (`--when "d-3/night"`) or a clock threshold
+  (`--trigger "clock>=4"`). A beat carries a place and a cast.
+- **Front** — there is no separate entity; a **faction** is the front. Give the
+  faction the agendas and the NPCs inside it their own, sometimes conflicting.
+
+### The world clock
+
+Time keys are `d<day>/<watch>` — day signed and usually counting down to a fixed
+event (`d-3` is three days before, `d0` the day itself), watch one of
+`dawn | day | dusk | night`. They sort chronologically, which is all `tick`
+needs. `tick` refuses to move backwards unless you pass `--rewind`.
+
+### The loop
+
+```bash
+# 1. What is in motion?
+list-agendas --campaign C --compact
+
+# 2. Move time; find out what came due and whether the PCs can see it
+tick --campaign C --to "d-3/night" --set-date "The night before the tourney"
+
+# 3. Beats flagged onscreen -> play them as scenes, then
+fire-beat --id B --outcome played --campaign C --log \
+          --summary "..." --narrative "..." --advance 2
+
+# 4. Beats flagged offscreen -> they happen anyway; record them as
+#    discoverable facts, not as things the PCs witnessed
+fire-beat --id B --outcome narrated --campaign C --log --type gm-note \
+          --summary "Nus was killed and his body displayed at the Reach"
+
+# 5. When play earns it, move a clock
+advance-agenda --id A --by 2 --campaign C --note "The Baron doubled the guard"
+```
+
+**Staging is not a GM choice.** A due beat comes back `onscreen` only when a PC
+is at its location or named in its cast (read from `myth-presence`), otherwise
+`offscreen`. Move the party and the same beat changes character: the attack the
+PCs interrupt is the attack they hear about the next morning.
+
+**Outcomes:** `played` (PCs were there), `narrated` (happened off-camera),
+`preempted` (PCs stopped it before it fired), `rewritten` (superseded — pair
+with `revise-beat`), `cancelled` (no longer possible).
+
+### Adapting as you go
+
+The clocks are there to keep the world honest, not to hold the story on rails.
+When play makes a plan stale, change the plan:
+
+- `revise-beat --id B --when ... --at ... --cast ... --onscreen-if ...` — move
+  it, restage it, recast it.
+- `add-agenda` mid-session when PC action creates a new interest (someone robbed
+  now wants restitution; an ally made now has a stake).
+- `set-agenda-status --status thwarted` when the players genuinely beat it, and
+  let the holder react with a new agenda rather than quietly re-running the old.
+
+The test of a good beat is that it would happen without the PCs. If it only
+makes sense when they are watching, it is a scene, not a beat.
 
 ## Worldbuilding During Play
 

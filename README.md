@@ -61,6 +61,28 @@ factions, a five-act campaign arc, and a bestiary — published in full at
 [fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
 and loadable into TypeDB with one command.
 
+## The living world
+
+NPCs are not scenery waiting to be visited. Every significant character and
+faction holds an **agenda** -- a goal with a progress clock -- and each agenda
+schedules **beats**: the concrete things it produces if nobody interferes,
+placed in world time and given a location and a cast.
+
+```bash
+tick --campaign <id> --to "d-3/night"
+```
+
+`tick` advances the world clock and reports every beat that has come due,
+flagged **onscreen** (a PC is at its location or in its cast -- play it) or
+**offscreen** (it happens anyway, and becomes a fact they may later discover).
+Staging is read from recorded presence, not chosen: move the party, and the
+attack they would have interrupted becomes the one they hear about at dawn.
+
+Clocks advance when the fiction earns it (`advance-agenda`), agendas can be
+`thwarted` outright, new ones appear when player action creates new interests,
+and `revise-beat` bends any plan that play has made stale. The structure keeps
+the world moving consistently between sessions; it is not a rail.
+
 ## Novelization
 
 Turn a campaign's journal into a typeset PDF novel. Claude reads the event

@@ -127,3 +127,69 @@ def test_roll_characteristics_avian_mods():
     c = eng.roll_characteristics("avian", rng)
     assert 4 <= c["SIZ"] <= 15   # 2d6+6 minus 3, floor 4
     assert 5 <= c["DEX"] <= 20   # 3d6 plus 2
+
+
+# --- living world: time, clocks, beats ----------------------------------------
+
+def test_time_key_round_trip():
+    for key in ("d-3/dawn", "d-3/night", "d0/day", "d2/dusk"):
+        assert eng.format_time_key(eng.parse_time_key(key)) == key
+
+
+def test_time_keys_order_chronologically():
+    assert eng.parse_time_key("d-3/dawn") < eng.parse_time_key("d-3/night")
+    assert eng.parse_time_key("d-3/night") < eng.parse_time_key("d-2/dawn")
+    assert eng.parse_time_key("d-1/night") < eng.parse_time_key("d0/dawn")
+
+
+def test_bad_time_keys():
+    for bad in ("banana", "d-3/teatime", "d-3", ""):
+        try:
+            eng.parse_time_key(bad)
+            assert False, f"should raise on {bad!r}"
+        except ValueError:
+            pass
+
+
+def test_advance_clock_saturates_and_reports_completion_once():
+    assert eng.advance_clock(0, 6, 2) == (2, False)
+    assert eng.advance_clock(4, 6, 2) == (6, True)      # this call completed it
+    assert eng.advance_clock(6, 6, 1) == (6, False)     # already full, not again
+    assert eng.advance_clock(5, 6, 99) == (6, True)     # saturates at size
+
+
+def test_beat_due_on_time_and_on_clock():
+    timed = {"time_index": eng.parse_time_key("d-3/night"), "status": "pending"}
+    assert not eng.beat_is_due(timed, eng.parse_time_key("d-3/dusk"))
+    assert eng.beat_is_due(timed, eng.parse_time_key("d-3/night"))
+
+    clocked = {"trigger": "clock>=4", "agenda": "a1", "status": "pending"}
+    assert not eng.beat_is_due(clocked, 999, clock_filled=3)
+    assert eng.beat_is_due(clocked, 0, clock_filled=4)
+
+
+def test_fired_beats_do_not_come_due_again():
+    beat = {"time_index": 0, "status": "played"}
+    assert not eng.beat_is_due(beat, 999)
+
+
+def test_due_beats_ordered_by_agenda_priority():
+    now = eng.parse_time_key("d-2/dawn")
+    beats = [
+        {"title": "minor errand", "time_index": 0, "priority": 1, "status": "pending"},
+        {"title": "the Baron acts", "time_index": 0, "priority": 5, "status": "pending"},
+        {"title": "not yet", "time_index": 9999, "priority": 5, "status": "pending"},
+    ]
+    got = [b["title"] for b in eng.due_beats(beats, now)]
+    assert got == ["the Baron acts", "minor errand"]
+
+
+def test_beat_staging_follows_actual_pc_presence():
+    beat = {"place": "loc-sylph", "cast": ["npc-santo"]}
+    # a PC lodged at the Sylph's Embrace witnesses it
+    assert eng.beat_staging(beat, ["loc-sylph"], ["pc-magda"]) == "onscreen"
+    # the same beat, party elsewhere, happens off-camera
+    assert eng.beat_staging(beat, ["loc-oyster"], ["pc-magda"]) == "offscreen"
+    # a PC in the cast pulls it onscreen wherever it is
+    assert eng.beat_staging({"place": "loc-x", "cast": ["pc-randall"]},
+                            ["loc-oyster"], ["pc-randall"]) == "onscreen"

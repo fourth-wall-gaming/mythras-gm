@@ -353,3 +353,111 @@ def apply_damage(locations: list[dict], location_name: str, damage: int,
 
 FATIGUE_LEVELS = ["Fresh", "Winded", "Tired", "Wearied", "Exhausted",
                   "Debilitated", "Incapacitated", "Semi-Conscious", "Comatose", "Dead"]
+
+
+# ---------------------------------------------------------------------------
+# Living world: time keys, agenda clocks, beat scheduling
+# ---------------------------------------------------------------------------
+#
+# The world runs on an ordinal clock so "has this come due yet?" is a integer
+# comparison rather than a judgement call. A time key is "<day>/<watch>", where
+# the day is signed and usually counts down to a fixed event ("d-3" = three days
+# before the tourney, "d0" = the day itself) and the watch is one of four.
+
+WATCHES = ["dawn", "day", "dusk", "night"]
+
+# Day 0 sits at this ordinal so days before it stay non-negative.
+_DAY_ZERO = 16
+
+_TIME_KEY = re.compile(r"^\s*d\s*(-?\d+)\s*/\s*([a-z]+)\s*$", re.I)
+
+
+def parse_time_key(key: str) -> int:
+    """'d-3/night' -> ordinal index. Raises ValueError on a malformed key."""
+    m = _TIME_KEY.match(key or "")
+    if not m:
+        raise ValueError(
+            f"Bad time key: {key!r} (expected '<day>/<watch>', e.g. 'd-3/night')")
+    day = int(m.group(1))
+    watch = m.group(2).lower()
+    if watch not in WATCHES:
+        raise ValueError(f"Bad watch: {watch!r} (expected one of {WATCHES})")
+    index = (day + _DAY_ZERO) * len(WATCHES) + WATCHES.index(watch)
+    if index < 0:
+        raise ValueError(f"Time key too early to represent: {key!r}")
+    return index
+
+
+def format_time_key(index: int) -> str:
+    """Inverse of parse_time_key: 61 -> 'd-3/night'."""
+    if index < 0:
+        raise ValueError(f"Negative time index: {index}")
+    day, watch = divmod(int(index), len(WATCHES))
+    return f"d{day - _DAY_ZERO}/{WATCHES[watch]}"
+
+
+def advance_clock(filled: int, size: int, by: int = 1) -> tuple[int, bool]:
+    """Fill clock segments, saturating at size.
+
+    Returns (new_filled, completed) where completed is True only when this
+    call is what brought the clock to full -- so a caller can fire the
+    consequence exactly once.
+    """
+    size = max(0, int(size))
+    was = max(0, min(int(filled), size))
+    now = max(0, min(was + int(by), size))
+    return now, (now >= size > 0 and was < size)
+
+
+_CLOCK_TRIGGER = re.compile(r"^\s*clock\s*>=\s*(\d+)\s*$", re.I)
+
+
+def beat_is_due(beat: dict, now_index: int, clock_filled: int | None = None) -> bool:
+    """Has this beat's trigger condition been met?
+
+    A 'time' trigger (the default) fires once the world clock reaches the
+    beat's own time index. A 'clock>=N' trigger fires on the progress of the
+    agenda that owns it, regardless of the calendar.
+    """
+    if (beat.get("status") or "pending") != "pending":
+        return False
+    trigger = (beat.get("trigger") or "time").strip()
+    m = _CLOCK_TRIGGER.match(trigger)
+    if m:
+        return clock_filled is not None and clock_filled >= int(m.group(1))
+    idx = beat.get("time_index")
+    return idx is not None and now_index >= idx
+
+
+def due_beats(beats: list[dict], now_index: int,
+              clocks: dict | None = None) -> list[dict]:
+    """Every pending beat whose trigger has been met, most urgent first.
+
+    Ordered by the priority of the agenda behind it (descending), then by
+    scheduled time, so that when several things come due at once the GM
+    resolves the one that matters most to the story first.
+    """
+    clocks = clocks or {}
+    due = [b for b in beats
+           if beat_is_due(b, now_index, clocks.get(b.get("agenda")))]
+    return sorted(due,
+                  key=lambda b: (-(b.get("priority") or 3),
+                                 b.get("time_index") if b.get("time_index") is not None else 1 << 30,
+                                 b.get("title") or ""))
+
+
+def beat_staging(beat: dict, pc_location_ids, pc_ids) -> str:
+    """'onscreen' if the PCs can witness this beat, else 'offscreen'.
+
+    A beat is onscreen when it happens where a PC is, or when a PC is in its
+    cast. This is decided from recorded presence rather than GM preference:
+    the same beat plays as a scene or resolves off-camera depending only on
+    where the party actually went.
+    """
+    places = set(pc_location_ids or ())
+    people = set(pc_ids or ())
+    if beat.get("place") and beat["place"] in places:
+        return "onscreen"
+    if people.intersection(beat.get("cast") or ()):
+        return "onscreen"
+    return "offscreen"

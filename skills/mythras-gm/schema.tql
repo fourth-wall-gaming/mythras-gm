@@ -51,6 +51,20 @@ attribute myth-combatants-json, value string;      # [{"id":"...","name":"...","
 attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
 attribute myth-event-type, value string;           # scene | combat | skill-roll | decision | gm-note | session-start | session-end
 
+# Living world (agendas, clocks, beats). See entities myth-agenda / myth-beat below.
+# The world keeps moving whether or not the PCs are watching: every NPC and
+# faction goal is an agenda with a progress clock, and the next concrete thing
+# that goal produces is a beat scheduled against world time or a clock threshold.
+attribute myth-agenda-status, value string;        # pending | active | achieved | thwarted | abandoned | dormant
+attribute myth-agenda-clock-size, value integer;   # segments to completion
+attribute myth-agenda-clock-filled, value integer;
+attribute myth-agenda-priority, value integer;     # 1-5; who acts first when agendas collide
+attribute myth-beat-status, value string;          # pending | played | narrated | preempted | rewritten | cancelled
+attribute myth-beat-when, value string;            # time key, e.g. "d-3/night"
+attribute myth-beat-trigger, value string;         # "time" | "clock>=N"
+attribute myth-beat-onscreen-if, value string;     # prose condition, e.g. "any PC at the Sylph's Embrace"
+attribute myth-time-index, value integer;          # ordinal world clock (campaign: now; beat: when it fires)
+
 # Rules graph (global, faceted, queryable). See entity myth-rule below.
 # A rule piece carries its canonical hierarchy home (domain > topic) plus a
 # coarse category/kind, and is tagged with 1-4 orthogonal facets for live,
@@ -93,6 +107,31 @@ relation myth-lore-about,
     relates lore,
     relates subject;
 
+# Living world relations
+relation myth-agenda-holder,      # agenda -> the character or faction that wants it
+    relates agenda,
+    relates holder;
+
+relation myth-agenda-target,      # agenda -> what/whom it is aimed at
+    relates agenda,
+    relates target;
+
+relation myth-beat-of,            # beat -> the agenda that produces it
+    relates beat,
+    relates agenda;
+
+relation myth-beat-at,            # beat -> where it happens
+    relates beat,
+    relates place;
+
+relation myth-beat-cast,          # beat -> who is involved
+    relates beat,
+    relates member;
+
+relation myth-beat-outcome,       # beat -> the journal event it produced when fired
+    relates beat,
+    relates event;
+
 # Rules graph relations
 relation myth-rule-tagged,        # rule <-> facet (situational tag)
     relates rule,
@@ -110,6 +149,7 @@ entity myth-campaign sub alh-collection,
     owns myth-game-date,
     owns myth-current-scene,
     owns myth-session-number,
+    owns myth-time-index,
     plays myth-campaign-membership:campaign;
 
 entity myth-character sub alh-domain-thing,
@@ -134,7 +174,10 @@ entity myth-character sub alh-domain-thing,
     plays myth-event-involvement:participant,
     plays myth-faction-membership:member,
     plays myth-template-instance:instance,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-agenda-holder:holder,
+    plays myth-agenda-target:target,
+    plays myth-beat-cast:member;
 
 entity myth-creature-template sub alh-domain-thing,
     owns myth-characteristics-json,
@@ -154,13 +197,18 @@ entity myth-location sub alh-domain-thing,
     plays myth-campaign-membership:element,
     plays myth-presence:location,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-agenda-target:target,
+    plays myth-beat-at:place;
 
 entity myth-faction sub alh-domain-thing,
     plays myth-campaign-membership:element,
     plays myth-faction-membership:faction,
     plays myth-event-involvement:participant,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-agenda-holder:holder,
+    plays myth-agenda-target:target,
+    plays myth-beat-cast:member;
 
 entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
@@ -174,7 +222,47 @@ entity myth-game-event sub alh-note,
     owns myth-event-type,
     owns myth-session-number,
     plays myth-campaign-membership:element,
-    plays myth-event-involvement:event;
+    plays myth-event-involvement:event,
+    plays myth-beat-outcome:event;
+
+# LIVING WORLD - What the world is doing while the PCs are elsewhere.
+#
+# An AGENDA is a goal held by a character or faction, with a progress clock
+# (filled/size segments). It answers "what does this NPC want, and how close
+# are they?" A BEAT is the next concrete thing that agenda produces if nobody
+# interferes -- scheduled either against world time (myth-time-index, derived
+# from a "d-3/night" key) or a clock threshold ("clock>=4").
+#
+# On `tick`, beats that have come due are compared against where the PCs
+# actually are (via myth-presence and the beat's cast/place): a beat the PCs
+# can reach is played as a scene, one they cannot resolves off-camera and
+# becomes a fact they may later discover. Firing a beat links it to the
+# journal event it produced via myth-beat-outcome.
+entity myth-agenda sub alh-note,
+    owns myth-agenda-status,
+    owns myth-agenda-clock-size,
+    owns myth-agenda-clock-filled,
+    owns myth-agenda-priority,
+    plays myth-campaign-membership:element,
+    plays myth-agenda-holder:agenda,
+    plays myth-agenda-target:agenda,
+    plays myth-beat-of:agenda,
+    plays myth-event-involvement:participant,
+    plays myth-lore-about:subject;
+
+entity myth-beat sub alh-note,
+    owns myth-beat-status,
+    owns myth-beat-when,
+    owns myth-beat-trigger,
+    owns myth-beat-onscreen-if,
+    owns myth-time-index,
+    plays myth-campaign-membership:element,
+    plays myth-beat-of:beat,
+    plays myth-beat-at:beat,
+    plays myth-beat-cast:beat,
+    plays myth-beat-outcome:beat,
+    plays myth-event-involvement:participant,
+    plays myth-lore-about:subject;
 
 # LORE - Generic worldbuilding detail for any campaign.
 # Each entry is a rich-text note (content inherited from alh-note) with a
