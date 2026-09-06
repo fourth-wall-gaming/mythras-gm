@@ -1906,6 +1906,41 @@ def cmd_establish_fact(args):
     out({"success": True, "id": args.id, "status": "established", "when": args.when})
 
 
+def cmd_revise_fact(args):
+    """Correct a fact's wording, truth or subjects.
+
+    A proposition must never assert who knows it -- ignorance lives in the
+    myth-knows edges. Restating a fact keeps its id, so agenda gates and
+    knowledge edges pointing at it stay valid.
+    """
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-fact", args.id, []):
+            fail(f"No fact '{args.id}'")
+        if args.statement is not None:
+            _set_attr(driver, "myth-fact", args.id, "description", args.statement)
+        if args.title is not None:
+            _set_attr(driver, "myth-fact", args.id, "name", args.title)
+        if args.truth is not None:
+            _set_attr(driver, "myth-fact", args.id, "myth-fact-truth", args.truth)
+        if args.status is not None:
+            _set_attr(driver, "myth-fact", args.id, "myth-fact-status", args.status)
+        if args.narrative is not None:
+            _set_attr(driver, "myth-fact", args.id, "content", args.narrative)
+        if args.about is not None:
+            _write(driver, f'''
+                match
+                  $f isa myth-fact, has id "{escape_string(args.id)}";
+                  $r isa myth-fact-about (fact: $f);
+                delete $r;''')
+            for sid in args.about.split(","):
+                sid = sid.strip()
+                if sid:
+                    _link_relation(driver, "myth-fact-about", "fact", "myth-fact",
+                                   args.id, "subject", FACT_SUBJECT_TYPES, sid)
+        fact = _fact_record(driver, args.id)
+    out({"success": True, "fact": fact})
+
+
 def cmd_learn(args):
     """Record that someone learned something -- the knowledge edge."""
     with get_driver() as driver:
@@ -2750,6 +2785,16 @@ def build_parser():
     s.add_argument("--id", required=True)
     s.add_argument("--when", required=True, help="time key it became true")
     s.add_argument("--truth", choices=["true", "false", "partial"])
+
+    s = sub.add_parser("revise-fact",
+                       help="Correct a fact's wording, truth or subjects (keeps its id)")
+    s.add_argument("--id", required=True)
+    s.add_argument("--statement")
+    s.add_argument("--title")
+    s.add_argument("--truth", choices=["true", "false", "partial"])
+    s.add_argument("--status", choices=["not-yet-true", "established", "superseded"])
+    s.add_argument("--narrative")
+    s.add_argument("--about", help="replacement comma-separated subject ids")
 
     s = sub.add_parser("learn", help="Record that someone learned something")
     s.add_argument("--knower", required=True, help="character or faction id")
