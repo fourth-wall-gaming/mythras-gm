@@ -1039,7 +1039,7 @@ def cmd_join_faction(args):
 
 def cmd_log_event(args):
     eid = generate_id("myth-event")
-    ts = get_timestamp()
+    ts = getattr(args, "at", None) or get_timestamp()
     q = f'''insert $e isa myth-game-event,
         has id "{eid}", has name "{escape_string(args.summary[:80])}",
         has description "{escape_string(args.summary)}",
@@ -2800,6 +2800,9 @@ def build_parser():
     s.add_argument("--narrative")
     s.add_argument("--session", type=int)
     s.add_argument("--involves", help="comma-separated entity ids")
+    s.add_argument("--at", help="ISO timestamp (YYYY-MM-DDTHH:MM:SS) to record the "
+                               "event at; defaults to now. Use to place an event in "
+                               "story order rather than wall-clock order.")
 
     s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
     s.add_argument("--campaign", required=True)
