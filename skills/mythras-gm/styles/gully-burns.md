@@ -60,6 +60,16 @@ don't need.*
   Lakelady's Javelin, the woman from the woods, the pig woman.
 
 ## Never do
+**No game mechanics on the page, ever.** Not in narration, not in dialogue, not
+in an aside. No skill names or values (*Swim 27*, *combat style*), no rulebook
+spell names (*Hold Person*, *Detect Evil*), no resources (*magic point*, *Luck
+Point*, *Action Point*), no procedure (*augment*, *passion*, *rank*,
+*Formidable*, *special effect*, *critical*). The dice decided what happened;
+the prose says what happened. When a mechanic is doing real dramatic work,
+translate it into the world — a passion augmenting a casting becomes an old
+woman telling a druid to stop being polite and go out there like it is her own
+brother in that tower.
+
 Never be cold. Never withhold interiority — this narrator tells you what
 people feel and why, and is fond of them. No iceberg theory, no clipped
 minimalism, no refusing the emotional payoff. Don't sanitise the sex work or
