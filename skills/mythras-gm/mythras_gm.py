@@ -928,6 +928,34 @@ def cmd_add_faction(args):
     out({"success": True, "id": eid})
 
 
+def cmd_update_location(args):
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-location", args.id, []):
+            fail(f"No location '{args.id}'")
+        if args.name is not None:
+            _set_attr(driver, "myth-location", args.id, "name", args.name)
+        if args.summary is not None:
+            _set_attr(driver, "myth-location", args.id, "description", args.summary)
+        if args.narrative is not None:
+            _set_attr(driver, "myth-location", args.id, "content", args.narrative)
+        if args.type is not None:
+            _set_attr(driver, "myth-location", args.id, "myth-location-type", args.type)
+    out({"success": True, "id": args.id})
+
+
+def cmd_update_faction(args):
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-faction", args.id, []):
+            fail(f"No faction '{args.id}'")
+        if args.name is not None:
+            _set_attr(driver, "myth-faction", args.id, "name", args.name)
+        if args.summary is not None:
+            _set_attr(driver, "myth-faction", args.id, "description", args.summary)
+        if args.narrative is not None:
+            _set_attr(driver, "myth-faction", args.id, "content", args.narrative)
+    out({"success": True, "id": args.id})
+
+
 def cmd_add_template(args):
     chars = json.loads(args.stats)
     species = args.species
@@ -2612,6 +2640,54 @@ def cmd_import_campaign(args):
     campaign_io.cmd_import(args)
 
 
+# Everything linked into a campaign by myth-campaign-membership. Deleting these
+# also removes the relations they play a role in, since a relation with no
+# remaining roleplayers does not survive.
+CAMPAIGN_MEMBER_TYPES = [
+    "myth-game-event", "myth-encounter", "myth-beat", "myth-agenda", "myth-fact",
+    "myth-lore", "myth-character", "myth-creature-template", "myth-location",
+    "myth-faction",
+]
+
+
+def cmd_delete_campaign(args):
+    """Permanently remove a campaign and everything linked to it."""
+    with get_driver() as driver:
+        camp = _get_entity(driver, "myth-campaign", args.campaign,
+                           ["myth-game-date", "myth-session-number"])
+        if not camp:
+            fail(f"No campaign '{args.campaign}'")
+
+        cid = escape_string(args.campaign)
+        counts = {}
+        for etype in CAMPAIGN_MEMBER_TYPES:
+            rows = _fetch(driver, f"""
+                match
+                  $c isa myth-campaign, has id "{cid}";
+                  (campaign: $c, element: $e) isa myth-campaign-membership;
+                  $e isa {etype}, has id $ei;
+                fetch {{ "ei": $ei }};""")
+            counts[etype] = len(rows)
+
+        if not args.yes:
+            fail(f"Refusing to delete '{camp['name']}' ({sum(counts.values())} elements, "
+                 f"{counts.get('myth-game-event', 0)} journal events) without --yes")
+
+        for etype in CAMPAIGN_MEMBER_TYPES:
+            if not counts[etype]:
+                continue
+            _write(driver, f"""
+                match
+                  $c isa myth-campaign, has id "{cid}";
+                  (campaign: $c, element: $e) isa myth-campaign-membership;
+                  $e isa {etype};
+                delete $e;""")
+        _write(driver, f'match $c isa myth-campaign, has id "{cid}"; delete $c;')
+
+    out({"success": True, "deleted": args.campaign, "name": camp["name"],
+         "elements": {k: v for k, v in counts.items() if v}})
+
+
 # ---------------------------------------------------------------------------
 # Argparse
 # ---------------------------------------------------------------------------
@@ -2764,6 +2840,19 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--name", required=True)
     s.add_argument("--description")
+    s.add_argument("--narrative")
+
+    s = sub.add_parser("update-location", help="Update a location's text, name or type")
+    s.add_argument("--id", required=True)
+    s.add_argument("--name")
+    s.add_argument("--summary")
+    s.add_argument("--narrative")
+    s.add_argument("--type")
+
+    s = sub.add_parser("update-faction", help="Update a faction's text or name")
+    s.add_argument("--id", required=True)
+    s.add_argument("--name")
+    s.add_argument("--summary")
     s.add_argument("--narrative")
 
     s = sub.add_parser("add-template")
@@ -3095,6 +3184,12 @@ def build_parser():
     s.add_argument("--name", help="override the campaign name")
     s.add_argument("--new-ids", action="store_true",
                    help="remap all entity ids (load alongside the original)")
+
+    s = sub.add_parser("delete-campaign",
+                       help="Permanently delete a campaign and everything in it")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--yes", action="store_true",
+                   help="required; without it the command reports what would be lost and stops")
 
     return p
 
