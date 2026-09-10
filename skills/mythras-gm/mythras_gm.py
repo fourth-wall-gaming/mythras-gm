@@ -2560,6 +2560,20 @@ def cmd_get_context(args):
             pcs = [_combat_card(_load_character(driver, r["id"])) for r in active_pcs]
         else:
             pcs = [_load_character(driver, r["id"]) for r in active_pcs]
+
+        # Where each PC is standing. Carried on the combat card because staging
+        # is decided by presence: a PC whose location never changes is a PC the
+        # GM has stopped running, and that has to be visible every scene rather
+        # than discoverable only by asking.
+        for card in pcs:
+            rows = _fetch(driver, f"""
+                match
+                  $c isa myth-character, has id "{escape_string(card['id'])}";
+                  (located: $c, location: $l) isa myth-presence;
+                  $l has id $li, has name $ln;
+                fetch {{ "id": $li, "name": $ln }};""")
+            card["location"] = rows[0]["id"] if rows else None
+            card["location_name"] = rows[0]["name"] if rows else None
         npcs = [r for r in chars if r["type"] != "pc"]
 
         encounters = _fetch(driver, f'''
