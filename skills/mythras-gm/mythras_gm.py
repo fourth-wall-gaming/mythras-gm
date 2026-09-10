@@ -594,8 +594,8 @@ def cmd_list_characters(args):
 def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
-        "myth-passions-json": args.passions, "myth-fatigue": args.fatigue,
-        "myth-status": args.status,
+        "myth-passions-json": args.passions, "myth-spells-json": args.spells,
+        "myth-fatigue": args.fatigue, "myth-status": args.status,
         "description": args.description, "content": args.narrative,
     }
     with get_driver() as driver:
@@ -2687,6 +2687,7 @@ def build_parser():
     s.add_argument("--status")
     s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
     s.add_argument("--narrative", help="full rich-text backstory (stored as content)")
+    s.add_argument("--spells", help="JSON spell lists, e.g. {\"binding\": [...], \"arcane\": [...]}")
 
     s = sub.add_parser("apply-damage")
     s.add_argument("--id", required=True)

@@ -39,6 +39,14 @@ Spell reactive action; held spells use the Hold Magic action.
 
 ### SRD spell list (traits)
 
+**The Binding School** (taught nowhere; see `magic/binding-school`) —
+Spirit Sight (Concentration) · Speak with the Bound (Concentration, Touch) ·
+Open the Channel (Touch, Resist Endurance) · Seat the Bound (Concentration,
+Touch, Resist Willpower) · Reinforce the Seat (Touch) · Anchor (Touch) ·
+Draw Forth (Concentration, Touch, Resist Willpower) · Unseat (Concentration,
+Touch) · Sanctuary (Concentration). See also `magic/scrolls`.
+
+
 Alarm (special duration) · Avert (Instant, Ranged) · Befuddle (Ranged,
 Resist Willpower) · Bladesharp (Touch: +1 damage die step, edged) ·
 Bludgeon (Touch: as Bladesharp, blunt) · Breath (Touch: hold air POW/2
