@@ -1487,6 +1487,31 @@ def _log_world_note(driver, campaign_id, text):
     return eid
 
 
+def cmd_update_agenda(args):
+    """Edit an agenda in place. Clocks and status have their own verbs
+    (advance-agenda, set-agenda-status); this is for everything else -- what
+    they want, how they pursue it, how big the clock is, how loudly they act."""
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-agenda", args.id, []):
+            fail(f"No agenda '{args.id}'")
+        if args.title is not None:
+            _set_attr(driver, "myth-agenda", args.id, "name", args.title)
+        if args.goal is not None:
+            _set_attr(driver, "myth-agenda", args.id, "description", args.goal)
+        if args.narrative is not None:
+            _set_attr(driver, "myth-agenda", args.id, "content", args.narrative)
+        if args.clock is not None:
+            _set_attr(driver, "myth-agenda", args.id, "myth-agenda-clock-size",
+                      args.clock, quote=False)
+        if args.filled is not None:
+            _set_attr(driver, "myth-agenda", args.id, "myth-agenda-clock-filled",
+                      args.filled, quote=False)
+        if args.priority is not None:
+            _set_attr(driver, "myth-agenda", args.id, "myth-agenda-priority",
+                      args.priority, quote=False)
+    out({"success": True, "id": args.id})
+
+
 def cmd_set_agenda_status(args):
     with get_driver() as driver:
         if not _get_entity(driver, "myth-agenda", args.id, []):
@@ -2972,6 +2997,16 @@ def build_parser():
     s.add_argument("--note", help="journal a gm-note recording the movement")
     s.add_argument("--complete-status", default="achieved",
                    help="status to set when the clock fills (default: achieved)")
+
+    s = sub.add_parser("update-agenda",
+                       help="Edit an agenda's text, clock size or priority")
+    s.add_argument("--id", required=True)
+    s.add_argument("--title")
+    s.add_argument("--goal", help="one-line statement of what they want")
+    s.add_argument("--narrative", help="how they pursue it, and what would change their mind")
+    s.add_argument("--clock", type=int, help="new clock size")
+    s.add_argument("--filled", type=int, help="new filled segments")
+    s.add_argument("--priority", type=int, help="1-5; who acts first when agendas collide")
 
     s = sub.add_parser("set-agenda-status", help="Mark an agenda achieved/thwarted/etc")
     s.add_argument("--id", required=True)
