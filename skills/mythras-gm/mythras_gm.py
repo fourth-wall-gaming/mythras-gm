@@ -592,19 +592,29 @@ def cmd_list_characters(args):
 
 
 def cmd_update_character(args):
+    # String-valued attributes.
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-spells-json": args.spells,
         "myth-fatigue": args.fatigue, "myth-status": args.status,
         "description": args.description, "content": args.narrative,
     }
+    # Integer-valued ones must be written unquoted. These are the values that
+    # change most often in play -- magic points especially, which are spent on
+    # every cast -- so leaving them unsettable made the sheet drift from the
+    # fiction within one scene.
+    numeric = {
+        "myth-magic-current": args.magic_current,
+        "myth-luck-current": args.luck,
+        "myth-experience-rolls": args.experience_rolls,
+    }
     with get_driver() as driver:
         for attr, val in updates.items():
             if val is not None:
                 _set_attr(driver, "myth-character", args.id, attr, val)
-        if args.luck is not None:
-            _set_attr(driver, "myth-character", args.id, "myth-luck-current",
-                      args.luck, quote=False)
+        for attr, val in numeric.items():
+            if val is not None:
+                _set_attr(driver, "myth-character", args.id, attr, val, quote=False)
     out({"success": True, "id": args.id})
 
 
@@ -2799,6 +2809,8 @@ def build_parser():
     s.add_argument("--passions")
     s.add_argument("--fatigue")
     s.add_argument("--luck", type=int)
+    s.add_argument("--magic-current", type=int, help="current magic points")
+    s.add_argument("--experience-rolls", type=int)
     s.add_argument("--status")
     s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
     s.add_argument("--narrative", help="full rich-text backstory (stored as content)")
