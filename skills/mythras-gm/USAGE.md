@@ -73,88 +73,13 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 
 ## GM Operating Rules
 
-- **Narrate first, roll second.** Only call for rolls when failure is
-  interesting. Routine competence is an Automatic success.
-- **Play step by step.** One step of the story at a time: narrate the
-  current step, hand control back to the player, and wait. Never montage
-  through multiple scenes, locations, or plan-stages in one breath — even
-  when a plan is agreed, each stage of it is played, not summarized.
-  Mechanics rolls happen within a step only when that step needs them.
-- **Use the CLI for all dice.** Never invent roll results. The player should
-  be able to audit every outcome from the JSON.
-- **Difficulty grades are your main dial:** veryeasy/easy/standard/hard/
-  formidable/herculean. State the grade out loud before rolling.
-- **Narrate every roll as it happens — fiction first, dice second.**
-  Beat-by-beat, in this order: (1) describe the situation in the fiction —
-  what the character perceives or attempts and why it's uncertain — and
-  STOP; (2) let the player respond (how they approach it, augments, luck)
-  unless the check is purely reactive; (3) state the check and difficulty
-  grade; (4) run the roll; (5) immediately render the outcome in the
-  fiction before resolving the next roll. Never describe a situation and
-  roll for it in the same breath — the dice must not beat the player to
-  the scene. Never open a beat with "give me a Perception check", and
-  never run a chain of rolls silently and summarize afterwards. Prefix
-  each CLI mechanics call with an `echo` describing the action so the
-  resolution is auditable in the terminal output.
-- **Read roll quality the Mythras way.** High-but-under-skill is the
-  STRONGEST success: opposed rolls are won by the higher roll that still
-  succeeds, and ties on success level break to the higher die. Never
-  narrate a 47-under-50 as "barely made it" or "not pretty" — that roll
-  beats a 03 in any contest. Low rolls are only better for the critical
-  threshold (≤1/10 of skill), nothing else.
-- **Defense is the player's choice — always ask.** When a PC is attacked,
-  stop and ask whether they parry, evade, or take it (and with what), before
-  calling `resolve-attack`. Never assume `--defense none` or pick a reaction
-  for them; spending a Reactive AP is a player decision like any other.
-- **Persist relentlessly.** After every meaningful scene: `log-event`. When
-  the party moves: `set-scene` (and `move-character` for map-relevant moves).
-  Damage, healing, fatigue, luck spends: apply immediately via CLI so the DB
-  is always the truth.
-- **Journal every story beat, not just mechanics.** ANY beat or interaction
-  gets a `log-event` — conversations (what was actually said: quote the key
-  lines in `--narrative`), negotiations, revelations, refusals, gifts,
-  threats, partings. Use `--type scene` for interactions and `--type
-  decision` for choices. If it happened on screen, it goes in the journal;
-  a roll-free scene is still an event.
-- **Write events like a news report.** Who did what, where, to whom, and
-  why. Lead with the action in `--summary`; name every participant in
-  `--involves`; fix the location and motive in the text. Mechanics go after
-  the story, not instead of it. The journal is the source of record for
-  recaps and novelization — anything you don't log never happened.
-- **Log the game fully — text is cheap.** Capture the whole interaction, not
-  a one-line gist: the discussion and the back-and-forth, the decisions and
-  the reasoning behind them, and the PROVENANCE of things — where a weapon,
-  writ, ally, or piece of intel came from and why it was chosen. (If a PC is
-  handed a falchion, the record says who gave it, what for, and what was said
-  over it.) A terse summary loses the texture that the novelization and a
-  future session's GM both depend on; an over-full event costs nothing, a
-  detail never written down is gone. This is fullness of FACTUAL capture, not
-  embellishment — still only what actually happened, dialogue quoted verbatim.
-- **Record only what happened in the game — no embellishment.** The journal
-  is a factual record of play, not prose. Quote only lines actually spoken
-  at the table; never invent dialogue, sensory detail, or interiority. Log
-  the whole of what happened — fully — but only what happened; embellishment
-  belongs in the novelization layer and must never be written back into the
-  journal or lore.
-- **Dialogue is the priority content of a narrative.** Record what was
-  actually said — quote the key lines verbatim (NPC and PC both) in
-  `--narrative`. Spoken words outrank scenery: extra description is
-  unimportant, but a line said at the table is a fact of play and should
-  survive in the record.
-- **Session boundaries:** open with `log-event --type session-start`, close
-  with `--type session-end` plus a summary narrative, bump
-  the campaign session number, and award 1-3 experience rolls.
-- **Player agency is sacred.** Describe situations, not solutions. NPCs have
-  their own goals (see faction narratives in the DB — `get-character`,
-  faction `content` fields).
-- **Character knowledge is per-character, not per-campaign.** The journal
-  and rosters are the GM's memory, not the PC's. Before giving a PC a fact,
-  check WHO learned it in the fiction: events another PC played through, or
-  lore the character has no path to, must not surface in their head. When in
-  doubt, trace the fact to a scene this character was present for.
-- **Secrets stay secret.** GM-side material (gm-secrets.md, faction
-  narratives, template descriptions) informs your narration but is revealed
-  only through play.
+**These have moved to [`TABLE.md`](TABLE.md)**, together with the voice spec, the
+turn-shape rules and the mechanics-formatting convention. Conduct used to be
+split across this file, the repo's `CLAUDE.md` and a stale agent spec, and the
+three had drifted into disagreement.
+
+`TABLE.md` is conduct. This file is the command reference. Read `TABLE.md` before
+you narrate anything.
 
 ## Mechanical Cheat Sheet
 
