@@ -186,6 +186,7 @@ CHAR_ATTRS = ["description", "content", "myth-char-type", "myth-status",
               "myth-characteristics-json", "myth-attributes-json", "myth-skills-json",
               "myth-hit-locations-json", "myth-equipment-json", "myth-passions-json",
               "myth-combat-styles-json", "myth-spells-json", "myth-extras-json",
+              "myth-actor-notes",
               "myth-fatigue", "myth-luck-current",
               "myth-magic-current", "myth-experience-rolls"]
 
@@ -614,12 +615,67 @@ def cmd_list_characters(args):
     out({"success": True, "characters": chars})
 
 
+def cmd_brief(args):
+    """Everything needed to SPEAK as somebody, and nothing else.
+
+    Read this before an NPC opens their mouth for the first time in a scene.
+    ~200 tokens against the ~1.5k of a full sheet, because what you need in
+    order to play a person is not their hit locations.
+
+    If actor notes are absent it falls back to the older ad-hoc extras keys
+    (`manner`, `tells`) so nothing written before the field existed is lost --
+    and it says so, so the gap is visible and gets filled.
+    """
+    with get_driver() as driver:
+        c = _get_entity(driver, "myth-character", args.id,
+                        ["description", "myth-status", "myth-actor-notes",
+                         "myth-extras-json"])
+        if not c:
+            fail(f"No myth-character with id '{args.id}'")
+
+        notes = c.get("myth-actor-notes")
+        source = "actor-notes"
+        if not notes:
+            extras = json.loads(c.get("myth-extras-json") or "{}")
+            legacy = [extras[k] for k in ("manner", "tells") if extras.get(k)]
+            if legacy:
+                notes, source = " / ".join(legacy), "legacy extras"
+            else:
+                notes, source = None, None
+
+        where = _fetch(driver, f"""
+            match
+              $c isa myth-character, has id "{escape_string(args.id)}";
+              (located: $c, location: $l) isa myth-presence;
+              $l has name $ln;
+            fetch {{ "ln": $ln }};""")
+        agendas = _fetch(driver, f"""
+            match
+              $c isa myth-character, has id "{escape_string(args.id)}";
+              (agenda: $a, holder: $c) isa myth-agenda-holder;
+              $a has name $an, has myth-agenda-status $as;
+            fetch {{ "an": $an, "as": $as }};""")
+
+    out({"success": True, "id": args.id, "name": c["name"],
+         "status": c.get("myth-status"),
+         "description": c.get("description"),
+         "location": where[0]["ln"] if where else None,
+         "actor_notes": notes,
+         "notes_source": source,
+         "agendas": [f"{r['an']} ({r['as']})" for r in agendas],
+         "guidance": (None if notes else
+                      "NO ACTOR NOTES. Give this character one line of business "
+                      "and no dialogue, then write them with "
+                      "`update-character --actor-notes` before they speak.")})
+
+
 def cmd_update_character(args):
     # String-valued attributes.
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-spells-json": args.spells,
         "myth-fatigue": args.fatigue, "myth-status": args.status,
+        "myth-actor-notes": args.actor_notes,
         "description": args.description, "content": args.narrative,
     }
     # Integer-valued ones must be written unquoted. These are the values that
@@ -638,6 +694,19 @@ def cmd_update_character(args):
         for attr, val in numeric.items():
             if val is not None:
                 _set_attr(driver, "myth-character", args.id, attr, val, quote=False)
+        # The extras bag was write-once-at-import, which is why portrayal notes
+        # ended up smeared across description/narrative instead of living in it.
+        if args.extras is not None:
+            incoming = json.loads(args.extras)
+            if args.extras_replace:
+                merged = incoming
+            else:
+                cur = _get_entity(driver, "myth-character", args.id, ["myth-extras-json"]) or {}
+                existing = json.loads(cur.get("myth-extras-json") or "{}")
+                existing.update(incoming)
+                merged = existing
+            _set_attr(driver, "myth-character", args.id, "myth-extras-json",
+                      json.dumps(merged))
     out({"success": True, "id": args.id})
 
 
@@ -2834,6 +2903,10 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--type")
 
+    s = sub.add_parser("brief",
+                       help="How to play an NPC: bearing, speech, tell, wants. Read before they speak.")
+    s.add_argument("--id", required=True)
+
     s = sub.add_parser("update-character")
     s.add_argument("--id", required=True)
     s.add_argument("--skills")
@@ -2843,6 +2916,11 @@ def build_parser():
     s.add_argument("--luck", type=int)
     s.add_argument("--magic-current", type=int, help="current magic points")
     s.add_argument("--experience-rolls", type=int)
+    s.add_argument("--actor-notes",
+                   help="how to PLAY them: bearing, speech, tell | wants, won't, because")
+    s.add_argument("--extras", help="JSON merged into the extras bag")
+    s.add_argument("--extras-replace", action="store_true",
+                   help="replace the extras bag instead of merging into it")
     s.add_argument("--status")
     s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
     s.add_argument("--narrative", help="full rich-text backstory (stored as content)")

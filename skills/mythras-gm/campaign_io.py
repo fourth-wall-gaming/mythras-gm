@@ -161,6 +161,7 @@ def export_campaign(campaign_id, outdir):
                 "combat_styles": c.get("myth-combat-styles-json"),
                 "spells": c.get("myth-spells-json"),
                 "extras": c.get("myth-extras-json"),
+                "actor_notes": c.get("myth-actor-notes"),
                 "fatigue": c.get("myth-fatigue"),
                 "luck_current": c.get("myth-luck-current"),
                 "magic_current": c.get("myth-magic-current"),
@@ -828,6 +829,8 @@ def import_campaign(path, new_name=None, new_ids=False):
                 q += f', has myth-spells-json "{gm.escape_string(json.dumps(c["spells"]))}"'
             if c.get("extras"):
                 q += f', has myth-extras-json "{gm.escape_string(json.dumps(c["extras"]))}"'
+            if c.get("actor_notes"):
+                q += f', has myth-actor-notes "{gm.escape_string(c["actor_notes"])}"'
             q += _opt("description", c.get("description"))
             q += _opt("content", c.get("narrative")) + ";"
             gm._write(driver, q)

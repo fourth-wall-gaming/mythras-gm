@@ -36,6 +36,7 @@ attribute myth-magic-current, value integer;
 attribute myth-experience-rolls, value integer;    # banked experience rolls
 attribute myth-spells-json, value string;          # {"folk":[...],"theism":[...],"sorcery":[...],"mysticism":[...],"windworking":[...]}
 attribute myth-extras-json, value string;          # lossless bag for system-specific fields (cult_rank, cults, features, spirits, natural_armor, strike_rank...)
+attribute myth-actor-notes, value string;          # how to PLAY them: bearing, speech, tell | wants, won't, because
 
 # Campaign / session
 attribute myth-game-date, value string;            # in-world calendar date
@@ -215,6 +216,7 @@ entity myth-character sub alh-domain-thing,
     owns myth-experience-rolls,
     owns myth-spells-json,
     owns myth-extras-json,
+    owns myth-actor-notes,
     plays myth-campaign-membership:element,
     plays myth-presence:located,
     plays myth-participation:combatant,
