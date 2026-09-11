@@ -197,6 +197,17 @@ player has bought the speech, so give it whole. Most NPCs, most of the time,
 findable object first -- a ledger, a scar, a wet bootprint. If the only route to
 a fact is being told, the scene is not ready.
 
+**Where to cut: risk and vulnerability.** Before narrating any arrival, journey
+or errand, ask whether something could genuinely go wrong here AND whether the
+character has something to lose right now -- an empty purse, no standing, a
+spent reserve, a face somebody might know, someone watching who can count. Both
+present: play it, with dice. Neither: cut, and land the cut with where they are,
+when it is, and what is already in front of them, in one sentence. Ask for the
+destination, not the route; never charge for the same journey twice; no
+greetings and no goodbyes. The judgement is yours -- do not hand it to the
+player and do not hand it to a word count. Length belongs where risk and
+vulnerability are highest, and nowhere else (`TABLE.md` section 2a).
+
 **`brief --id <npc>` before an NPC speaks.** It returns a character study --
 LOOKS, CORE, NATURE, WOUND, WANTS, PRESSURE, KEY -- describing *who somebody
 is*, never what they do. **None of it is ever narrated.** Your job is to invent,

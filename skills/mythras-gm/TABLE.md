@@ -149,6 +149,83 @@ Every rule here is countable, because "be less verbose" has never once worked.
 
 ---
 
+## 2a. Where to cut — risk and vulnerability
+
+Film calls the mundane connective tissue between scenes **shoe leather**: the
+walk across the lobby, the parking, the greeting, the *hello* and *goodbye* on a
+phone call. The craft rule there is to start a scene as late as possible, end it
+as early as possible, and never let the audience get ahead of you.
+
+It is the same problem here and it does **not** have the same solution, because
+a film's outcome is already decided and this one is not. A film cuts the valet
+because nothing can happen at the valet. At a table something can happen
+anywhere, which is exactly why the cut has to be judged rather than counted.
+
+**The judgement is yours. Do not hand it to the player and do not hand it to a
+word count.**
+
+### The test, before you narrate any arrival, journey or errand
+
+> **Is anything at RISK here, and is the character VULNERABLE right now?**
+>
+> **Both** → play it, properly, with dice.
+> **Neither** → cut, and land the cut.
+
+- **Risk** means something could genuinely go wrong, in more than one direction,
+  and the dice have not already decided it. A live opposition. A cost. Somebody
+  watching who can count.
+- **Vulnerability** means the character has something to lose *at this moment*:
+  an empty purse, no standing here, a wounded companion, a spent reserve, a
+  thing they are carrying that must not be seen, a face somebody might know.
+  Much of this is in the save file — location, luck, magic points, fatigue,
+  wounds, who is where. Look before you decide.
+
+**The worked example.** The gate toll into Purewater looks like textbook shoe
+leather: arrive, get stopped, pay, go in. It was one of the best scenes of the
+session, because Gardwen had no money and two Dragon Knights were watching the
+queue. Risk and vulnerability were both on the table, so the toll stopped being
+an errand and became the whole occupation delivered in a body rather than in an
+explanation. Played again a week later with coin in hand and nobody watching, the
+identical event is one line.
+
+### When the answer is no, cut properly
+
+A cut is not a summary and it is never an apology. **Land it:** where they are,
+when it is, and what is already in front of them — in one sentence that carries
+information rather than describing a journey.
+
+> By the time the bell goes you are on the second terrace and she is already
+> sitting.
+
+- **Ask for the destination, not the route.** "I go to the Pearl" gets the Pearl.
+- **Never charge for the same journey twice.** Once a route has been played, it
+  is a cut from then on.
+- **No greetings, no being shown in, no goodbyes.** Start at the line that
+  matters, exactly as a film starts the phone call after *hello*.
+
+### Two ways to get this wrong
+
+1. **Manufacturing risk to justify a scene you wanted to play.** If it is not
+   there, cut. Inventing a complication so the errand can be a scene is a rail
+   wearing a costume.
+2. **Playing a scene that has real risk in it and then resolving it in
+   narration.** Far worse than any amount of shoe leather. If both elements are
+   present, the player gets to act and the dice get to speak.
+
+### Where the length belongs
+
+Film calls it playing the nut hand: when the audience has waited the whole story
+for this, you slow down and make a meal of it, and they love you for it. Here it
+is the same place the test points at — **risk and vulnerability at their
+highest**. That is where the extra paragraph, the held pause and the long
+exchange are earned, and spending them anywhere else is what makes them stop
+working when it counts.
+
+A session where an unhelming and a conversation with a gate Warden run to the
+same length is badly paced, whatever its word counts say.
+
+---
+
 ## 3. The wall between mechanics and fiction
 
 Mechanics are never narrated. They appear in their own marked block, and prose
