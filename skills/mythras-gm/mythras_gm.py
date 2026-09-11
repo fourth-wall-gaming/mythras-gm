@@ -70,10 +70,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
+import mythras_effects as fx
 
 try:
     from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
@@ -863,6 +865,258 @@ def _spend_ap(combatants, char_id, n=1):
             cb["ap"] -= n
             return True
     return None  # not in encounter
+
+
+def _attack_setup(driver, args):
+    """Shared front half of an attack: skills, weapons, AP, the differential.
+
+    Used by `attack-roll`. `resolve-attack` deliberately keeps its own copy --
+    it is the path a live campaign is already using, and it is not worth the
+    risk of a shared refactor to save twenty lines.
+    """
+    e = _load_encounter(driver, args.encounter)
+    atk = _load_character(driver, args.attacker)
+    dfn = _load_character(driver, args.defender)
+
+    styles = atk.get("myth-combat-styles-json") or {}
+    if args.style:
+        style_val = _skill_value(atk, args.style)
+    elif styles:
+        style_val = max(styles.values())
+    else:
+        style_val = _skill_value(atk, "Unarmed")
+    weapon = _find_weapon(atk, args.weapon) if args.weapon else None
+    if weapon is None:
+        equipment = atk.get("myth-equipment-json") or []
+        weapon = equipment[0] if equipment else {"name": "Unarmed", "damage": "1d3", "size": "S"}
+
+    defense = args.defense
+    if defense == "parry":
+        d_styles = dfn.get("myth-combat-styles-json") or {}
+        d_val = _skill_value(dfn, args.defender_skill) if args.defender_skill else (
+            max(d_styles.values()) if d_styles else _skill_value(dfn, "Unarmed"))
+    elif defense == "evade":
+        d_val = _skill_value(dfn, args.defender_skill or "Evade")
+    else:
+        d_val = 0
+
+    if not args.no_ap:
+        if _spend_ap(e["combatants"], atk["id"]) is False:
+            fail(f"{atk['name']} has no Action Points left this round")
+        if defense != "none" and _spend_ap(e["combatants"], dfn["id"]) is False:
+            defense = "none"
+
+    diff = eng.differential_roll(style_val, d_val,
+                                 args.attacker_difficulty, args.defender_difficulty,
+                                 b_auto_fail=(defense == "none"))
+    return e, atk, dfn, weapon, defense, diff
+
+
+def _die_faces(expr):
+    """Largest die size in a damage expression -- '1d8+1' -> 8."""
+    sizes = [int(m) for m in re.findall(r"d(\d+)", expr or "")]
+    return max(sizes) if sizes else 3
+
+
+def _dice_bonus(expr):
+    """Flat modifier in a damage expression -- '1d8+1' -> 1."""
+    stripped = re.sub(r"\d*d\d+", "", (expr or "").replace(" ", ""))
+    return sum(int(m.group(1)) for m in re.finditer(r"([+-]\d+)", stripped))
+
+
+def cmd_attack_roll(args):
+    """Roll the exchange and STOP, so the winner can choose their effects.
+
+    The rules require special effects to be chosen BEFORE the damage roll.
+    `resolve-attack` rolls damage and writes hit locations in the same call
+    that reports how many effects were earned, which makes Maximize Damage,
+    Bypass Armour, Impale and Enhance Parry impossible to apply afterwards.
+
+    So this half rolls no damage and touches no hit locations. It freezes the
+    dice onto the encounter -- frozen, because a menu you can re-roll is not a
+    choice -- and hands back what the winner may pick from.
+    """
+    with get_driver() as driver:
+        e, atk, dfn, weapon, defense, diff = _attack_setup(driver, args)
+
+        winner = diff["beneficiary"]
+        count = diff["special_effects"]
+        side = "offense" if winner == "a" else ("defense" if winner == "b" else None)
+        w_char = atk if winner == "a" else dfn
+        w_weapon = weapon if winner == "a" else (
+            _find_weapon(dfn, args.parry_weapon) if args.parry_weapon else None)
+        w_level = diff["a"]["level"] if winner == "a" else diff["b"]["level"]
+        l_level = diff["b"]["level"] if winner == "a" else diff["a"]["level"]
+
+        options = []
+        if side and count:
+            options = fx.available(side, w_level, l_level, w_weapon, prone=args.prone)
+
+        pending = {
+            "attacker": atk["id"], "defender": dfn["id"],
+            "weapon": weapon, "defense": defense,
+            "parry_weapon": args.parry_weapon,
+            "diff": diff, "side": side, "count": count,
+            "winner_id": w_char["id"] if side else None,
+            "winner_level": w_level, "loser_level": l_level,
+            "prone": bool(args.prone),
+        }
+        _set_attr(driver, "myth-encounter", args.encounter,
+                  "myth-pending-attack-json", json.dumps(pending))
+        if not args.no_ap:
+            _save_combatants(driver, args.encounter, e["combatants"])
+
+        out({"success": True, "attacker": atk["name"], "defender": dfn["name"],
+             "weapon": weapon["name"], "attack_roll": diff["a"],
+             "defense": defense, "defense_roll": diff["b"],
+             "special_effects": count,
+             "effects_to": (w_char["name"] if side else None),
+             "available_effects": options,
+             "ap_remaining": {cb["name"]: cb["ap"] for cb in e["combatants"]},
+             "next": "resolve-effects --encounter " + args.encounter +
+                     (" [--effect <id> ...]" if count else "")})
+
+
+def cmd_resolve_effects(args):
+    """Apply the chosen effects, then roll damage and settle the wound."""
+    with get_driver() as driver:
+        enc = _get_entity(driver, "myth-encounter", args.encounter,
+                          ["myth-pending-attack-json"])
+        if not enc:
+            fail(f"No encounter '{args.encounter}'")
+        raw = enc.get("myth-pending-attack-json")
+        if not raw:
+            fail("No attack is waiting on this encounter -- run attack-roll first")
+        p = json.loads(raw)
+
+        chosen = [c for c in (args.effect or []) if c != "none"]
+        if chosen and not p["side"]:
+            fail("nobody won the differential; there are no effects to take")
+        if chosen:
+            err = fx.validate(chosen, p["side"], p["winner_level"], p["loser_level"],
+                              p["count"],
+                              p["weapon"] if p["side"] == "offense" else None,
+                              prone=p["prone"])
+            if err:
+                fail(err)
+
+        atk = _load_character(driver, p["attacker"])
+        dfn = _load_character(driver, p["defender"])
+        diff, weapon, defense = p["diff"], p["weapon"], p["defense"]
+        taken = set(chosen)
+        by_attacker = p["side"] == "offense"
+
+        result = {"success": True, "attacker": atk["name"], "defender": dfn["name"],
+                  "effects_applied": chosen}
+
+        attacker_hit = diff["a"]["level"] in ("success", "critical")
+        defender_parried = defense == "parry" and diff["b"]["level"] in ("success", "critical")
+        defender_evaded = defense == "evade" and \
+            eng.SUCCESS_LEVELS[diff["b"]["level"]] >= eng.SUCCESS_LEVELS[diff["a"]["level"]] and \
+            diff["b"]["level"] in ("success", "critical")
+
+        # A defender's pre-damage effects can stop the blow outright.
+        if not by_attacker and "force-failure" in taken:
+            attacker_hit = False
+            result["note"] = "attack forced to a failure"
+        if by_attacker and "circumvent-parry" in taken:
+            defender_parried = False
+
+        if attacker_hit and not defender_evaded:
+            dmg_expr = weapon.get("damage", "1d3")
+            dmg_roll = eng.roll_dice(dmg_expr)
+            # Impale rolls the weapon twice and keeps the better.
+            if by_attacker and "impale" in taken:
+                second = eng.roll_dice(dmg_expr)
+                result["impale_rolls"] = [dmg_roll, second]
+                dmg_roll = max(dmg_roll, second, key=lambda r: r["total"])
+            # Maximize Damage sets one die to its face value, once per stack.
+            n_max = chosen.count("maximize-damage") if by_attacker else 0
+            if n_max and dmg_roll.get("rolls"):
+                faces = _die_faces(dmg_expr)
+                rolls = sorted(dmg_roll["rolls"])
+                for i in range(min(n_max, len(rolls))):
+                    rolls[i] = faces
+                dmg_roll = {"expr": dmg_roll["expr"], "rolls": rolls,
+                            "total": sum(rolls) + _dice_bonus(dmg_expr)}
+
+            dm = atk["myth-attributes-json"]["damage_modifier"]
+            dm_roll = eng.roll_dice(dm) if dm not in ("+0", "0") else {"total": 0}
+            damage = max(0, dmg_roll["total"] + dm_roll["total"])
+
+            if defender_parried:
+                if not by_attacker and "enhance-parry" in taken:
+                    damage = 0
+                    result["note"] = "parry enhanced -- all of it taken on the block"
+                else:
+                    pw = _find_weapon(dfn, p.get("parry_weapon")) if p.get("parry_weapon") else None
+                    if pw is None:
+                        d_equipment = dfn.get("myth-equipment-json") or []
+                        pw = d_equipment[0] if d_equipment else {"size": "S"}
+                    damage = eng.parry_reduction(damage, weapon.get("size", "M"),
+                                                 pw.get("size", "S"))
+                    result["parried_with"] = pw.get("name", "Unarmed")
+
+            if by_attacker and "choose-location" in taken:
+                if not args.location:
+                    fail("choose-location taken but no --location given")
+                hit_loc = {"roll": None, "location": args.location}
+            else:
+                hit_loc = eng.roll_hit_location(dfn["myth-hit-locations-json"])
+
+            result["damage_roll"] = dmg_roll
+            result["damage_modifier_roll"] = dm_roll
+            result["hit_location"] = hit_loc
+            if damage > 0:
+                locations = dfn["myth-hit-locations-json"]
+                wound = eng.apply_damage(
+                    locations, hit_loc["location"], damage,
+                    ignore_armor=(by_attacker and "bypass-armor" in taken))
+                _set_attr(driver, "myth-character", dfn["id"],
+                          "myth-hit-locations-json", json.dumps(locations))
+                result["wound"] = wound
+            else:
+                result["wound"] = {"net_damage": 0, "wound": "none",
+                                   "note": result.get("note", "damage fully absorbed")}
+        elif defender_evaded:
+            result["wound"] = {"net_damage": 0, "wound": "none",
+                               "note": "evaded (defender prone)"}
+        else:
+            result["wound"] = {"net_damage": 0, "wound": "none",
+                               "note": result.get("note", "attack missed")}
+
+        # Contested effects are never resolved silently -- the loser's choice of
+        # resisting skill is a player decision like any other.
+        followups = []
+        for c in chosen:
+            e_def = fx.BY_ID[c]
+            if e_def["phase"] == "followup":
+                loser_id = p["defender"] if by_attacker else p["attacker"]
+                contest = e_def.get("contest") or "<skill>"
+                # Which skill the loser resists with is THEIR call when the
+                # loser is a PC -- ask, the same way defence is always asked.
+                resist = ("<" + contest.replace(" or ", "|") + ">"
+                          if " or " in contest else contest)
+                followups.append({
+                    "effect": c, "name": e_def["name"], "contest": contest,
+                    "defender_chooses": " or " in contest,
+                    "command": ("roll-opposed --id-a " + p["winner_id"] +
+                                " --skill-a <skill> --id-b " + loser_id +
+                                " --skill-b " + resist)})
+        if followups:
+            result["followups"] = followups
+
+        _clear_pending_attack(driver, args.encounter)
+    out(result)
+
+
+def _clear_pending_attack(driver, encounter_id):
+    eid = escape_string(encounter_id)
+    rows = _fetch(driver, "match $e isa myth-encounter, has id " + '"' + eid + '"' +
+                  ", has myth-pending-attack-json $v; fetch { \"v\": $v };")
+    if rows:
+        _write(driver, "match $e isa myth-encounter, has id " + '"' + eid + '"' +
+               ", has myth-pending-attack-json $v; delete has $v of $e;")
 
 
 def cmd_resolve_attack(args):
@@ -2979,6 +3233,28 @@ def build_parser():
     s.add_argument("--defender-difficulty", default="standard")
     s.add_argument("--location", help="override hit location (Choose Location effect)")
     s.add_argument("--no-ap", action="store_true", help="skip Action Point accounting")
+
+    s = sub.add_parser("attack-roll",
+                       help="Roll an attack and STOP so the winner can choose special effects")
+    s.add_argument("--encounter", required=True)
+    s.add_argument("--attacker", required=True)
+    s.add_argument("--defender", required=True)
+    s.add_argument("--weapon")
+    s.add_argument("--style")
+    s.add_argument("--defense", default="parry", choices=["parry", "evade", "none"])
+    s.add_argument("--defender-skill")
+    s.add_argument("--parry-weapon")
+    s.add_argument("--attacker-difficulty", default="standard")
+    s.add_argument("--defender-difficulty", default="standard")
+    s.add_argument("--prone", action="store_true", help="winner is prone (gates Arise)")
+    s.add_argument("--no-ap", action="store_true")
+
+    s = sub.add_parser("resolve-effects",
+                       help="Apply the chosen special effects, then roll damage")
+    s.add_argument("--encounter", required=True)
+    s.add_argument("--effect", action="append",
+                   help="effect id; repeat for each taken ('none' for no effects)")
+    s.add_argument("--location", help="required when choose-location is taken")
 
     s = sub.add_parser("next-round")
     s.add_argument("--encounter", required=True)

@@ -108,14 +108,29 @@ you narrate anything.
 | Publish a campaign (DB → files) | `export-campaign --campaign C --output dir/` |
 | Load a published campaign | `import-campaign --path dir/ [--name N] [--new-ids]` |
 
-`resolve-attack` handles the whole differential roll: attack vs parry/evade,
-special-effect count, damage + damage modifier, hit location, parry size
-reduction, armor, wound level, and AP spend. **You** choose and narrate the
-special effects (fetch them on demand with
-`query-rules --facet phase=attack --facet trigger=differential` or
-`get-rule --id combat/special-effects --linked`) — apply their mechanical
-consequences with follow-up CLI calls (e.g. Trip → opposed roll; Bleed →
-fatigue tracking via `update-character --fatigue`).
+**Attacks come in two shapes.**
+
+`attack-roll` + `resolve-effects` is the pair to use whenever a PC is involved,
+because the rules put the choice of special effects in the winner's hands and
+they must be chosen *before* damage is rolled:
+
+| | |
+|---|---|
+| `attack-roll --encounter E --attacker A --defender B [--weapon W] [--style S] --defense parry\|evade\|none [--parry-weapon X] [--prone]` | Rolls the exchange. **No damage, no hit locations written.** Freezes the dice on the encounter and returns `available_effects`, already filtered by side, critical/fumble requirements and weapon traits. |
+| `resolve-effects --encounter E [--effect <id> ...] [--location Head]` | Validates the selection against the frozen roll, applies the effects in rules order, then rolls damage and settles the wound. Clears the frozen record. |
+
+Effect ids are the same strings as the `effect=` facets in the rules graph, so
+`query-rules --facet effect=impale` always finds the piece. An unknown id is
+**rejected with a suggestion** rather than silently ignored — `bypass-armour`
+tells you it meant `bypass-armor`.
+
+Contested effects (Trip, Disarm, Bleed, Stun Location, Grip, Blind Opponent)
+return as `followups` carrying the opposed roll to make. They are never resolved
+silently: the loser's choice of resisting skill is a player decision.
+
+`resolve-attack` still does the whole thing in one call — differential, damage,
+hit location, parry reduction, armour, wound and AP — and chooses no effects.
+Use it for NPC-versus-NPC, where nobody is being asked anything.
 
 Wound levels from the CLI: `minor` (narrate pain), `serious` (1d3 turns no
 attacking; opposed Endurance vs the attack roll or limb useless /

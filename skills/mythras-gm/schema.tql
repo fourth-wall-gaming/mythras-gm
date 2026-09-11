@@ -47,6 +47,7 @@ attribute myth-session-number, value integer;
 attribute myth-encounter-status, value string;     # active | resolved
 attribute myth-round, value integer;
 attribute myth-combatants-json, value string;      # [{"id":"...","name":"...","initiative":14,"ap":2,"conditions":[]},...]
+attribute myth-pending-attack-json, value string;  # a frozen attack awaiting the winner's choice of special effects
 
 # World
 attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
@@ -268,6 +269,7 @@ entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
     owns myth-round,
     owns myth-combatants-json,
+    owns myth-pending-attack-json,
     plays myth-campaign-membership:element,
     plays myth-participation:encounter,
     plays myth-event-involvement:participant;

@@ -245,6 +245,25 @@ keeping so it is not relitigated:
 4. **The precedent already exists:** defence is always the player's call. This is
    the same principle one step later in the same exchange.
 
+**How it works mechanically.** Attack resolution is two commands, because the
+rules require effects to be chosen *before* the damage roll:
+
+```
+attack-roll      --encounter E --attacker A --defender B --weapon W --defense parry
+                 -> rolls the exchange, rolls NO damage, freezes the dice,
+                    returns `available_effects` already filtered for eligibility
+resolve-effects  --encounter E --effect impale --effect choose-location --location Head
+                 -> applies them in rules order, then rolls damage and settles
+```
+
+The dice are **frozen** between the two calls. A menu you can re-roll is not a
+choice. Contested effects (Trip, Disarm, Bleed, Stun Location, Grip, Blind) come
+back as `followups` with the roll to make — never resolved silently, because the
+loser's choice of resisting skill is a player decision like any other.
+
+`resolve-attack` still exists and does the whole thing in one call. Use it for
+NPC-versus-NPC, where nobody is being asked anything.
+
 **How to offer it without it reading as a menu:**
 
 - In fiction, one clause per effect, eligible options only:
