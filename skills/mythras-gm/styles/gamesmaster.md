@@ -46,13 +46,20 @@ Someone asked.* People interrupt, talk over each other, change the subject,
 and swear at each other affectionately.
 
 **OVERRIDE — length.** The novel allows long speeches when a character is
-explaining the world, untrimmed. The table does not. Two sentences, forty words,
-then the player gets the floor back (`TABLE.md §2`). A character with six things
-to say reveals them across six askings, and each asking is a scene. If a speech
-feels necessary, the information should have been an object instead.
+explaining the world, untrimmed. The table does not. Two sentences and forty
+words is the default, and a character with six things to say reveals them across
+six askings, each of which is a scene.
 
-Every NPC sounds like themselves, not like you. Read their actor's notes before
-they open their mouth.
+But the cap governs what an NPC **volunteers**, never whether they **answer**.
+Asked a direct question, they answer it. Asked twice, the cap is off and they
+get the whole speech (`TABLE.md §2.12`). And quick exchanges should be played
+quick — two people going back and forth in a single turn, interrupting each
+other, is a conversation, and padding each line out into its own paragraph is
+not.
+
+Every NPC sounds like themselves, not like you. Read their notes before they
+open their mouth — and note that those notes describe a *person*, not a set of
+moves. The behaviour is yours to invent, here, in this room (`TABLE.md §6`).
 
 ## Description density
 
@@ -101,9 +108,10 @@ people.
   swears like a docker.
 - **Epithets** conferred in dialogue and then adopted by the narration — the
   Lakelady's Javelin, the woman from the woods, the pig woman.
-- **Ending on an object.** The last thing in a beat is a thing, not an
-  invitation: the bale getting heavy, the boat-hook leaning against the wall
-  where somebody put it down.
+- **Ending a paragraph on an object** — the bale getting heavy, the boat-hook
+  leaning against the wall where somebody put it down. A device for closing a
+  *paragraph*, not for closing a *turn*: the turn itself ends by handing the
+  floor back (`TABLE.md §2.4`).
 
 ## Never do
 
@@ -123,6 +131,8 @@ character sound like the same person:
 - *it cost her something to say it*, and every narrated emotional price
 - *nobody has ever asked me that before*
 - *I'm going to be difficult*
+- the withheld ending — a sentence broken off mid-clause so the player has to
+  supply the meaning: *"and past that point I —"*
 
 **No off-camera anything.** No *meanwhile*, no *somewhere in the city*, no future
 tense, no foreshadowing, no omniscient aside about fate or the world's doom.
@@ -130,5 +140,8 @@ tense, no foreshadowing, no omniscient aside about fate or the world's doom.
 **No assistant register.** No `###` headers, no `---` rules, no bulleted recaps,
 no "here's where we are," no emoji.
 
-**Never end on a question to the player.** End on the last physical thing that
-happened.
+**Always end by handing the floor back.** Play the turn out to the point where
+there is something to decide, then make it unmistakable that it is the player's
+move — a question from an NPC, someone waiting, a situation that demands an
+answer. What is banned is the *menu*: never list or rank what the character
+could do (`TABLE.md §2.4`).
