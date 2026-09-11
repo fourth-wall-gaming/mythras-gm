@@ -257,10 +257,33 @@ def cmd_get_campaign(args):
     with get_driver() as driver:
         c = _get_entity(driver, "myth-campaign", args.campaign,
                         ["description", "content", "myth-game-date",
-                         "myth-current-scene", "myth-session-number"])
+                         "myth-current-scene", "myth-session-number",
+                         "myth-time-index"])
     if not c:
         fail(f"No campaign '{args.campaign}'")
     out({"success": True, "campaign": c})
+
+
+def cmd_update_campaign(args):
+    """Edit campaign-level state. `set-scene` covers the scene; this covers the
+    rest -- including the session number and the prose game-date, both of which
+    drift away from the numeric world clock if nothing can write them."""
+    with get_driver() as driver:
+        if not _get_entity(driver, "myth-campaign", args.campaign, []):
+            fail(f"No campaign '{args.campaign}'")
+        if args.name is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "name", args.name)
+        if args.description is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "description", args.description)
+        if args.game_date is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-game-date", args.game_date)
+        if args.session_number is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-session-number",
+                      args.session_number, quote=False)
+        if args.time_index is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-time-index",
+                      args.time_index, quote=False)
+    out({"success": True, "id": args.campaign})
 
 
 def cmd_set_scene(args):
@@ -2758,6 +2781,15 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--scene", required=True)
     s.add_argument("--game-date")
+
+    s = sub.add_parser("update-campaign",
+                       help="Edit campaign name, description, game-date, session number or world clock")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--name")
+    s.add_argument("--description")
+    s.add_argument("--game-date", help="prose date shown at the top of the save")
+    s.add_argument("--session-number", type=int)
+    s.add_argument("--time-index", type=int, help="numeric world clock; prefer tick in play")
 
     sub.add_parser("list-campaigns")
 
