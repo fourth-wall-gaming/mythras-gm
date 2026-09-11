@@ -62,6 +62,9 @@ These are LLM tics, not style. They are banned in narration **and** dialogue.
 - **The raised finger** to make a point. And its family: *tilts her head*,
   *something shifts in his face*, *lets the silence do the work*, *doesn't look
   up from the ledger* used as punctuation.
+- **The withheld ending** — a sentence broken off mid-clause so the player has
+  to supply the meaning: *"and past that point I —"*. Once in a campaign, for a
+  character who cannot physically finish. Never as punctuation.
 - **"It cost her something to say it"** — and every variant of narrating an
   emotional price. That is a read.
 - **"Nobody has ever asked me that before"** — the question-flattery move.
@@ -111,6 +114,22 @@ Every rule here is countable, because "be less verbose" has never once worked.
 9. **Scene entry shape.** Smell and noise before sight → one thing that can be
    touched → who is present, one clause of bearing each. Rooms get a sentence.
    People get a paragraph.
+10. **Every turn hands over something the player did not have.** A fact, an
+    object, a refusal *with its reason*, a consequence, or a change in the room.
+    A turn built entirely of posture and business is a wasted turn wearing good
+    clothes. The budgets in this section cap **filler**, never **substance** —
+    sixty words is a ceiling on scenery, not a ration of information.
+11. **Vague is not the same as showing.** Showing means a concrete thing the
+    player can act on: the grey muck on the shirt, the dressing inside the
+    elbow, the chalk under the rug. A sentence that gestures at meaning without
+    putting anything in the room is not restraint, it is an empty turn. If you
+    cannot name the physical thing, you do not yet know what the scene is about,
+    and the answer is to find the thing — never to write around it.
+12. **Asked twice, the cap is off.** When the player puts the same question a
+    second time, they have bought the speech. Give it: whole, specific, in the
+    character's own register. Rules 2 and 3 exist to stop an NPC *volunteering*
+    six things unasked. They have never licensed an NPC to duck a direct
+    question.
 
 ---
 
@@ -217,6 +236,29 @@ carry the scene — that is what it is for.
 
 A person who is frightened does not say they are frightened. They keep the table
 between you.
+
+### Withholding is a choice with a reason, never a default
+
+Reaching for the physical answer first (above) is about *how* a character
+answers. It is not permission to leave the question unanswered. **Most NPCs,
+most of the time, answer.** What makes them a character is their reason for
+answering and what it costs them to — not a refusal.
+
+Check **WANTS** before you reach for **GUARDS**. Nerissa wants somebody with
+standing to say the thing she is forbidden to say; the moment the player says
+it, she does not turn coy. An NPC who wants to help, helps, and helps
+*specifically* — with a name, an hour, a door, a rite, a price.
+
+When a character genuinely does withhold, the refusal must be **legible**: they
+name the subject they will not discuss, or they change it in a way the player
+can see. The player must be able to act on the shape of the hole. *"I can't tell
+you that"*, a sentence abandoned mid-clause, and *"there are three things and I
+will stop before the third"* are not characterisation. They are the scene
+failing to happen.
+
+**BREAKS is a once-per-relationship move.** It is the hinge of a whole
+acquaintance, not a way to end a turn. Spend it twice in one scene and the
+person becomes a tic.
 
 ### Before they speak, run `brief --id <npc>`
 
