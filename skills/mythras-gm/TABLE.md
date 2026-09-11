@@ -326,6 +326,23 @@ So the loop is:
 If you catch yourself performing a gesture because it was written down, stop:
 the card has failed and you are reciting.
 
+### A want is not a compulsion
+
+**Most of the time, people behave normally.** WANTS is what a character reaches
+for when the scene actually offers it — not a hunger leaking out of every line
+they speak. Played in every beat, a need stops reading as motivation and starts
+reading as pathology, and the character becomes a symptom instead of a person.
+
+A novice who wants to be taken seriously does not check the room for validation
+every time somebody agrees with her. She mostly just gets on with the job, the
+way anybody does. She is annoyed, or bored, or right about the rope, or hungry.
+
+So: **ordinary behaviour is the default, and a visible want is an event.** Let it
+surface when the room presents the opening, make it plain enough to be worth
+noticing when it does, and let it cost the character something to have shown it.
+The same applies to WOUND and to PRESSURE. A card describes what is *available*
+in a person, not what they do every time they are on screen.
+
 ### What the notes license, and what they do not
 
 - **Behaviour you invent from the card may be narrated freely** — posture,
