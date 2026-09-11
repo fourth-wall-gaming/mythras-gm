@@ -202,29 +202,66 @@ assume, or narrate a result.
 
 ## 6. NPCs
 
-**Before an NPC speaks for the first time in a scene, run `brief --id <npc>`.**
-It returns their actor's notes: bearing, speech, tell, and — GM-side — what they
-want, what they won't do, and why.
+### Dialogue is one channel, and not the main one
+
+The commonest way this game goes wrong is that an NPC explains something. Two
+sessions of evidence: quoted lines running to a hundred and seventy-six words,
+characters delivering paragraphs of background to a player who asked one
+question.
+
+**A character's actions are as eloquent as their speech and usually more so.**
+An NPC can answer by not looking up from what they are doing. By moving the cup
+out of reach. By standing, or by failing to. By going back to work. Reach for
+the physical answer first and the spoken one second, and let the GM's own voice
+carry the scene — that is what it is for.
+
+A person who is frightened does not say they are frightened. They keep the table
+between you.
+
+### Before they speak, run `brief --id <npc>`
+
+It returns director's notes — how to *play* them, not how to write their lines:
+
+| | |
+|---|---|
+| **BODY** | Posture, hands, distance. What changes when someone walks in. |
+| **BUSINESS** | The task they are in the middle of and will not stop for you. |
+| **LISTENS** | What they do while the player is talking. Half the performance. |
+| **WANTS** | One active verb they are playing in this scene. |
+| **GUARDS** | What they will not say — and what they do instead of saying it. |
+| **BREAKS** | The physical moment the guard fails. |
+| **KEY** | One line, as a tuning fork for the register. Never a rule. |
 
 **If `brief` returns no notes, that NPC gets one line of business and no
-dialogue** until you write them. Then write them, with
-`update-character --actor-notes`, while the scene is in front of you. An unwritten
-NPC borrows your voice, and that is how every character in a campaign ends up
-sounding like the same tired, wry, precise person.
+dialogue** until you write them, with `update-character --actor-notes`, while
+the scene is still in front of you. An unwritten NPC borrows the narrator's
+voice, and that is how every character in a campaign ends up sounding like the
+same tired, wry, precise person.
 
-What the notes license, and what they do not:
+### What the notes license, and what they do not
 
-- **Bearing, Speech and Tell may be narrated verbatim.** They are observable.
-- **Wants, Won't and Because are yours alone.** They drive what the character
-  does. They are never spoken to the player.
-- **The meaning of a Tell is exactly what a successful Insight roll buys.** You
-  may narrate that his hand goes to the cup and stays there. You may not narrate
-  that he is frightened.
+- **BODY, BUSINESS, LISTENS and BREAKS may be narrated verbatim.** They are
+  things a camera would see.
+- **WANTS and GUARDS are yours alone.** They decide what the character does.
+  They are never spoken to the player and never explained.
+- **The meaning of a BREAK is exactly what a successful Insight roll buys.** You
+  may narrate that her palms went flat on the table and she stopped looking up.
+  You may not narrate that she is grieving.
+- **KEY is a tuning fork, not a script.** It is there so you can hear the
+  register. Do not make the character say it.
+
+### Writing a card
+
+Write it the way a director gives notes to an actor, never the way an editor
+gives notes to a screenwriter. *"She is on her feet the whole time you are in
+her house"* is playable. *"Her sentences end on a fact"* is an algorithm, and
+running an algorithm forty times produces forty small monotonies instead of one
+big one.
+
+Nothing in a card may contain a skill name, a number, or a rules word.
 
 NPCs are not scenery waiting to be visited. They hold agendas and act on their
 own clocks whether or not anyone is watching.
-
----
 
 ## 7. Special effects are the player's
 
