@@ -104,11 +104,15 @@ except ImportError:
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 TYPEDB_HOST = os.getenv("TYPEDB_HOST", "localhost")
-TYPEDB_PORT = int(os.getenv("TYPEDB_PORT", "1729"))
-# One database per repo, per the alhazen convention: this repo owns
-# alh_mythras. The old shared "alhazen_notebook" is retired. Anything
-# still living there is reachable with TYPEDB_DATABASE=alhazen_notebook.
-TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alh_mythras")
+TYPEDB_PORT = int(os.getenv("TYPEDB_PORT", "1730"))
+# This product runs its own TypeDB, not the Alhazen stack's: container
+# mythras-typedb on port 1730, database "mythras" (docker-compose.yml at the
+# repo root). Campaign data is a save file for a game and has no business
+# sharing a lifecycle with a research notebook.
+#
+# Older copies live on the Alhazen server at 1729 -- alhazen_notebook and
+# alh_mythras -- and remain reachable with TYPEDB_PORT/TYPEDB_DATABASE.
+TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "mythras")
 TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
 

@@ -1,0 +1,15 @@
+name: faction
+description: Factions
+kind: entity
+depends_on: [campaign]
+source_match: |
+  match $x isa myth-faction, has id $i, has name $n, has created-at $ts;
+  fetch { "id": $i, "name": $n, "ts": $ts,
+          "description": $x.description, "content": $x.content };
+target_insert: |
+  insert $x isa myth-faction,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has content ?content;

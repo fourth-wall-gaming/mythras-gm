@@ -1,0 +1,19 @@
+name: location
+description: Locations
+kind: entity
+depends_on: [campaign]
+source_match: |
+  match $x isa myth-location, has id $i, has name $n, has created-at $ts;
+  fetch {
+    "id": $i, "name": $n, "ts": $ts,
+    "description": $x.description, "content": $x.content,
+    "loc_type": $x.myth-location-type
+  };
+target_insert: |
+  insert $x isa myth-location,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has content ?content,
+    has myth-location-type ?loc_type;

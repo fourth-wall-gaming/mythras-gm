@@ -1,0 +1,27 @@
+name: creature_template
+description: Creature templates
+kind: entity
+depends_on: [campaign]
+source_match: |
+  match $x isa myth-creature-template, has id $i, has name $n, has created-at $ts;
+  fetch {
+    "id": $i, "name": $n, "ts": $ts, "description": $x.description,
+    "chars": $x.myth-characteristics-json, "attrs": $x.myth-attributes-json,
+    "skills": $x.myth-skills-json, "styles": $x.myth-combat-styles-json,
+    "equipment": $x.myth-equipment-json, "hits": $x.myth-hit-locations-json,
+    "spells": $x.myth-spells-json, "extras": $x.myth-extras-json
+  };
+target_insert: |
+  insert $x isa myth-creature-template,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has myth-characteristics-json ?chars,
+    has myth-attributes-json ?attrs,
+    has myth-skills-json ?skills,
+    has myth-combat-styles-json ?styles,
+    has myth-equipment-json ?equipment,
+    has myth-hit-locations-json ?hits,
+    has myth-spells-json ?spells,
+    has myth-extras-json ?extras;

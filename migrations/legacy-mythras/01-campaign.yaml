@@ -1,0 +1,22 @@
+name: campaign
+description: Campaigns, re-parented from myth-collection onto alh-collection
+kind: entity
+identity: [id]
+notes: |
+  myth-system is dropped: 0 rows carry it.
+source_match: |
+  match $c isa myth-campaign, has id $i, has name $n, has created-at $ts;
+  fetch {
+    "id": $i, "name": $n, "ts": $ts,
+    "description": $c.description, "scene": $c.myth-current-scene,
+    "game_date": $c.myth-game-date, "session": $c.myth-session-number
+  };
+target_insert: |
+  insert $c isa myth-campaign,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has myth-current-scene ?scene,
+    has myth-game-date ?game_date,
+    has myth-session-number ?session;

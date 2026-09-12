@@ -168,12 +168,17 @@ def test_the_hook_and_the_cli_agree_on_the_database():
     into alhazen-core's database while the CLI read its own, so every query
     came back empty on a fresh machine."""
     src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
-    default = _re.search(r'TYPEDB_DATABASE = os\.getenv\("TYPEDB_DATABASE", "([^"]+)"\)', src).group(1)
+    db = _re.search(r'TYPEDB_DATABASE = os\.getenv\("TYPEDB_DATABASE", "([^"]+)"\)', src).group(1)
+    port = _re.search(r'TYPEDB_PORT = int\(os\.getenv\("TYPEDB_PORT", "([^"]+)"\)\)', src).group(1)
     hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
     cmd = hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-    assert 'export TYPEDB_DATABASE=' in cmd
-    assert default in cmd, f"hook does not export {default}"
-    assert (ROOT / "skills" / "mythras-gm" / ".standalone-db").exists()
+    assert 'export TYPEDB_DATABASE=' in cmd and db in cmd, f"hook does not export {db}"
+    assert 'export TYPEDB_PORT=' in cmd and port in cmd, f"hook does not export port {port}"
+    marker = (ROOT / "skills" / "mythras-gm" / ".standalone-db")
+    assert marker.exists() and db in marker.read_text()
+    # and the compose file must serve that port, or the hook points at nothing
+    compose = (ROOT / "docker-compose.yml").read_text()
+    assert f'"{port}:1729"' in compose, f"compose does not publish {port}"
 
 
 def test_the_hook_says_so_when_it_cannot_set_the_game_up():
@@ -225,3 +230,46 @@ def test_skill_yaml_version_is_in_step_too():
     sy = (ROOT / "skills" / "mythras-gm" / "skill.yaml").read_text()
     assert _re.search(r"^version:\s*" + _re.escape(plugin) + r"\s*$", sy, _re.M), \
         f"skill.yaml is not at {plugin}"
+
+
+# --- GLAV migration --------------------------------------------------------
+
+def test_migration_rules_parse_and_order():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "glav", ROOT / "scripts" / "glav_migrate.py")
+    glav = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(glav)
+
+    rules = glav.load_rules(ROOT / "migrations" / "legacy-mythras")
+    assert len(rules) == 16
+    ordered = glav.topological_sort(rules)
+    seen = set()
+    for r in ordered:
+        assert set(r.depends_on) <= seen, f"{r.name} runs before its dependencies"
+        seen.add(r.name)
+    # entities must all precede the membership relation that links them
+    names = [r.name for r in ordered]
+    assert names.index("campaign") < names.index("campaign_membership")
+    assert names.index("campaign_membership") < names.index("presence")
+
+
+def test_substitute_keeps_the_terminator_when_the_last_line_drops():
+    """Dropping a trailing optional attribute used to take the ';' with it,
+    which TypeDB rejects with a syntax error a long way from the cause."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "glav", ROOT / "scripts" / "glav_migrate.py")
+    glav = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(glav)
+
+    tmpl = "insert $x isa t,\n  has id $id,\n  has content ?content,\n  has session ?session;"
+    q = glav.substitute(tmpl, {"id": "abc"})          # both optionals absent
+    assert q.endswith(";") and ",;" not in q.replace("\n", "")
+    assert "?" not in q
+
+    # datetimes go in bare; quoting them is a type error
+    assert glav.format_value("2026-06-12T04:40:00.000000000") == "2026-06-12T04:40:00"
+    assert glav.format_value("just a string").startswith('"')
+    # type answers flatten to their label, for !raw substitution
+    assert glav.normalise({"label": "myth-character", "kind": "entity"}) == "myth-character"

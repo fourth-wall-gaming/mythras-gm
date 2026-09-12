@@ -1,0 +1,32 @@
+name: game_event_offscreen
+description: Journal events marked offscreen, with the marker preserved
+kind: entity
+depends_on: [campaign]
+notes: |
+  The current schema has no myth-event-visibility. "offscreen" is real
+  information about how a beat was resolved -- it says the party did not
+  witness it -- so rather than drop it, it is carried into the description
+  where a GM reading the journal will still see it.
+derive:
+  description_out: "[offscreen] {description}"
+source_match: |
+  match
+    $x isa myth-game-event, has id $i, has name $n, has created-at $ts,
+       has myth-event-visibility "offscreen";
+  fetch { "id": $i, "name": $n, "ts": $ts,
+          "description": $x.description, "content": $x.content,
+          "etype": $x.myth-event-type, "session": $x.myth-session-number };
+verify_match: |
+  match
+    $x isa myth-game-event, has id $i, has description $d;
+    $d like "^\\[offscreen\\].*";
+  fetch { "id": $i };
+target_insert: |
+  insert $x isa myth-game-event,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description_out,
+    has content ?content,
+    has myth-event-type ?etype,
+    has myth-session-number ?session;

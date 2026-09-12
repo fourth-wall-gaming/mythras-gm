@@ -1,0 +1,15 @@
+name: participation
+description: Who was in each encounter
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (combatant: $c, encounter: $e) isa myth-participation;
+    $c has id $cid; $e has id $eid;
+  fetch { "id": $cid, "cid": $cid, "eid": $eid };
+target_insert: |
+  match
+    $c isa myth-character, has id $cid;
+    $e isa myth-encounter, has id $eid;
+  insert (encounter: $e, combatant: $c) isa myth-participation;

@@ -1,0 +1,29 @@
+name: game_event_plain
+description: Journal events that are not marked offscreen
+kind: entity
+depends_on: [campaign]
+notes: |
+  myth-event-visibility "meta" is dropped here: all 5 events carrying it
+  already have myth-event-type "gm-note", which says the same thing in the
+  vocabulary the current schema uses.
+source_match: |
+  match
+    $x isa myth-game-event, has id $i, has name $n, has created-at $ts;
+    not { $x has myth-event-visibility "offscreen"; };
+  fetch { "id": $i, "name": $n, "ts": $ts,
+          "description": $x.description, "content": $x.content,
+          "etype": $x.myth-event-type, "session": $x.myth-session-number };
+verify_match: |
+  match
+    $x isa myth-game-event, has id $i;
+    not { $x has description $d; $d like "^\\[offscreen\\].*"; };
+  fetch { "id": $i };
+target_insert: |
+  insert $x isa myth-game-event,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has content ?content,
+    has myth-event-type ?etype,
+    has myth-session-number ?session;

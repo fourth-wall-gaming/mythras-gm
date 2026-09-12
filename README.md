@@ -202,14 +202,14 @@ base schema loaded.
 
 ```bash
 # environment (defaults shown)
-export TYPEDB_HOST=localhost TYPEDB_PORT=1729 TYPEDB_DATABASE=alh_mythras
+export TYPEDB_HOST=localhost TYPEDB_PORT=1730 TYPEDB_DATABASE=mythras
 
 # 1. load the myth- namespace schema
 python - <<'PY'
 from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
 driver = TypeDB.driver("localhost:1729", Credentials("admin","password"),
                        DriverOptions(is_tls_enabled=False))
-with driver.transaction("alh_mythras", TransactionType.SCHEMA) as tx:
+with driver.transaction("mythras", TransactionType.SCHEMA) as tx:
     tx.query(open("skills/mythras-gm/schema.tql").read()).resolve()
     tx.commit()
 PY

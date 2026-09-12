@@ -1,0 +1,16 @@
+name: presence
+description: Where each character and creature is standing
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (located: $x, location: $l) isa myth-presence;
+    $x isa! $xt, has id $xid;
+    $l has id $lid;
+  fetch { "id": $xid, "xid": $xid, "lid": $lid, "xt": $xt };
+target_insert: |
+  match
+    $x isa !xt, has id $xid;
+    $l isa myth-location, has id $lid;
+  insert (located: $x, location: $l) isa myth-presence;
