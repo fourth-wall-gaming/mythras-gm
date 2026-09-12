@@ -1,0 +1,3 @@
+# This skill owns its own TypeDB database (alh_mythras) and provisions it
+# from its own SessionStart hook. Skipped by skillful-alhazen's `make db-init`.
+alh_mythras

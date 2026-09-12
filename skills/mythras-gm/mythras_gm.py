@@ -105,7 +105,10 @@ except ImportError:
 
 TYPEDB_HOST = os.getenv("TYPEDB_HOST", "localhost")
 TYPEDB_PORT = int(os.getenv("TYPEDB_PORT", "1729"))
-TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alhazen_notebook")
+# One database per repo, per the alhazen convention: this repo owns
+# alh_mythras. The old shared "alhazen_notebook" is retired. Anything
+# still living there is reachable with TYPEDB_DATABASE=alhazen_notebook.
+TYPEDB_DATABASE = os.getenv("TYPEDB_DATABASE", "alh_mythras")
 TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
 

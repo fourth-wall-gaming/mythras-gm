@@ -153,3 +153,49 @@ def test_get_log_can_reach_the_narrative():
     sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
     dests = {a.dest for a in sub.choices["get-log"]._actions}
     assert {"full", "session", "limit", "type"} <= dests
+
+
+# --- packaging -------------------------------------------------------------
+
+import json as _json
+import re as _re
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_the_hook_and_the_cli_agree_on_the_database():
+    """The original clean-install failure: the hook loaded this skill's schema
+    into alhazen-core's database while the CLI read its own, so every query
+    came back empty on a fresh machine."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    default = _re.search(r'TYPEDB_DATABASE = os\.getenv\("TYPEDB_DATABASE", "([^"]+)"\)', src).group(1)
+    hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
+    cmd = hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    assert 'export TYPEDB_DATABASE=' in cmd
+    assert default in cmd, f"hook does not export {default}"
+    assert (ROOT / "skills" / "mythras-gm" / ".standalone-db").exists()
+
+
+def test_the_hook_says_so_when_it_cannot_set_the_game_up():
+    """It used to echo a note and exit 0 into a session with no schema."""
+    hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
+    cmd = hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    assert cmd.count("CANNOT run") >= 3, "each failure path must say the game cannot run"
+    for probe in ("init failed", "schema load failed", "not found"):
+        assert probe in cmd
+
+
+def test_versions_are_in_step():
+    plugin = _json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
+    pyproject = _re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        (ROOT / "skills" / "mythras-gm" / "pyproject.toml").read_text(), _re.M).group(1)
+    assert plugin == pyproject, f"plugin.json {plugin} != pyproject {pyproject}"
+
+
+def test_the_commands_exist_and_declare_themselves():
+    for name in ("play", "audit"):
+        p = ROOT / "commands" / f"{name}.md"
+        assert p.exists(), f"missing /mythras-gm:{name}"
+        assert p.read_text().startswith("---"), "command needs frontmatter"
+        assert "description:" in p.read_text()
