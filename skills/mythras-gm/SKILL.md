@@ -86,8 +86,20 @@ Every token you load is re-sent on every turn. Load the minimum:
   the event title and the narrative** -- the verbatim dialogue written with
   `log-event --narrative`, which nothing used to select and which was therefore
   unreachable through the CLI.
-- For a heavy one-off lookup, dispatch a subagent so the big result never lands
-  in play context.
+- **For a heavy one-off lookup, dispatch a subagent so the big result never
+  lands in play context.** Three exist, all read-only, all with bounded output:
+  - **`rules-lookup`** -- one ruling out of the faceted graph. Returns
+    RULING / BECAUSE / SOURCE, or `NOT FOUND` with what it tried.
+  - **`setting-lookup`** -- what is already canon about a place, faction or
+    custom, before you invent a second version of it at the table. Returns
+    ANSWER / CANON, or `NOT ESTABLISHED` with what an invention would have to
+    stay consistent with.
+  - **`recall`** -- what actually happened, with the verbatim lines, out of the
+    journal. Returns FOUND / VERBATIM / WHO KNOWS / SOURCE, or
+    `NOT IN THE JOURNAL`.
+
+  Each of them says so when it finds nothing, rather than returning an empty
+  success -- which is the failure that made them worth having.
 
 ## The world moves (agendas, clocks, beats)
 

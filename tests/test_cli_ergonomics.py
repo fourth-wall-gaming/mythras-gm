@@ -199,3 +199,29 @@ def test_the_commands_exist_and_declare_themselves():
         assert p.exists(), f"missing /mythras-gm:{name}"
         assert p.read_text().startswith("---"), "command needs frontmatter"
         assert "description:" in p.read_text()
+
+
+def test_retrieval_agents_are_flat_read_only_and_declare_a_miss():
+    """The deleted agents/gamemaster/ failed three ways: a nested shape that was
+    never discovered, write tools, and a second set of GM conduct rules that
+    contradicted TABLE.md. These must not repeat any of it."""
+    agents = sorted((ROOT / "agents").glob("*.md"))
+    assert {p.stem for p in agents} == {"rules-lookup", "setting-lookup", "recall"}
+    assert not list((ROOT / "agents").glob("*/*.md")), "agents must be flat files"
+    for p in agents:
+        body = p.read_text()
+        fm = body.split("---")[1]
+        assert _re.search(r"^name:\s*" + p.stem + r"\s*$", fm, _re.M)
+        tools = _re.search(r"^tools:\s*(.+)$", fm, _re.M).group(1)
+        assert "Write" not in tools and "Edit" not in tools
+        assert "NOT FOUND" in body or "NOT ESTABLISHED" in body or "NOT IN THE JOURNAL" in body, \
+            f"{p.stem} must have an explicit miss contract"
+        assert "Never write to the database" in body
+
+
+def test_skill_yaml_version_is_in_step_too():
+    """A third file carries the version; it drifted out of the earlier check."""
+    plugin = _json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
+    sy = (ROOT / "skills" / "mythras-gm" / "skill.yaml").read_text()
+    assert _re.search(r"^version:\s*" + _re.escape(plugin) + r"\s*$", sy, _re.M), \
+        f"skill.yaml is not at {plugin}"
