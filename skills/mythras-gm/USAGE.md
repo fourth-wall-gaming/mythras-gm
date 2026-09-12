@@ -33,6 +33,15 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
      every facet asked for.** An unknown dimension or value is an error that
      names the valid ones, rather than an empty result that reads like "no
      such rule".
+   - `sync-arc --file <arc.md> [--dry-run]` — reconcile the campaign's beats
+     to an arc document. **The document is the source of truth and the beats
+     are a projection of it**: an arc is a story, has to be rewritable in one
+     pass, and holding it as twenty separate rows means the connective tissue
+     lives nowhere. Entries are created or updated, entries you delete are
+     cancelled (never deleted — something may point at them), and anything
+     already `played` or `narrated` is left alone, because the past is not the
+     arc's to rewrite. Resolved ids are written back into the file so the next
+     sync matches on identity rather than on a title somebody has reworded.
    - `list-facets [--dim <d>]` — the facet vocabulary, so a query can be
      composed without guessing at spellings.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.

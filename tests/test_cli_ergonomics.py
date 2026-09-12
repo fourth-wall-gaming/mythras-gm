@@ -317,3 +317,55 @@ def test_a_branch_applies_before_the_cascade():
     i = src.index("def cmd_fire_beat(")
     body = src[i:src.index("\ndef ", i + 10)]
     assert body.index("_apply_branch(") < body.index("cascade = _cascade(")
+
+
+def test_the_arc_document_is_the_source_and_the_beats_are_a_projection():
+    """An arc is a story and has to be rewritable in one pass. Holding it as
+    eighteen separate beat rows meant the connective tissue lived nowhere and
+    re-dating one thing cost a round trip."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    assert "def cmd_sync_arc(" in src
+    assert "def _read_arc(" in src
+
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    assert "sync-arc" in sub.choices
+    dests = {a.dest for a in sub.choices["sync-arc"]._actions}
+    assert {"file", "campaign", "dry_run"} <= dests
+
+
+def test_sync_never_rewrites_the_past():
+    """Played and narrated beats are left alone: the past is not the arc's."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    i = src.index("def cmd_sync_arc(")
+    body = src[i:src.index("\ndef ", i + 10)]
+    assert '"played", "narrated"' in body
+    assert "skipped_played" in body
+    # dropped entries are cancelled, never deleted -- something may point at them
+    assert '"myth-beat-status", "cancelled"' in body
+    assert "delete" not in body.lower().replace("deleted", "")
+
+
+def test_arc_front_matter_parses(tmp_path):
+    import importlib
+    doc = tmp_path / "arc.md"
+    doc.write_text(
+        "---\n"
+        "campaign: myth-campaign-x\n"
+        "thread:\n"
+        "- when: d1/dawn\n"
+        "  title: A thing happens\n"
+        "---\n"
+        "# The prose starts here\n")
+    parsed, text, m = gm._read_arc(str(doc))
+    assert parsed["campaign"] == "myth-campaign-x"
+    assert parsed["thread"][0]["title"] == "A thing happens"
+    assert text[m.end():].startswith("# The prose")
+
+
+def test_arc_without_front_matter_is_rejected(tmp_path, capsys):
+    doc = tmp_path / "plain.md"
+    doc.write_text("# Just prose\n")
+    with pytest.raises(SystemExit):
+        gm._read_arc(str(doc))
+    assert "front matter" in capsys.readouterr().out

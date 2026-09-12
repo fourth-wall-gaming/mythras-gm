@@ -70,6 +70,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import re
 import sys
 
@@ -2344,6 +2345,153 @@ def cmd_timeline(args):
                     for r in rows for b in r["beats"] if b["pivot"]]})
 
 
+ARC_FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.S)
+
+
+def _read_arc(path):
+    """Parse an arc document: YAML front matter over prose.
+
+    The prose is the point -- an arc is a story and has to read like one. The
+    front matter is the slice of it the machine has to act on, so that `tick`
+    has times, places and casts to stage against. One file, rewritten in one
+    pass; the beats in the graph are a projection of it and never the source.
+    """
+    try:
+        import yaml
+    except ImportError:
+        fail("sync-arc needs pyyaml (uv add pyyaml, or run with --with pyyaml)")
+    text = pathlib.Path(path).read_text()
+    m = ARC_FRONTMATTER.match(text)
+    if not m:
+        fail(f"{path} has no YAML front matter")
+    doc = yaml.safe_load(m.group(1)) or {}
+    if "thread" not in doc:
+        fail(f"{path} front matter has no 'thread:' list")
+    return doc, text, m
+
+
+def cmd_sync_arc(args):
+    """Reconcile the campaign's beats to an arc document.
+
+    Beats present in the document are created or updated; beats the graph holds
+    that the document has dropped are cancelled rather than deleted, because
+    something may already point at them. Anything already played or narrated is
+    left alone -- the past is not the arc's to rewrite.
+
+    Every entry gets its resolved beat id written back into the file, so the
+    next sync matches on identity rather than on a title somebody has since
+    reworded.
+    """
+    doc, text, m = _read_arc(args.file)
+    entries = doc["thread"] or []
+    campaign = args.campaign or doc.get("campaign")
+    if not campaign:
+        fail("no --campaign, and the document's front matter does not name one")
+
+    plan = {"created": [], "updated": [], "unchanged": [], "cancelled": [],
+            "skipped_played": []}
+
+    with get_driver() as driver:
+        existing = {b["id"]: b for b in _campaign_beats(driver, campaign)}
+        in_doc = set()
+
+        for e in entries:
+            title = e.get("title")
+            if not title:
+                fail("every thread entry needs a title")
+            bid = e.get("id")
+            if bid and bid in existing:
+                in_doc.add(bid)
+                cur = existing[bid]
+                if cur["status"] in ("played", "narrated"):
+                    plan["skipped_played"].append({"id": bid, "title": title})
+                    continue
+                changes = {}
+                if e.get("when") and e["when"] != cur.get("when"):
+                    changes["when"] = e["when"]
+                if (e.get("summary") or "") != (cur.get("summary") or ""):
+                    changes["summary"] = e.get("summary")
+                want_status = e.get("status", "pending")
+                if want_status != cur.get("status"):
+                    changes["status"] = want_status
+                if not changes:
+                    plan["unchanged"].append({"id": bid, "title": title})
+                    continue
+                if not args.dry_run:
+                    if "when" in changes:
+                        try:
+                            idx = eng.parse_time_key(changes["when"])
+                        except ValueError as exc:
+                            fail(str(exc))
+                        _set_attr(driver, "myth-beat", bid, "myth-beat-when", changes["when"])
+                        _set_attr(driver, "myth-beat", bid, "myth-time-index", idx, quote=False)
+                    if "summary" in changes and changes["summary"] is not None:
+                        _set_attr(driver, "myth-beat", bid, "description", changes["summary"])
+                    if "status" in changes:
+                        _set_attr(driver, "myth-beat", bid, "myth-beat-status", changes["status"])
+                plan["updated"].append({"id": bid, "title": title,
+                                        "changed": sorted(changes)})
+                continue
+
+            # not in the graph yet
+            if args.dry_run:
+                plan["created"].append({"id": "(new)", "title": title,
+                                        "when": e.get("when")})
+                continue
+            bid = generate_id("myth-beat")
+            ts = get_timestamp()
+            try:
+                idx = eng.parse_time_key(e["when"])
+            except (KeyError, ValueError) as exc:
+                fail(f"{title}: {exc}")
+            q = (f'insert $b isa myth-beat, has id "{bid}", '
+                 f'has name "{escape_string(title)}", '
+                 f'has myth-beat-status "{escape_string(e.get("status", "pending"))}", '
+                 f'has myth-beat-trigger "time", '
+                 f'has myth-beat-when "{escape_string(e["when"])}", '
+                 f'has myth-time-index {idx}, has created-at {ts}')
+            if e.get("summary"):
+                q += f', has description "{escape_string(e["summary"])}"'
+            if e.get("onscreen_if"):
+                q += f', has myth-beat-onscreen-if "{escape_string(e["onscreen_if"])}"'
+            if e.get("branches"):
+                q += (', has myth-beat-branches-json '
+                      f'"{escape_string(json.dumps(e["branches"]))}"')
+            q += ";"
+            _write(driver, q)
+            _link_to_campaign(driver, campaign, bid, "myth-beat")
+            if e.get("agenda"):
+                _link_relation(driver, "myth-beat-of", "beat", "myth-beat", bid,
+                               "agenda", ["myth-agenda"], e["agenda"])
+            if e.get("at"):
+                _link_relation(driver, "myth-beat-at", "beat", "myth-beat", bid,
+                               "place", ["myth-location"], e["at"])
+            for cid in (e.get("cast") or []):
+                _link_relation(driver, "myth-beat-cast", "beat", "myth-beat", bid,
+                               "member", AGENDA_HOLDER_TYPES, cid)
+            e["id"] = bid
+            in_doc.add(bid)
+            plan["created"].append({"id": bid, "title": title, "when": e.get("when")})
+
+        # in the graph, dropped from the document
+        for bid, b in existing.items():
+            if bid in in_doc or b["status"] != "pending":
+                continue
+            plan["cancelled"].append({"id": bid, "title": b["title"]})
+            if not args.dry_run:
+                _set_attr(driver, "myth-beat", bid, "myth-beat-status", "cancelled")
+
+    if not args.dry_run:
+        # write the resolved ids back, so the next sync matches on identity
+        import yaml
+        head = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True,
+                              default_flow_style=False, width=100)
+        pathlib.Path(args.file).write_text(f"---\n{head}---\n" + text[m.end():])
+
+    plan["totals"] = {k: len(v) for k, v in plan.items() if isinstance(v, list)}
+    out({"success": True, "file": args.file, "dry_run": args.dry_run, **plan})
+
+
 def cmd_forecast(args):
     """The canonical thread: what happens if nobody interferes.
 
@@ -4032,6 +4180,13 @@ def build_parser():
                        help="Where the projection expects everybody to be, watch by watch")
     s.add_argument("--campaign", required=True)
     s.add_argument("--all", action="store_true", help="include past watches")
+
+    s = sub.add_parser("sync-arc",
+                       help="Reconcile the campaign's beats to an arc document")
+    s.add_argument("--file", required=True, help="the arc markdown file")
+    s.add_argument("--campaign")
+    s.add_argument("--dry-run", action="store_true",
+                   help="show the diff, change nothing")
 
     s = sub.add_parser("forecast",
                        help="The canonical thread: what happens if nobody interferes")
