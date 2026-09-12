@@ -140,12 +140,19 @@ def test_quoted_line_lengths_are_measured(tmp_path):
 
 def test_targets_cover_every_table_rule_with_a_number():
     # If a numeric rule is added to TABLE.md it needs a target here too.
+    #
+    # Two targets were retired when TABLE.md section 2.4 was inverted:
+    # "words_per_turn.median" (turn length now follows where the decision
+    # falls, so a median is not a thing to fail a session over) and
+    # "turns_ending_in_question" (a turn is now supposed to hand the floor
+    # back, and a question is one legitimate way to do that). What replaced
+    # the latter is turns_containing_invitation, which still catches the
+    # actual sin -- listing or ranking the player's options.
     assert set(va.TARGETS) == {
-        "words_per_turn.median",
         "words_per_turn.p90",
         "words_per_turn.over_400",
         "quoted_line_words.p90",
         "quoted_line_words.over_60",
-        "turns_ending_in_question",
+        "turns_containing_invitation",
         "banned_total",
     }

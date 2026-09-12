@@ -746,25 +746,83 @@ def cmd_roll(args):
     out({"success": True, **eng.roll_dice(args.dice)})
 
 
+def _norm_skill(s):
+    """Fold a skill name to comparable forms.
+
+    Returns (core, full): the name with parentheticals dropped, and the name
+    with the parentheses merely flattened. "Piety (Devotion)" gives
+    ("piety", "piety devotion") so that both "Piety" and "Piety (Devotion)"
+    find it. Combat styles here carry the whole weapon list in the name --
+    "Druid (club, dagger, dart, ...)" -- and nobody at a table retypes that.
+    """
+    s = s or ""
+    core = re.sub(r"\([^)]*\)", " ", s)
+    core = re.sub(r"[^a-z0-9 ]+", " ", core.lower())
+    full = re.sub(r"[^a-z0-9 ]+", " ", s.lower())
+    return " ".join(core.split()), " ".join(full.split())
+
+
+def _resolve_skill(char, skill_name):
+    """Find the character's entry for a skill, style or passion.
+
+    Matching, in order: exact, then normalised equality, then prefix in either
+    direction, then substring. Ambiguity is reported with the candidates rather
+    than guessed at -- silently rolling the wrong skill is worse than an error.
+    """
+    entries = []
+    for pool in ("myth-skills-json", "myth-combat-styles-json", "myth-passions-json"):
+        for k, v in (char.get(pool) or {}).items():
+            entries.append((k, v))
+
+    want = (skill_name or "").strip()
+    for k, v in entries:
+        if k.lower() == want.lower():
+            return k, v
+
+    qc, qf = _norm_skill(want)
+    if qc or qf:
+        qs = {x for x in (qc, qf) if x}
+
+        def forms(k):
+            c, f = _norm_skill(k)
+            return {x for x in (c, f) if x}
+
+        tests = (
+            lambda ks: bool(ks & qs),
+            # forward first: a longer key completing a shorter query. Reverse
+            # only after, or a bare core like "love" swallows every passion
+            # that starts with it.
+            lambda ks: any(k.startswith(q) for k in ks for q in qs),
+            lambda ks: any(q.startswith(k) for k in ks for q in qs),
+            lambda ks: any(q in k or k in q for k in ks for q in qs),
+        )
+        for test in tests:
+            hits = [(k, v) for k, v in entries if test(forms(k))]
+            if len(hits) == 1:
+                return hits[0]
+            if len(hits) > 1:
+                fail(f"'{skill_name}' is ambiguous on {char['name']}: "
+                     + ", ".join(sorted(k for k, _ in hits)))
+
+    fail(f"Character '{char['name']}' has no skill/style/passion '{skill_name}'. "
+         "Has: " + ", ".join(sorted(k for k, _ in entries)))
+
+
 def _skill_value(char, skill_name):
     """Look up a skill (or combat style, or passion) value on a character."""
-    for pool in ("myth-skills-json", "myth-combat-styles-json", "myth-passions-json"):
-        vals = char.get(pool) or {}
-        for k, v in vals.items():
-            if k.lower() == skill_name.lower():
-                return v
-    fail(f"Character '{char['name']}' has no skill/style/passion '{skill_name}'")
+    return _resolve_skill(char, skill_name)[1]
 
 
 def cmd_roll_skill(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
-    skill = _skill_value(c, args.skill)
+    name, skill = _resolve_skill(c, args.skill)
     if args.augment:
-        passion = _skill_value(c, args.augment)
+        _, passion = _resolve_skill(c, args.augment)
         skill += passion // 5  # +20% of passion value
     result = eng.skill_check(skill, args.difficulty)
-    out({"success": True, "character": c["name"], "skill_name": args.skill, **result})
+    out({"success": True, "character": c["name"], "skill_name": name,
+         "asked_for": args.skill if args.skill != name else None, **result})
 
 
 def cmd_roll_opposed(args):
@@ -1425,7 +1483,7 @@ def cmd_log_event(args):
     eid = generate_id("myth-event")
     ts = getattr(args, "at", None) or get_timestamp()
     q = f'''insert $e isa myth-game-event,
-        has id "{eid}", has name "{escape_string(args.summary[:80])}",
+        has id "{eid}", has name "{escape_string(getattr(args, 'title', None) or args.summary[:80])}",
         has description "{escape_string(args.summary)}",
         has myth-event-type "{escape_string(args.type)}",
         has created-at {ts}'''
@@ -3087,6 +3145,140 @@ def cmd_delete_campaign(args):
 # Argparse
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Flag ergonomics
+# ---------------------------------------------------------------------------
+# The CLI grew one command at a time and the flag names drifted: a fact is
+# --id in get-fact and --fact in who-knows; a location is --location in
+# move-character and --at in add-beat; and --at means an ISO timestamp in
+# log-event but a location id in list-beats. Rather than rename anything and
+# break the campaign package, every canonical flag gains the alias somebody
+# will actually reach for, and the alias is folded onto the canonical name
+# before dispatch.
+
+ALIASES = {
+    # command: {alias: canonical dest}
+    "get-character":     {"--character": "id"},
+    "update-character":  {"--character": "id"},
+    "brief":             {"--character": "id"},
+    "roll-skill":        {"--character": "id"},
+    "apply-damage":      {"--character": "id"},
+    "heal":              {"--character": "id"},
+    "move-character":    {"--character": "id", "--to": "location"},
+    "character-view":    {"--character": "id"},
+    "join-faction":      {"--character": "id"},
+    "get-fact":          {"--fact": "id"},
+    "establish-fact":    {"--fact": "id"},
+    "supersede-fact":    {"--fact": "id"},
+    "revise-fact":       {"--fact": "id"},
+    "get-agenda":        {"--agenda": "id"},
+    "advance-agenda":    {"--agenda": "id"},
+    "update-agenda":     {"--agenda": "id"},
+    "set-agenda-status": {"--agenda": "id"},
+    "revise-beat":       {"--beat": "id", "--place": "at"},
+    "fire-beat":         {"--beat": "id"},
+    "add-beat":          {"--place": "at"},
+    "list-beats":        {"--place": "at"},
+    "get-lore":          {"--lore": "id"},
+    "link-lore":         {"--lore": "id"},
+    "update-lore":       {"--lore": "id"},
+    "update-location":   {"--location": "id"},
+    "update-faction":    {"--faction": "id"},
+    "log-event":         {"--when": "at"},
+    "learn":             {"--character": "knower"},
+    "forget":            {"--character": "knower"},
+    "who-knows":         {"--id": "fact"},
+    "add-consequence":   {"--id": "fact"},
+    "require-fact":      {"--id": "fact"},
+    "tick":              {"--when": "to"},
+}
+
+# Commands that genuinely need a campaign. Held as a set rather than
+# required=True on each parser, so that inference gets a chance to run first.
+NEEDS_CAMPAIGN = {
+    "get-campaign", "set-scene", "update-campaign", "create-character",
+    "import-characters", "export-characters", "list-characters", "add-location",
+    "add-faction", "add-template", "spawn", "log-event", "add-lore", "list-lore",
+    "add-agenda", "list-agendas", "advance-agenda", "set-agenda-status",
+    "add-beat", "list-beats", "fire-beat", "tick", "add-fact", "list-facts",
+    "get-fact", "establish-fact", "who-knows", "character-view", "supersede-fact",
+    "cascade", "check-consistency", "get-log", "get-context", "export-campaign",
+    "delete-campaign", "start-encounter",
+}
+
+
+# Canonical flags relaxed from required=True because an alias may supply them.
+# main() enforces them again once aliases have been folded in.
+RELAXED_REQUIRED = {}
+
+
+def _install_aliases(sub):
+    """Add the alias flags, hidden from --help so the canonical name stays the
+    one people learn.
+
+    Adding an alias means the canonical flag can no longer be required by
+    argparse -- it would reject the call before the alias is ever read -- so
+    it is relaxed here and re-enforced after resolution.
+    """
+    for cmd, mapping in ALIASES.items():
+        parser = sub.choices.get(cmd)
+        if parser is None:
+            continue
+        existing = {o for a in parser._actions for o in a.option_strings}
+        for alias, canonical in mapping.items():
+            if alias in existing:
+                continue
+            parser.add_argument(alias, dest="_alias_" + canonical.replace("-", "_"),
+                                help=argparse.SUPPRESS)
+            for action in parser._actions:
+                if action.dest == canonical and action.required:
+                    action.required = False
+                    RELAXED_REQUIRED.setdefault(cmd, set()).add(canonical)
+
+
+def _resolve_aliases(args):
+    """Fold any alias value onto its canonical attribute, and complain if both
+    were given and disagree."""
+    for key in [k for k in vars(args) if k.startswith("_alias_")]:
+        canonical = key[len("_alias_"):]
+        val = getattr(args, key)
+        delattr(args, key)
+        if val is None:
+            continue
+        current = getattr(args, canonical, None)
+        if current is not None and current != val:
+            fail("--%s and its alias were both given and they disagree: %r vs %r"
+                 % (canonical, current, val))
+        setattr(args, canonical, val)
+
+
+CAMPAIGN_LIST_QUERY = (
+    "match $c isa myth-campaign, has id $i, has name $n; "
+    'fetch { "id": $i, "name": $n };'
+)
+
+
+def _resolve_campaign(args):
+    """Fill --campaign in from MYTH_CAMPAIGN, or from the only campaign there
+    is. A GM running one game should never have to type the id."""
+    if not hasattr(args, "campaign") or getattr(args, "campaign", None):
+        return
+    env = os.environ.get("MYTH_CAMPAIGN")
+    if env:
+        args.campaign = env
+        return
+    with get_driver() as driver:
+        rows = _fetch(driver, CAMPAIGN_LIST_QUERY)
+    if len(rows) == 1:
+        args.campaign = rows[0]["id"]
+        return
+    if not rows:
+        fail("--campaign is required and there are no campaigns yet")
+    listing = "; ".join("%s (%s)" % (r["id"], r["name"]) for r in rows)
+    fail("--campaign is required. Set MYTH_CAMPAIGN, or pass one of: " + listing)
+
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="mythras-gm",
                                 description="Mythras Imperative GM engine with TypeDB persistence")
@@ -3324,6 +3516,8 @@ def build_parser():
                    choices=["scene", "combat", "skill-roll", "decision",
                             "gm-note", "session-start", "session-end"])
     s.add_argument("--summary", required=True)
+    s.add_argument("--title", help="event name; defaults to the first 80 "
+                                   "characters of --summary")
     s.add_argument("--narrative")
     s.add_argument("--session", type=int)
     s.add_argument("--involves", help="comma-separated entity ids")
@@ -3638,6 +3832,13 @@ def build_parser():
     s.add_argument("--yes", action="store_true",
                    help="required; without it the command reports what would be lost and stops")
 
+    for name, parser_ in sub.choices.items():
+        if name not in NEEDS_CAMPAIGN:
+            continue
+        for action in parser_._actions:
+            if "--campaign" in action.option_strings:
+                action.required = False
+    _install_aliases(sub)
     return p
 
 
@@ -3647,6 +3848,14 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
+    _resolve_aliases(args)
+    for dest in RELAXED_REQUIRED.get(args.command, ()):
+        if getattr(args, dest, None) is None:
+            alternatives = " or ".join(sorted(
+                a for a, c in ALIASES.get(args.command, {}).items() if c == dest))
+            fail("%s needs --%s (or %s)" % (args.command, dest, alternatives))
+    if args.command in NEEDS_CAMPAIGN:
+        _resolve_campaign(args)
     fn = globals().get("cmd_" + args.command.replace("-", "_"))
     if fn is None:
         fail(f"Unknown command: {args.command}")
