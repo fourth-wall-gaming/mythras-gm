@@ -56,11 +56,17 @@ BANNED = [
     ("narrated-emotional-price",
      re.compile(r"\bit (?:costs?|cost) (?:him|her|them|\w+) something\b", re.I)),
     ("enumerated-preamble",
-     # "Two things." / "Three things, and the first one is the only one that
-     # matters." Counting points before making them. 25 hits across two
-     # sessions, in five different characters -- one narrator's lecture-shape
-     # wearing everybody's face.
-     re.compile(r"\b(?:two|three|four|five)\s+things\b", re.I)),
+     # "Two things." / "Two questions and then you can have mine." / "Three
+     # points, and the first is the only one that matters." Counting what is
+     # coming before delivering it. The noun varies -- things, questions,
+     # reasons, problems, points, parts, ways -- and swapping it does not make
+     # it a different habit, which is how it survived the first ban.
+     # ~32 hits across two sessions in five characters' mouths: one narrator's
+     # lecture-shape wearing everybody's face. "one of them" is excluded; that
+     # is ordinary narration.
+     re.compile(r"\b(?:two|three|four|five)\s+"
+                r"(?:things|questions|reasons|problems|points|parts|ways|rules)\b",
+                re.I)),
     ("question-flattery",
      re.compile(r"\b(?:nobody|no one|no-one)\s+(?:has\s+)?ever\s+asked\s+(?:me|us)\b", re.I)),
     ("being-difficult",
