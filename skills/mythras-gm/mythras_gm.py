@@ -2364,8 +2364,15 @@ def cmd_add_fact(args):
                                     fid, "origin", FACT_ORIGIN_TYPES, args.origin)
             if not origin:
                 fail(f"No beat or event with id '{args.origin}'")
+        learned = _ids(getattr(args, "learned_by", None))
+        if learned and args.status != "established":
+            fail("--learned-by needs --status established: nobody can know a "
+                 "fact that has not happened yet")
+        for kid in learned:
+            _write_knowledge(driver, kid, fid, args.certainty, args.source, time_index)
     out({"success": True, "id": fid, "status": args.status, "truth": args.truth,
-         "when": args.when, "about": about, "from": args.origin})
+         "when": args.when, "about": about, "from": args.origin,
+         "learned_by": learned})
 
 
 def cmd_list_facts(args):
@@ -2582,8 +2589,51 @@ def cmd_revise_fact(args):
     out({"success": True, "fact": fact})
 
 
+def _write_knowledge(driver, knower_id, fact_id, certainty, source, since):
+    """One edge per (knower, fact) -- replace rather than duplicate."""
+    ktype = None
+    for kt in KNOWER_TYPES:
+        if _fetch(driver, 'match $k isa %s, has id "%s"; fetch { "id": $k.id };'
+                  % (kt, escape_string(knower_id))):
+            ktype = kt
+            break
+    if not ktype:
+        fail("No character or faction with id '%s'" % knower_id)
+    _write(driver, '''
+        match
+          $k isa %s, has id "%s";
+          $f isa myth-fact, has id "%s";
+          $r isa myth-knows (knower: $k, fact: $f);
+        delete $r;''' % (ktype, escape_string(knower_id), escape_string(fact_id)))
+    q = ('match $k isa %s, has id "%s"; $f isa myth-fact, has id "%s"; '
+         'insert $r isa myth-knows (knower: $k, fact: $f), '
+         'has myth-knowledge-certainty "%s"'
+         % (ktype, escape_string(knower_id), escape_string(fact_id),
+            escape_string(certainty)))
+    if source:
+        q += ', has myth-knowledge-source "%s"' % escape_string(source)
+    if since is not None:
+        q += ", has myth-knowledge-since %d" % since
+    q += ";"
+    _write(driver, q)
+    return ktype
+
+
+def _ids(raw):
+    """Split a comma-separated id list. Writing one edge should not need a
+    shell loop -- that is how edges end up not written at all."""
+    return [x.strip() for x in (raw or "").split(",") if x.strip()]
+
+
 def cmd_learn(args):
-    """Record that someone learned something -- the knowledge edge."""
+    """Record that someone learned something -- the knowledge edge.
+
+    --knower takes a list, because tonight's session wrote five of these in a
+    shell loop and the sixth never got written at all.
+    """
+    knowers = _ids(args.knower)
+    if not knowers:
+        fail("--knower needs at least one character or faction id")
     with get_driver() as driver:
         f = _fact_record(driver, args.fact)
         if not f:
@@ -2597,36 +2647,12 @@ def cmd_learn(args):
                 since = eng.parse_time_key(args.at)
             except ValueError as e:
                 fail(str(e))
-        elif args.campaign:
+        elif getattr(args, "campaign", None):
             camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
             since = camp.get("myth-time-index") if camp else None
-        ktype = None
-        for kt in KNOWER_TYPES:
-            if _fetch(driver, f'''
-                    match $k isa {kt}, has id "{escape_string(args.knower)}";
-                    fetch {{ "id": $k.id }};'''):
-                ktype = kt
-                break
-        if not ktype:
-            fail(f"No character or faction with id '{args.knower}'")
-        # one edge per (knower, fact): replace rather than duplicate
-        _write(driver, f'''
-            match
-              $k isa {ktype}, has id "{escape_string(args.knower)}";
-              $f isa myth-fact, has id "{escape_string(args.fact)}";
-              $r isa myth-knows (knower: $k, fact: $f);
-            delete $r;''')
-        q = (f'match $k isa {ktype}, has id "{escape_string(args.knower)}"; '
-             f'$f isa myth-fact, has id "{escape_string(args.fact)}"; '
-             f'insert $r isa myth-knows (knower: $k, fact: $f), '
-             f'has myth-knowledge-certainty "{escape_string(args.certainty)}"')
-        if args.source:
-            q += f', has myth-knowledge-source "{escape_string(args.source)}"'
-        if since is not None:
-            q += f", has myth-knowledge-since {since}"
-        q += ";"
-        _write(driver, q)
-    out({"success": True, "knower": args.knower, "fact": args.fact,
+        for kid in knowers:
+            _write_knowledge(driver, kid, args.fact, args.certainty, args.source, since)
+    out({"success": True, "knowers": knowers, "fact": args.fact,
          "certainty": args.certainty, "source": args.source, "since": since})
 
 
@@ -2703,6 +2729,14 @@ def cmd_check_consistency(args):
             problems.append({"kind": "overdue-fact", "fact": f["id"],
                              "statement": f["statement"],
                              "detail": "due by the world clock but still not-yet-true"})
+    # An established fact nobody holds is usually a missed edge rather than a
+    # secret: the graph only knows what the GM remembered to write, and after
+    # a long scene that is not everything. Reported separately from problems,
+    # because GM-side truths that genuinely nobody has discovered are legal.
+    known_fact_ids = {e.get("fact") for e in edges}
+    unheld = [f for f in facts
+              if f["status"] == "established" and f["id"] not in known_fact_ids]
+
     beats = all_beats
     for f in eng.orphaned_futures(facts, beats):
         problems.append({"kind": "orphaned-future", "fact": f["id"],
@@ -2724,6 +2758,8 @@ def cmd_check_consistency(args):
         reqs, edges)
     out({"success": True, "facts": len(facts), "knowledge_edges": len(edges),
          "problems": problems, "ok": not problems,
+         "established_but_unheld": [{"id": f["id"], "statement": f["statement"]}
+                                    for f in unheld],
          "agendas_ready_to_activate": [{"id": a["id"], "title": a["title"]} for a in ready]})
 
 
@@ -3693,6 +3729,14 @@ def build_parser():
     s.add_argument("--origin", dest="origin",
                    help="id of the beat or event that produces it")
     s.add_argument("--narrative")
+    s.add_argument("--learned-by", dest="learned_by",
+                   help="comma-separated knower ids; only valid with "
+                        "--status established, since nobody can know a future")
+    s.add_argument("--certainty", default="knows",
+                   choices=["knows", "believes", "suspects", "wrong"],
+                   help="certainty for --learned-by")
+    s.add_argument("--source", choices=["witnessed", "told", "deduced", "rumor"],
+                   help="source for --learned-by")
 
     s = sub.add_parser("list-facts", help="The fact graph: what is true, and who knows")
     s.add_argument("--campaign", required=True)
@@ -3711,6 +3755,15 @@ def build_parser():
     s.add_argument("--campaign", help="run the consequence cascade after establishing")
     s.add_argument("--when", required=True, help="time key it became true")
     s.add_argument("--truth", choices=["true", "false", "partial"])
+    s.add_argument("--learned-by", dest="learned_by",
+                   help="comma-separated knower ids who learn this the moment "
+                        "it becomes true -- the edge belongs in this call, not "
+                        "a later one")
+    s.add_argument("--certainty", default="knows",
+                   choices=["knows", "believes", "suspects", "wrong"],
+                   help="certainty for --learned-by")
+    s.add_argument("--source", choices=["witnessed", "told", "deduced", "rumor"],
+                   help="source for --learned-by")
 
     s = sub.add_parser("revise-fact",
                        help="Correct a fact's wording, truth or subjects (keeps its id)")
@@ -3723,7 +3776,8 @@ def build_parser():
     s.add_argument("--about", help="replacement comma-separated subject ids")
 
     s = sub.add_parser("learn", help="Record that someone learned something")
-    s.add_argument("--knower", required=True, help="character or faction id")
+    s.add_argument("--knower", required=True,
+                   help="character or faction id, or a comma-separated list")
     s.add_argument("--fact", required=True)
     s.add_argument("--certainty", default="knows",
                    choices=["knows", "believes", "suspects", "wrong"])

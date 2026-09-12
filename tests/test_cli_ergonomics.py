@@ -92,3 +92,39 @@ def test_relaxed_flags_are_re_enforced():
     """Adding an alias un-requires the canonical flag; it must be enforced later."""
     gm.build_parser()
     assert "id" in gm.RELAXED_REQUIRED.get("brief", set())
+
+
+def test_ids_splits_a_list():
+    assert gm._ids("a, b ,c") == ["a", "b", "c"]
+    assert gm._ids("") == []
+    assert gm._ids(None) == []
+    assert gm._ids("solo") == ["solo"]
+
+
+def test_learn_takes_a_list_of_knowers():
+    """Writing one edge should not need a shell loop -- that is how the sixth
+    edge ends up not written at all."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    args = sub.choices["learn"].parse_args(["--knower", "a,b,c", "--fact", "f"])
+    assert gm._ids(args.knower) == ["a", "b", "c"]
+
+
+@pytest.mark.parametrize("cmd", ["add-fact", "establish-fact"])
+def test_fact_commands_can_write_the_edge_in_the_same_call(cmd):
+    """The edge belongs in the call that lands the fact, not a later one."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    dests = {a.dest for a in sub.choices[cmd]._actions}
+    assert "learned_by" in dests
+    assert "certainty" in dests
+    assert "source" in dests
+
+
+def test_known_by_is_still_a_filter_not_a_writer():
+    """list-facts --known-by filters; the writer is --learned-by. Two flags,
+    two meanings, deliberately not the same word."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    assert "known_by" in {a.dest for a in sub.choices["list-facts"]._actions}
+    assert "learned_by" not in {a.dest for a in sub.choices["list-facts"]._actions}

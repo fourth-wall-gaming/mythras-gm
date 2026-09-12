@@ -545,6 +545,15 @@ NPC-versus-NPC, where nobody is being asked anything.
 - **Write the knowledge edge in the same beat you narrate the learning**, with
   the right `--source` and `--certainty`. `believes` and `suspects` are not
   decoration — a character acting on a false or partial belief is the good stuff.
+- **Write it in the same *call*, not just the same beat.** `add-fact` and
+  `establish-fact` both take `--learned-by`, and `learn --knower` takes a
+  comma-separated list. A separate call made later is a call made at the moment
+  of least context, which is how a campaign ends up with facts the whole city
+  is shouting about and nobody in the graph holds.
+- **`check-consistency` reports `established_but_unheld`.** Run it at the end of
+  a session. Some of those are legitimately secret; most are edges you forgot.
+  Two sessions of play left seven of forty-two established facts unheld,
+  including who killed Emmeralda.
 - **Facts carry situation. Prose carries character.** Never write "what has
   happened" into a character sheet's narrative; it cannot be reconciled and it
   will be wrong the moment play diverges.
