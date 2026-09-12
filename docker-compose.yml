@@ -1,0 +1,36 @@
+# The Mythras game server.
+#
+# This product keeps its own TypeDB, separate from the Alhazen stack on 1729,
+# because the campaign data is the save file for a game and has no business
+# sharing a lifecycle with a research notebook.
+#
+#   docker compose up -d          start it
+#   docker compose ps             check it
+#
+# The container already existed on this machine but was created by hand with
+# restart: no and no compose file, so it did not survive a reboot and there was
+# no documented way to bring it back. That is how a live campaign ended up
+# orphaned on the Alhazen server. Hence: restart unless-stopped, and this file.
+#
+# The named volume is the one the hand-made container was already using, so
+# bringing this up adopts the existing data rather than starting empty.
+
+services:
+  typedb:
+    image: typedb/typedb:3.8.0
+    container_name: mythras-typedb
+    restart: unless-stopped
+    ports:
+      - "1730:1729"
+    volumes:
+      - mythras-typedb-data:/var/lib/typedb/data
+    healthcheck:
+      test: ["CMD-SHELL", "typedb server status || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  mythras-typedb-data:
+    external: true
