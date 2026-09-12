@@ -55,6 +55,12 @@ BANNED = [
                 r"lets? the silence do the work)\b", re.I)),
     ("narrated-emotional-price",
      re.compile(r"\bit (?:costs?|cost) (?:him|her|them|\w+) something\b", re.I)),
+    ("enumerated-preamble",
+     # "Two things." / "Three things, and the first one is the only one that
+     # matters." Counting points before making them. 25 hits across two
+     # sessions, in five different characters -- one narrator's lecture-shape
+     # wearing everybody's face.
+     re.compile(r"\b(?:two|three|four|five)\s+things\b", re.I)),
     ("question-flattery",
      re.compile(r"\b(?:nobody|no one|no-one)\s+(?:has\s+)?ever\s+asked\s+(?:me|us)\b", re.I)),
     ("being-difficult",

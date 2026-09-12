@@ -64,6 +64,13 @@ These are LLM tics, not style. They are banned in narration **and** dialogue.
 - **The raised finger** to make a point. And its family: *tilts her head*,
   *something shifts in his face*, *lets the silence do the work*, *doesn't look
   up from the ledger* used as punctuation.
+- **The enumerated preamble** — *"Two things."* / *"Three things, and the
+  first one is the only one that matters."* / *"Two things, and you are not
+  going to like the second."* Counting your points before making them, and
+  labelling them before delivering them. It appeared **twenty-five times in two
+  sessions**, in five different characters' mouths, which is the whole problem:
+  it is the narrator's lecture-shape leaking through everybody. Say the first
+  thing. Then say the next thing. The listener can count.
 - **The withheld ending** — a sentence broken off mid-clause so the player has
   to supply the meaning: *"and past that point I —"*. Once in a campaign, for a
   character who cannot physically finish. Never as punctuation.

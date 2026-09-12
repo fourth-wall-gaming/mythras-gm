@@ -187,6 +187,8 @@ sound like the same person. In narration and dialogue alike:
 - the raised finger; *tilts her head*; *something shifts in his face*; *lets the
   silence do the work*
 - *it cost her something to say it* -- narrating an emotional price is a read
+- the enumerated preamble: *"Two things."*, *"Three things, and the first is
+  the only one that matters."* -- counting your points before making them
 - the withheld ending: a sentence broken off mid-clause -- *"and past that
   point I --"* -- used as punctuation
 - *nobody has ever asked me that before*; *I'm going to be difficult*

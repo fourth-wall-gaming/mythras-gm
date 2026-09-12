@@ -131,6 +131,8 @@ character sound like the same person:
 - *it cost her something to say it*, and every narrated emotional price
 - *nobody has ever asked me that before*
 - *I'm going to be difficult*
+- the enumerated preamble — *"Two things."*, *"Three things, and you are not
+  going to like the second."* Say the first thing, then the next one
 - the withheld ending — a sentence broken off mid-clause so the player has to
   supply the meaning: *"and past that point I —"*
 
