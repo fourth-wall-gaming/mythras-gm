@@ -27,10 +27,15 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
    doesn't fully encode, fetch only the relevant pieces from the rules graph:
    - `list-rules` — the lean index (id/title/domain/topic/kind) for orientation;
      add `--facets` for the tag lists (heavier) or `--category <domain>` to narrow.
-   - `query-rules --facet dim=value [--facet ...] [--linked]` — the live fetch,
-     ranked by how many of the situation's facets a rule matches.
+   - `query-rules --facet dim=value [--facet ...] [--match any|all] [--linked]`
+     — the live fetch. **`any` (the default) returns rules matching at least
+     one facet, ranked by how many they hit; `all` returns only rules carrying
+     every facet asked for.** An unknown dimension or value is an error that
+     names the valid ones, rather than an empty result that reads like "no
+     such rule".
+   - `list-facets [--dim <d>]` — the facet vocabulary, so a query can be
+     composed without guessing at spellings.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
-   (See **Rules Graph** below for the facet vocabulary.)
 4. **`tick --campaign <id> --to "<time key>"`** before each new scene — advance
    the world clock and see what the NPCs did while the party was elsewhere.
    (See **Living World** below.)

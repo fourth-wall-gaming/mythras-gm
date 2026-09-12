@@ -1515,6 +1515,13 @@ def cmd_log_event(args):
 
 
 def cmd_get_log(args):
+    """The journal.
+
+    --full adds the event name and the narrative. The narrative is the field
+    log-event writes with --narrative, and until now nothing selected it, so
+    verbatim dialogue written into the journal was unreachable through the CLI
+    -- which rather defeated the point of writing it down.
+    """
     with get_driver() as driver:
         rows = _fetch(driver, f'''
             match
@@ -1523,12 +1530,31 @@ def cmd_get_log(args):
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
-    events = sorted(rows, key=lambda r: str(r["at"]))
-    if args.type:
-        events = [e for e in events if e["type"] == args.type]
-    limit = getattr(args, "limit", None)
-    if limit and limit > 0:
-        events = events[-limit:]
+        events = sorted(rows, key=lambda r: str(r["at"]))
+        if args.type:
+            events = [e for e in events if e["type"] == args.type]
+        limit = getattr(args, "limit", None)
+        if limit and limit > 0:
+            events = events[-limit:]
+        want_session = getattr(args, "session", None)
+        if want_session is not None or getattr(args, "full", False):
+            # content and session are optional, so they are fetched per event
+            # rather than matched -- a missing optional attribute in the match
+            # would drop the whole row.
+            for e in events:
+                extra = _get_entity(driver, "myth-game-event", e["id"],
+                                    ["content", "myth-session-number"])
+                if extra:
+                    e["title"] = extra.get("name")
+                    e["narrative"] = extra.get("content")
+                    e["session"] = extra.get("myth-session-number")
+        if want_session is not None:
+            # --session was declared from the start and never read. It filters.
+            events = [e for e in events if e.get("session") == want_session]
+            if not getattr(args, "full", False):
+                for e in events:
+                    e.pop("title", None)
+                    e.pop("narrative", None)
     out({"success": True, "events": events})
 
 
@@ -2948,6 +2974,35 @@ def cmd_get_rule(args):
     out({"success": True, "rule": r})
 
 
+def _facet_vocabulary(driver):
+    """Every facet dimension in the rules graph and the values it takes."""
+    vocab = {}
+    for row in _fetch(driver, 'match $f isa myth-rule-facet, has myth-facet-dim $d, '
+                              'has name $v; fetch { "dim": $d, "value": $v };'):
+        vocab.setdefault(row["dim"], set()).add(row["value"])
+    return {d: sorted(vs) for d, vs in sorted(vocab.items())}
+
+
+def cmd_list_facets(args):
+    """The facet vocabulary, so a query can be composed without guessing.
+
+    query-rules used to accept any dim=value at all: an unknown facet simply
+    matched nothing and the call returned success with an empty list, which
+    reads exactly like "no such rule exists" and is how `effect=bypass-armour`
+    (with a u) looked like a settled question for a while.
+    """
+    with get_driver() as driver:
+        vocab = _facet_vocabulary(driver)
+    if getattr(args, "dim", None):
+        if args.dim not in vocab:
+            fail("No facet dimension '%s'. Dimensions: %s"
+                 % (args.dim, ", ".join(vocab)))
+        out({"success": True, "dim": args.dim, "values": vocab[args.dim]})
+    out({"success": True,
+         "dimensions": {d: len(v) for d, v in vocab.items()},
+         "facets": vocab})
+
+
 def cmd_query_rules(args):
     """Live faceted fetch: pass --facet dim=value (repeatable). Rules matching
     more of the situation's facets rank first; --linked adds one link hop."""
@@ -2961,6 +3016,18 @@ def cmd_query_rules(args):
         fail("Provide at least one --facet dim=value")
 
     with get_driver() as driver:
+        # An unknown dim or value used to match nothing and return success,
+        # which is indistinguishable from "there is no such rule". Check the
+        # vocabulary first and say which half was wrong.
+        vocab = _facet_vocabulary(driver)
+        for dim, value in wanted:
+            if dim not in vocab:
+                fail("No facet dimension '%s'. Dimensions: %s"
+                     % (dim, ", ".join(vocab)))
+            if value not in vocab[dim]:
+                fail("No value '%s' in facet dimension '%s'. Values: %s"
+                     % (value, dim, ", ".join(vocab[dim])))
+
         scores = {}
         for dim, value in wanted:
             for row in _fetch(driver, f'''
@@ -2972,6 +3039,11 @@ def cmd_query_rules(args):
                     fetch {{ "id": $i }};'''):
                 scores[row["id"]] = scores.get(row["id"], 0) + 1
 
+        # Matching is ANY by default, ranked by how many facets a rule hits --
+        # which is what the code has always done, whatever the docs said.
+        # --match all narrows it to rules carrying every facet asked for.
+        if getattr(args, "match", "any") == "all":
+            scores = {rid: n for rid, n in scores.items() if n == len(wanted)}
         ranked = sorted(scores.items(), key=lambda kv: -kv[1])
         if args.limit and args.limit > 0:
             ranked = ranked[:args.limit]
@@ -3000,6 +3072,7 @@ def cmd_query_rules(args):
                             linked.append(full)
 
     out({"success": True, "facets": [f"{d}={v}" for d, v in wanted],
+         "match": getattr(args, "match", "any"),
          "count": len(results), "rules": results, "linked": linked})
 
 
@@ -3846,6 +3919,10 @@ def build_parser():
     s.add_argument("--linked", action="store_true",
                    help="also return one hop of linked rule pieces")
 
+    s = sub.add_parser("list-facets",
+                       help="The facet vocabulary: every dimension and its values")
+    s.add_argument("--dim", help="just this dimension's values")
+
     s = sub.add_parser("query-rules",
                        help="Live faceted fetch: --facet dim=value (repeatable)")
     s.add_argument("--facet", action="append",
@@ -3854,6 +3931,10 @@ def build_parser():
                    help="append one hop of myth-rule-link neighbours")
     s.add_argument("--limit", type=int, default=0,
                    help="cap the number of ranked rules returned (0 = all)")
+    s.add_argument("--match", choices=["any", "all"], default="any",
+                   help="any (default): rules matching at least one facet, "
+                        "ranked by how many they hit. all: only rules "
+                        "carrying every facet asked for")
 
     s = sub.add_parser("get-log")
     s.add_argument("--campaign", required=True)
@@ -3861,6 +3942,9 @@ def build_parser():
     s.add_argument("--type")
     s.add_argument("--limit", type=int, default=15,
                    help="Return only the last N events (default 15; 0 = all)")
+    s.add_argument("--full", action="store_true",
+                   help="include the event name and the narrative "
+                        "(verbatim dialogue), not just the summary")
 
     s = sub.add_parser("get-context")
     s.add_argument("--campaign", required=True)

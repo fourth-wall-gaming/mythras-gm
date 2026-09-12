@@ -128,3 +128,28 @@ def test_known_by_is_still_a_filter_not_a_writer():
     sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
     assert "known_by" in {a.dest for a in sub.choices["list-facts"]._actions}
     assert "learned_by" not in {a.dest for a in sub.choices["list-facts"]._actions}
+
+
+def test_query_rules_has_an_explicit_match_mode():
+    """The docs promised AND while the code did OR. Now it is a flag."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    action = [a for a in sub.choices["query-rules"]._actions if a.dest == "match"][0]
+    assert action.default == "any"
+    assert set(action.choices) == {"any", "all"}
+
+
+def test_list_facets_exists_so_a_query_need_not_guess():
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    assert "list-facets" in sub.choices
+    assert hasattr(gm, "cmd_list_facets")
+    assert hasattr(gm, "_facet_vocabulary")
+
+
+def test_get_log_can_reach_the_narrative():
+    """log-event --narrative was write-only until --full existed."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    dests = {a.dest for a in sub.choices["get-log"]._actions}
+    assert {"full", "session", "limit", "type"} <= dests

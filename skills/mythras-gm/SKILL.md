@@ -69,15 +69,23 @@ Every token you load is re-sent on every turn. Load the minimum:
     skim once if needed. Prefer `query-rules` over loading this; add `--facets`
     only if you actually need the tag lists (heavier), or `--category <domain>`
     to narrow it.
-  - `query-rules --facet dim=value [--facet ...] [--linked]` -- the live fetch.
-    Dims: `phase action effect weapon trigger body severity condition
-    magic-system stat kind`. A rule matching more facets ranks first; `--linked`
-    appends one hop of related pieces.
+  - `query-rules --facet dim=value [--facet ...] [--match any|all] [--linked]`
+    -- the live fetch. Dims: `phase action effect weapon trigger body severity
+    condition magic-system stat kind`. **Matching is `any` by default**, ranked
+    by how many facets a rule hits; `--match all` requires every one.
+    `--linked` appends one hop of related pieces. A misspelt dim or value is an
+    error naming the valid ones -- `effect=bypass-armour` used to return an
+    empty success, which reads exactly like a settled question.
+  - `list-facets [--dim <d>]` -- the vocabulary, when you are not sure of a
+    spelling.
   - `get-rule --id <domain>/<slug> [--linked]` -- one specific piece.
   - e.g. impaling wingspear into a flying foe's wing:
     `query-rules --facet effect=impale --facet condition=flying --facet body=avian --linked`
-- **`get-log --campaign <id> --limit N`** when you need more history than the
-  recent events in context (default 15).
+- **`get-log --campaign <id> --limit N [--session N] [--full]`** when you need
+  more history than the recent events in context (default 15). **`--full` adds
+  the event title and the narrative** -- the verbatim dialogue written with
+  `log-event --narrative`, which nothing used to select and which was therefore
+  unreachable through the CLI.
 - For a heavy one-off lookup, dispatch a subagent so the big result never lands
   in play context.
 
