@@ -2201,6 +2201,81 @@ def cmd_fire_beat(args):
          "cascade": cascade})
 
 
+def cmd_forecast(args):
+    """The canonical thread: what happens if nobody interferes.
+
+    Every pending beat on a live agenda, in time order, ending in whatever the
+    world arrives at on its own. This is the campaign's default future -- the
+    version where the party does nothing and the people with plans carry them
+    out.
+
+    It exists to make the living world cheap to run. Simulating twenty agendas
+    every watch is how a session turns into administration; authoring the
+    default once and then playing only the DEVIATIONS from it costs almost
+    nothing per scene. The forecast is what you deviate from.
+
+    It is emphatically NOT a plot. A beat is an attempt, and attempts are
+    rolled. `revise-beat` and `cascade` exist precisely so this changes the
+    moment play makes it stale -- a forecast that survives contact with the
+    players unchanged was never a forecast, it was a rail.
+
+    `silent` lists live agendas with nothing scheduled. Those are the holes in
+    the thread: somebody wants something and the world has no idea what they
+    are going to do about it, which is how a character stops existing without
+    anybody noticing.
+    """
+    with get_driver() as driver:
+        camp = _get_entity(driver, "myth-campaign", args.campaign,
+                           ["myth-time-index", "myth-game-date"])
+        if not camp:
+            fail(f"No campaign '{args.campaign}'")
+        now = camp.get("myth-time-index")
+        agendas = _campaign_agendas(driver, args.campaign)
+        beats = _campaign_beats(driver, args.campaign)
+        pc_ids, pc_places = _pc_presence(driver, args.campaign)
+
+    live = {a["id"]: a for a in agendas if a["status"] in ("active", "pending")}
+    pending = [b for b in beats
+               if b["status"] == "pending"
+               and (b["agenda"] is None or b["agenda"] in live)]
+    if not args.all and now is not None:
+        pending = [b for b in pending
+                   if b.get("time_index") is None or b["time_index"] >= now]
+    pending.sort(key=lambda b: (b.get("time_index") is None,
+                                b.get("time_index") or 0,
+                                -(b.get("priority") or 0)))
+
+    thread = []
+    for b in pending:
+        agenda = live.get(b["agenda"]) or {}
+        thread.append({
+            "when": b.get("when"), "time_index": b.get("time_index"),
+            "id": b["id"], "title": b["title"],
+            "agenda": agenda.get("title"),
+            "holder": (agenda.get("holder") or {}).get("name"),
+            "place": b.get("place_name"),
+            "cast": b.get("cast_names"),
+            "staging": eng.beat_staging(b, pc_places, pc_ids),
+            "summary": b.get("summary"),
+        })
+
+    scheduled = {b["agenda"] for b in beats if b["status"] == "pending"}
+    silent = [{"id": a["id"], "title": a["title"],
+               "holder": (a.get("holder") or {}).get("name"),
+               "clock": a.get("clock"), "goal": a.get("goal")}
+              for a in agendas
+              if a["id"] in live and a["id"] not in scheduled]
+
+    out({"success": True,
+         "now": eng.format_time_key(now) if now is not None else None,
+         "time_index": now,
+         "horizon": thread[-1]["when"] if thread else None,
+         "beats": len(thread),
+         "thread": thread,
+         "silent_agendas": silent,
+         "silent_count": len(silent)})
+
+
 def cmd_tick(args):
     """Advance world time and report what has come due, staged against the PCs.
 
@@ -2248,6 +2323,18 @@ def cmd_tick(args):
         for b in due:
             b["staging"] = eng.beat_staging(b, pc_places, pc_ids)
 
+        # An active agenda with nothing scheduled is indistinguishable from one
+        # being pursued, so a character can quietly stop existing while their
+        # agenda still reads "active". That is exactly how a GM-run PC went
+        # eight watches without acting. Report them; do not guess for them.
+        scheduled = {b["agenda"] for b in _campaign_beats(driver, args.campaign)
+                     if b["status"] == "pending"}
+        silent = [{"id": a["id"], "title": a["title"],
+                   "holder": (a.get("holder") or {}).get("name"),
+                   "clock": a.get("clock")}
+                  for a in agendas
+                  if a["id"] in active and a["id"] not in scheduled]
+
     out({"success": True,
          "from": eng.format_time_key(was) if was is not None else None,
          "now": args.to, "time_index": now,
@@ -2257,7 +2344,8 @@ def cmd_tick(args):
          "pc_locations": pc_places,
          "due_beats": due,
          "onscreen": [b["id"] for b in due if b["staging"] == "onscreen"],
-         "offscreen": [b["id"] for b in due if b["staging"] == "offscreen"]})
+         "offscreen": [b["id"] for b in due if b["staging"] == "offscreen"],
+         "silent_agendas": silent})
 
 
 # ---------------------------------------------------------------------------
@@ -3783,6 +3871,12 @@ def build_parser():
                    help="comma-separated ids who saw it and now know its facts")
     s.add_argument("--no-facts", dest="no_facts", action="store_true",
                    help="do not establish or retire this beat's facts")
+
+    s = sub.add_parser("forecast",
+                       help="The canonical thread: what happens if nobody interferes")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--all", action="store_true",
+                   help="include beats already in the past")
 
     s = sub.add_parser("tick",
                        help="Advance world time; report what came due, onscreen or off")

@@ -273,3 +273,20 @@ def test_substitute_keeps_the_terminator_when_the_last_line_drops():
     assert glav.format_value("just a string").startswith('"')
     # type answers flatten to their label, for !raw substitution
     assert glav.normalise({"label": "myth-character", "kind": "entity"}) == "myth-character"
+
+
+def test_tick_and_forecast_report_silent_agendas():
+    """An active agenda with no pending beat is indistinguishable from one
+    being pursued, so a character can quietly stop existing while their agenda
+    still reads 'active'. A GM-run PC went eight watches without acting that
+    way before anything reported it."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    # once in cmd_tick's output, once in cmd_forecast's
+    assert src.count('"silent_agendas"') == 2, "tick and forecast must both report it"
+    assert "def cmd_forecast(" in src
+
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    assert "forecast" in sub.choices
+    dests = {a.dest for a in sub.choices["forecast"]._actions}
+    assert {"campaign", "all"} <= dests
