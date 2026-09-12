@@ -76,6 +76,51 @@ MECH_BLOCK = re.compile(r"^>\s*⟦.*?⟧\s*$", re.M)
 QUOTED = re.compile(r"[“\"]([^”\"]{2,})[”\"]")
 
 
+# --- shoe leather ----------------------------------------------------------
+#
+# Film calls the connective tissue between scenes shoe leather: the walk across
+# the lobby, the parking, the greeting, the hello and goodbye on a phone call.
+# TABLE.md section 2a says when to cut it -- when nothing is at risk and nobody
+# is exposed -- and that judgement is the GM's and cannot be counted.
+#
+# So this is NOT a score. It is a flag list: here are the places you narrated
+# an arrival, a greeting, a departure; go and look at them and decide whether
+# each one earned its place. A regex cannot know whether the gate toll mattered.
+# It can only say that you narrated eleven arrivals.
+
+SHOE = [
+    ("transit",
+     # Going somewhere, with nothing happening on the way. Deliberately narrow:
+     # "you cross the floor" in a room with a monster in it is a scene, not
+     # transit, so crossing has to be crossing something you travel over, and
+     # a walk has to be one that "takes" time.
+     re.compile(r"\byou (?:make your way|set off|head (?:back|off|out|over)\b)"
+                r"|\byou (?:walk|row|ride|cross) (?:back )?(?:to|towards?|over to|up to) the\b"
+                r"|\bthe (?:walk|crossing|row|ride|journey) (?:takes|took) \w+", re.I)),
+    ("threshold",
+     # Arriving and being admitted, before the scene's question is live.
+     re.compile(r"\byou arrive at\b|\byou are shown (?:in|up|through)\b"
+                r"|\byou knock\b|\byou (?:push|shoulder) (?:the door )?open\b", re.I)),
+    ("greeting",
+     re.compile(r"[\u201c\"](?:hello|good (?:morning|evening|day)|welcome"
+                r"|can i help you|what can i do for you)\b", re.I)),
+    ("leave-taking",
+     re.compile(r"[\u201c\"](?:goodbye|good night|farewell|safe travels"
+                r"|i'?ll see you|see you (?:then|later|tomorrow))\b", re.I)),
+]
+
+
+def shoe_leather(turns_text):
+    """Flag connective tissue, with the turn it appears in. Not a verdict."""
+    found = {label: [] for label, _ in SHOE}
+    for i, prose in enumerate(turns_text, start=1):
+        for label, pat in SHOE:
+            for m in pat.finditer(prose):
+                snip = prose[max(0, m.start() - 30):m.end() + 40].replace("\n", " ")
+                found[label].append({"turn": i, "text": snip.strip()})
+    return found
+
+
 def strip_noise(text: str) -> str:
     """Remove anything that is not table prose."""
     text = FENCE.sub("", text)
@@ -97,6 +142,7 @@ def turns(path: Path):
 def audit(path: Path) -> dict:
     hits = {label: [] for label, _ in BANNED}
     words, trailing, invitations, quoted_lens = [], 0, 0, []
+    prose_turns = []
     n = 0
 
     for body in turns(path):
@@ -104,6 +150,7 @@ def audit(path: Path) -> dict:
         if not prose.strip():
             continue
         n += 1
+        prose_turns.append(prose)
         w = len(prose.split())
         words.append(w)
 
@@ -120,6 +167,8 @@ def audit(path: Path) -> dict:
 
         for q in QUOTED.findall(prose):
             quoted_lens.append(len(q.split()))
+
+    shoe = shoe_leather(prose_turns)
 
     def pct(xs, p):
         if not xs:
@@ -150,6 +199,9 @@ def audit(path: Path) -> dict:
         "banned": {k: len(v) for k, v in hits.items()},
         "banned_total": sum(len(v) for v in hits.values()),
         "examples": {k: v[:3] for k, v in hits.items() if v},
+        "shoe_leather": {k: len(v) for k, v in shoe.items()},
+        "shoe_leather_total": sum(len(v) for v in shoe.values()),
+        "shoe_leather_flags": {k: v for k, v in shoe.items() if v},
     }
 
 
@@ -204,6 +256,15 @@ def main():
           % (q["median"], q["p90"], q["max"], q["over_60"]))
     print("  Turns ending on a question      %d" % r["turns_ending_in_question"])
     print("  Turns containing an invitation  %d" % r["turns_containing_invitation"])
+
+    print("\n  Shoe leather flagged: %d (a list to look at, not a score)" % r["shoe_leather_total"])
+    for label, count in sorted(r["shoe_leather"].items(), key=lambda kv: -kv[1]):
+        if count:
+            print("    %-28s %d" % (label, count))
+            for ex in r["shoe_leather_flags"].get(label, [])[:2]:
+                print("        turn %-4d … %s …" % (ex["turn"], ex["text"][:80]))
+    print("    (TABLE.md 2a: cut it only where nothing is at risk and nobody is")
+    print("     exposed. That judgement is yours; this is only where to look.)")
 
     print("\n  Banned constructions: %d total" % r["banned_total"])
     for label, count in sorted(r["banned"].items(), key=lambda kv: -kv[1]):

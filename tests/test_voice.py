@@ -156,3 +156,36 @@ def test_targets_cover_every_table_rule_with_a_number():
         "turns_containing_invitation",
         "banned_total",
     }
+
+
+# --- shoe leather ----------------------------------------------------------
+
+def test_shoe_leather_flags_transit_and_thresholds():
+    flags = va.shoe_leather([
+        "The crossing takes eleven minutes and nobody speaks.",
+        "You knock. The door opens on a woman with flour to the elbow.",
+        '"Hello," she says. "Can I help you?"',
+    ])
+    assert flags["transit"], "a crossing that takes time is transit"
+    assert flags["threshold"], "knocking is a threshold"
+    assert flags["greeting"], "hello on the page is the phone-call tic"
+    assert flags["transit"][0]["turn"] == 1
+
+
+def test_shoe_leather_does_not_flag_a_scene_that_merely_contains_movement():
+    """'you cross the floor' in a room with something watching you is a scene.
+    A flag list people cannot trust is a flag list people switch off."""
+    flags = va.shoe_leather([
+        "The thing in the bed watches you cross the floor and its eyes track "
+        "a half-beat behind.",
+        "The crossing is open. The queue is moving properly for once.",
+        "Failing Athletics on a flight of stairs means you arrive late and "
+        "winded, not that the pursuit is over.",
+    ])
+    assert sum(len(v) for v in flags.values()) == 0
+
+
+def test_shoe_leather_is_reported_but_never_a_target():
+    """TABLE.md 2a puts the cut in the GM's judgement. The audit lists places
+    to look; it does not get a pass/fail line."""
+    assert not any(k.startswith("shoe_leather") for k in va.TARGETS)
