@@ -290,3 +290,30 @@ def test_tick_and_forecast_report_silent_agendas():
     assert "forecast" in sub.choices
     dests = {a.dest for a in sub.choices["forecast"]._actions}
     assert {"campaign", "all"} <= dests
+
+
+def test_pivot_branches_are_declared_in_advance():
+    """A pivot's outcomes are written down before the dice, so consequences
+    cannot be quietly reshaped afterwards to suit the result."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    assert "def _apply_branch(" in src
+    assert "def cmd_timeline(" in src
+    schema = (ROOT / "skills" / "mythras-gm" / "schema.tql").read_text()
+    assert "myth-beat-branches-json" in schema
+    assert "myth-beat-result" in schema
+
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    for cmd in ("add-beat", "revise-beat"):
+        assert "branches" in {a.dest for a in sub.choices[cmd]._actions}
+    assert "branch" in {a.dest for a in sub.choices["fire-beat"]._actions}
+    assert "timeline" in sub.choices
+
+
+def test_a_branch_applies_before_the_cascade():
+    """Futures a branch opens or closes must be part of what the cascade then
+    reconciles, not settled behind its back."""
+    src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
+    i = src.index("def cmd_fire_beat(")
+    body = src[i:src.index("\ndef ", i + 10)]
+    assert body.index("_apply_branch(") < body.index("cascade = _cascade(")

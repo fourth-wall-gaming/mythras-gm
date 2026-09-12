@@ -1684,7 +1684,8 @@ AGENDA_ATTRS = ["description", "content", "myth-agenda-status",
                 "myth-agenda-clock-size", "myth-agenda-clock-filled",
                 "myth-agenda-priority"]
 BEAT_ATTRS = ["description", "content", "myth-beat-status", "myth-beat-when",
-              "myth-beat-trigger", "myth-beat-onscreen-if", "myth-time-index"]
+              "myth-beat-trigger", "myth-beat-onscreen-if", "myth-time-index",
+              "myth-beat-branches-json", "myth-beat-result"]
 
 # Anything that can hold or be targeted by an agenda, or be cast in a beat.
 AGENDA_HOLDER_TYPES = ["myth-character", "myth-faction"]
@@ -1769,6 +1770,8 @@ def _beat_record(driver, bid):
         "time_index": b.get("myth-time-index"),
         "trigger": b.get("myth-beat-trigger") or "time",
         "onscreen_if": b.get("myth-beat-onscreen-if"),
+        "branches": b.get("myth-beat-branches-json"),
+        "result": b.get("myth-beat-result"),
         "narrative": b.get("content"),
         "agenda": ag["id"] if ag else None,
         "agenda_title": ag["name"] if ag else None,
@@ -1997,6 +2000,12 @@ def cmd_add_beat(args):
         q += f', has myth-beat-onscreen-if "{escape_string(args.onscreen_if)}"'
     if args.narrative:
         q += f', has content "{escape_string(args.narrative)}"'
+    if getattr(args, "branches", None):
+        try:
+            json.loads(args.branches)
+        except ValueError as e:
+            fail(f"--branches is not valid JSON: {e}")
+        q += f', has myth-beat-branches-json "{escape_string(args.branches)}"'
     q += ";"
     with get_driver() as driver:
         agenda = _get_entity(driver, "myth-agenda", args.agenda, [])
@@ -2068,6 +2077,13 @@ def cmd_revise_beat(args):
         if args.onscreen_if is not None:
             _set_attr(driver, "myth-beat", args.id,
                       "myth-beat-onscreen-if", args.onscreen_if)
+        if getattr(args, "branches", None) is not None:
+            try:
+                json.loads(args.branches)
+            except ValueError as e:
+                fail(f"--branches is not valid JSON: {e}")
+            _set_attr(driver, "myth-beat", args.id,
+                      "myth-beat-branches-json", args.branches)
         if args.trigger is not None:
             _set_attr(driver, "myth-beat", args.id, "myth-beat-trigger", args.trigger)
         if args.status is not None:
@@ -2193,12 +2209,139 @@ def cmd_fire_beat(args):
                       "myth-agenda-clock-filled", filled, quote=False)
             clock = {"agenda": beat["agenda"], "filled": filled,
                      "size": agenda["clock"]["size"], "completed": completed}
+        # A pivot's declared branch is applied BEFORE the cascade, so the
+        # futures it opens and closes are part of what the cascade then
+        # reconciles rather than something settled behind its back.
+        branch = None
+        if getattr(args, "branch", None):
+            branch = _apply_branch(driver, args.campaign, args.id, args.branch)
         cascade = _cascade(driver, args.campaign,
                            established=established_now) if args.campaign else {}
     out({"success": True, "id": args.id, "outcome": args.outcome,
-         "event": event_id, "clock": clock,
+         "event": event_id, "clock": clock, "branch": branch,
          "facts_established": established_now, "facts_retired": retired_now,
          "cascade": cascade})
+
+
+def _apply_branch(driver, campaign, beat_id, branch_name):
+    """Apply a pivot beat's declared branch to the rest of the thread.
+
+    A pivot is a beat whose possible results were written down in advance --
+    what each one establishes, which futures it opens, and which it closes.
+    Declaring them beforehand is what keeps a branching timeline honest: the
+    consequences were fixed while nobody knew which way the dice would fall,
+    so they cannot be quietly reshaped afterwards to suit the result.
+    """
+    rec = _get_entity(driver, "myth-beat", beat_id, ["myth-beat-branches-json"])
+    raw = (rec or {}).get("myth-beat-branches-json")
+    if not raw:
+        fail(f"Beat '{beat_id}' declares no branches")
+    try:
+        branches = json.loads(raw)
+    except ValueError:
+        fail(f"Beat '{beat_id}' has unreadable branches")
+    if branch_name not in branches:
+        fail(f"No branch '{branch_name}' on {beat_id}. Declared: "
+             + ", ".join(sorted(branches)))
+
+    branch = branches[branch_name] or {}
+    applied = {"branch": branch_name, "activated": [], "cancelled": [],
+               "established": [], "advanced": []}
+
+    for bid in branch.get("activates", []):
+        _set_attr(driver, "myth-beat", bid, "myth-beat-status", "pending")
+        applied["activated"].append(bid)
+    for bid in branch.get("cancels", []):
+        _set_attr(driver, "myth-beat", bid, "myth-beat-status", "cancelled")
+        applied["cancelled"].append(bid)
+    for fid in branch.get("establishes", []):
+        rec = _fact_record(driver, fid)
+        if rec and rec["status"] == "not-yet-true":
+            _set_attr(driver, "myth-fact", fid, "myth-fact-status", "established")
+            applied["established"].append(fid)
+    for spec in branch.get("advances", []):
+        aid, _, by = str(spec).partition(":")
+        try:
+            n = int(by or 1)
+        except ValueError:
+            n = 1
+        cur = _get_entity(driver, "myth-agenda", aid, ["myth-agenda-clock-filled"])
+        if cur is not None:
+            filled = (cur.get("myth-agenda-clock-filled") or 0) + n
+            _set_attr(driver, "myth-agenda", aid, "myth-agenda-clock-filled",
+                      filled, quote=False)
+            applied["advanced"].append({"agenda": aid, "to": filled})
+    for aid in branch.get("thwarts", []):
+        _set_attr(driver, "myth-agenda", aid, "myth-agenda-status", "thwarted")
+        applied["advanced"].append({"agenda": aid, "to": "thwarted"})
+
+    _set_attr(driver, "myth-beat", beat_id, "myth-beat-result", branch_name)
+    return applied
+
+
+def cmd_timeline(args):
+    """Where the projection expects everybody to be, watch by watch.
+
+    A beat already carries a time, a place and a cast, so the placement of the
+    whole cast over the whole timeline is derivable rather than something that
+    needs storing twice. Characters with no beat in a given watch carry forward
+    from where they were last put.
+
+    Pivots are marked. They are the watches where the thread can still go more
+    than one way, which is the only part of a projection worth a GM's attention.
+    """
+    with get_driver() as driver:
+        camp = _get_entity(driver, "myth-campaign", args.campaign, ["myth-time-index"])
+        if not camp:
+            fail(f"No campaign '{args.campaign}'")
+        now = camp.get("myth-time-index")
+        beats = _campaign_beats(driver, args.campaign)
+        agendas = {a["id"]: a for a in _campaign_agendas(driver, args.campaign)}
+        _, pc_places = _pc_presence(driver, args.campaign)
+
+    live = [b for b in beats
+            if b["status"] in ("pending", "played", "narrated")
+            and b.get("time_index") is not None]
+    if not args.all and now is not None:
+        live = [b for b in live if b["time_index"] >= now]
+    live.sort(key=lambda b: b["time_index"])
+
+    watches = {}
+    for b in live:
+        w = watches.setdefault(b["time_index"], {"when": b["when"], "beats": []})
+        branches = []
+        if b.get("branches"):
+            try:
+                branches = sorted(json.loads(b["branches"]))
+            except ValueError:
+                branches = []
+        w["beats"].append({
+            "id": b["id"], "title": b["title"], "status": b["status"],
+            "place": b.get("place_name"), "cast": b.get("cast_names") or [],
+            "agenda": (agendas.get(b["agenda"]) or {}).get("title"),
+            "holder": ((agendas.get(b["agenda"]) or {}).get("holder") or {}).get("name"),
+            "pivot": bool(branches), "branches": branches,
+            "result": b.get("result"),
+        })
+
+    # carry each named person forward from the last place a beat put them
+    placement, rows = {}, []
+    for idx in sorted(watches):
+        for b in watches[idx]["beats"]:
+            for who in b["cast"]:
+                if b["place"]:
+                    placement[who] = b["place"]
+        rows.append({"time_index": idx, "when": watches[idx]["when"],
+                     "beats": watches[idx]["beats"],
+                     "placement": dict(sorted(placement.items()))})
+
+    out({"success": True,
+         "now": eng.format_time_key(now) if now is not None else None,
+         "pc_locations": pc_places,
+         "watches": rows,
+         "pivots": [{"when": r["when"], "id": b["id"], "title": b["title"],
+                     "branches": b["branches"], "result": b["result"]}
+                    for r in rows for b in r["beats"] if b["pivot"]]})
 
 
 def cmd_forecast(args):
@@ -3829,6 +3972,11 @@ def build_parser():
     s.add_argument("--status", default="pending",
                    choices=["pending", "played", "narrated", "preempted",
                             "rewritten", "cancelled"])
+    s.add_argument("--branches",
+                   help="JSON declaring a PIVOT beat's possible outcomes and "
+                        "what each does to the rest of the thread. Keys per "
+                        "branch: activates, cancels (beat ids); establishes "
+                        "(fact ids); advances (agenda-id:N); thwarts (agenda ids)")
 
     s = sub.add_parser("list-beats", help="What is about to happen, and where")
     s.add_argument("--campaign", required=True)
@@ -3851,6 +3999,11 @@ def build_parser():
     s.add_argument("--status",
                    choices=["pending", "played", "narrated", "preempted",
                             "rewritten", "cancelled"])
+    s.add_argument("--branches",
+                   help="JSON declaring a PIVOT beat's possible outcomes and "
+                        "what each does to the rest of the thread. Keys per "
+                        "branch: activates, cancels (beat ids); establishes "
+                        "(fact ids); advances (agenda-id:N); thwarts (agenda ids)")
 
     s = sub.add_parser("fire-beat", help="Resolve a beat and optionally journal it")
     s.add_argument("--id", required=True)
@@ -3871,6 +4024,14 @@ def build_parser():
                    help="comma-separated ids who saw it and now know its facts")
     s.add_argument("--no-facts", dest="no_facts", action="store_true",
                    help="do not establish or retire this beat's facts")
+    s.add_argument("--branch",
+                   help="which declared outcome happened; applies that branch's "
+                        "effects to the rest of the thread")
+
+    s = sub.add_parser("timeline",
+                       help="Where the projection expects everybody to be, watch by watch")
+    s.add_argument("--campaign", required=True)
+    s.add_argument("--all", action="store_true", help="include past watches")
 
     s = sub.add_parser("forecast",
                        help="The canonical thread: what happens if nobody interferes")

@@ -65,6 +65,8 @@ attribute myth-beat-status, value string;          # pending | played | narrated
 attribute myth-beat-when, value string;            # time key, e.g. "d-3/night"
 attribute myth-beat-trigger, value string;         # "time" | "clock>=N"
 attribute myth-beat-onscreen-if, value string;     # prose condition, e.g. "any PC at the Sylph's Embrace"
+attribute myth-beat-branches-json, value string;   # declared outcomes of a PIVOT beat: what each result does to the rest of the thread
+attribute myth-beat-result, value string;          # which declared branch actually happened
 attribute myth-time-index, value integer;          # ordinal world clock (campaign: now; beat: when it fires)
 
 # Epistemics (facts and who knows them). See entity myth-fact below.
@@ -315,6 +317,8 @@ entity myth-beat sub alh-note,
     owns myth-beat-when,
     owns myth-beat-trigger,
     owns myth-beat-onscreen-if,
+    owns myth-beat-branches-json,
+    owns myth-beat-result,
     owns myth-time-index,
     plays myth-campaign-membership:element,
     plays myth-beat-of:beat,
