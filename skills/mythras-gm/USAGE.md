@@ -42,6 +42,20 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
      already `played` or `narrated` is left alone, because the past is not the
      arc's to rewrite. Resolved ids are written back into the file so the next
      sync matches on identity rather than on a title somebody has reworded.
+   - `brief --id <npc|place>` — how to play a person, or a place. For a
+     location it returns the **staging notes**: what it does to a scene, as
+     opposed to where it is. Read it before describing somewhere for the first
+     time, the same way you read an NPC before they speak.
+   - `list-locations [--campaign <id>]` — the gazetteer index, and which places
+     have staging notes. A place without them is an encyclopedia entry: it says
+     where, not how to play there, and the command reports the debt so it gets
+     filled.
+   - `update-location --id <id> --staging-notes "<card>"` — write the card.
+     **SENSE** (noise and smell before sight) · **SHAPE** (ways in and out, what
+     the space does to a fight or a conversation) · **LIVES** (who is always
+     here) · **HANDS** (what is to hand) · **COSTS** (what being here takes) ·
+     **TURNS** (what this place becomes under pressure) · **KEY** (the one image
+     that is only this place).
    - `list-facets [--dim <d>]` — the facet vocabulary, so a query can be
      composed without guessing at spellings.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.

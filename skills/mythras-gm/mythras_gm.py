@@ -625,6 +625,69 @@ def cmd_list_characters(args):
     out({"success": True, "characters": chars})
 
 
+def _brief_location(driver, loc_id):
+    """A place, as somewhere to run a scene rather than somewhere to find.
+
+    The gazetteer entry says where a place sits and what happened there. The
+    staging notes say what it does to a scene -- and only the second one is
+    any use with a player waiting.
+    """
+    l = _get_entity(driver, "myth-location", loc_id,
+                    ["description", "myth-location-type", "myth-staging-notes"])
+    if not l:
+        fail(f"No myth-location with id '{loc_id}'")
+
+    here = _fetch(driver, f'''
+        match
+          $l isa myth-location, has id "{escape_string(loc_id)}";
+          (located: $c, location: $l) isa myth-presence;
+          $c has name $cn;
+        fetch {{ "cn": $cn }};''')
+
+    notes = l.get("myth-staging-notes")
+    out({"success": True, "id": loc_id, "kind": "location", "name": l["name"],
+         "type": l.get("myth-location-type"),
+         "description": l.get("description"),
+         "staging_notes": notes,
+         "present": sorted({r["cn"] for r in here}),
+         "guidance": (None if notes else
+                      "NO STAGING NOTES. What is above says where this place is, "
+                      "not how to play a scene in it. Describe it from what is "
+                      "actually there, then write the card with "
+                      "`update-location --staging-notes` so the next scene here "
+                      "does not start from nothing.")})
+
+
+def cmd_list_locations(args):
+    """The gazetteer index, and which of it can actually be staged."""
+    with get_driver() as driver:
+        rows = _fetch(driver, f'''
+            match
+              $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
+              (campaign: $camp, element: $l) isa myth-campaign-membership;
+              $l isa myth-location, has id $i, has name $n;
+            fetch {{
+              "id": $i, "name": $n,
+              "type": [ $l.myth-location-type ],
+              "staging": [ $l.myth-staging-notes ]
+            }};''')
+
+    locs = []
+    for r in rows:
+        t = r.get("type") or []
+        locs.append({"id": r["id"], "name": r["name"],
+                     "type": (t[0] if t else None),
+                     "staged": bool(r.get("staging"))})
+    locs.sort(key=lambda x: x["name"])
+    unstaged = [l["name"] for l in locs if not l["staged"]]
+    out({"success": True, "locations": locs,
+         "unstaged": unstaged,
+         "guidance": (None if not unstaged else
+                      f"{len(unstaged)} of {len(locs)} places have no staging "
+                      "notes. Those are gazetteer entries only -- they say "
+                      "where, not how to play there.")})
+
+
 def cmd_brief(args):
     """Everything needed to SPEAK as somebody, and nothing else.
 
@@ -637,6 +700,10 @@ def cmd_brief(args):
     and it says so, so the gap is visible and gets filled.
     """
     with get_driver() as driver:
+        # A place is briefed the same way and for the same reason as a person.
+        if args.id.startswith("myth-loc-"):
+            return _brief_location(driver, args.id)
+
         c = _get_entity(driver, "myth-character", args.id,
                         ["description", "myth-status", "myth-actor-notes",
                          "myth-extras-json"])
@@ -1362,6 +1429,9 @@ def cmd_update_location(args):
             _set_attr(driver, "myth-location", args.id, "content", args.narrative)
         if args.type is not None:
             _set_attr(driver, "myth-location", args.id, "myth-location-type", args.type)
+        if args.staging_notes is not None:
+            _set_attr(driver, "myth-location", args.id,
+                      "myth-staging-notes", args.staging_notes)
     out({"success": True, "id": args.id})
 
 
@@ -3693,6 +3763,7 @@ ALIASES = {
 NEEDS_CAMPAIGN = {
     "get-campaign", "set-scene", "update-campaign", "create-character",
     "import-characters", "export-characters", "list-characters", "add-location",
+    "list-locations",
     "add-faction", "add-template", "spawn", "log-event", "add-lore", "list-lore",
     "add-agenda", "list-agendas", "advance-agenda", "set-agenda-status",
     "add-beat", "list-beats", "fire-beat", "tick", "add-fact", "list-facts",
@@ -3844,8 +3915,12 @@ def build_parser():
     s.add_argument("--campaign", required=True)
     s.add_argument("--type")
 
+    s = sub.add_parser("list-locations",
+                       help="The gazetteer index, and which places can be staged")
+    s.add_argument("--campaign")
+
     s = sub.add_parser("brief",
-                       help="How to play an NPC: bearing, speech, tell, wants. Read before they speak.")
+                       help="How to play a person or a place. Read it before they speak, or before you describe it.")
     s.add_argument("--id", required=True)
 
     s = sub.add_parser("update-character")
@@ -3966,12 +4041,15 @@ def build_parser():
     s.add_argument("--description")
     s.add_argument("--narrative")
 
-    s = sub.add_parser("update-location", help="Update a location's text, name or type")
+    s = sub.add_parser("update-location",
+                       help="Update a location's text, name, type or staging notes")
     s.add_argument("--id", required=True)
     s.add_argument("--name")
     s.add_argument("--summary")
     s.add_argument("--narrative")
     s.add_argument("--type")
+    s.add_argument("--staging-notes",
+                   help="how to PLAY here: sense, shape, lives, hands, costs, turns")
 
     s = sub.add_parser("update-faction", help="Update a faction's text or name")
     s.add_argument("--id", required=True)

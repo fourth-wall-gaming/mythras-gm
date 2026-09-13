@@ -37,6 +37,7 @@ attribute myth-experience-rolls, value integer;    # banked experience rolls
 attribute myth-spells-json, value string;          # {"folk":[...],"theism":[...],"sorcery":[...],"mysticism":[...],"windworking":[...]}
 attribute myth-extras-json, value string;          # lossless bag for system-specific fields (cult_rank, cults, features, spirits, natural_armor, strike_rank...)
 attribute myth-actor-notes, value string;          # how to PLAY them: bearing, speech, tell | wants, won't, because
+attribute myth-staging-notes, value string;        # how to PLAY a place: sense, shape, lives, hands, costs, turns
 
 # Campaign / session
 attribute myth-game-date, value string;            # in-world calendar date
@@ -248,6 +249,7 @@ entity myth-creature-template sub alh-domain-thing,
 
 entity myth-location sub alh-domain-thing,
     owns myth-location-type,
+    owns myth-staging-notes,
     plays myth-campaign-membership:element,
     plays myth-presence:location,
     plays myth-event-involvement:participant,
