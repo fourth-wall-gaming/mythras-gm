@@ -2370,6 +2370,203 @@ def _read_arc(path):
     return doc, text, m
 
 
+# ---------------------------------------------------------------------------
+# The fate graph
+#
+# One file, written by a human, that maps every pathway the story can take.
+#
+# The design rule is that **the parser ignores everything it does not
+# recognise.** A Gamesmaster writes the node as prose -- as much of it as they
+# like, in whatever voice they like -- and drops in a handful of labelled lines
+# where the structure lives. Nothing has to be escaped, quoted, indented or
+# kept valid. A file that is half-finished still parses; the unfinished parts
+# are simply prose.
+#
+# The recognised lines, and nothing else matters:
+#
+#   ## NODE <id> · <name>     starts a node. Everything after, until the next
+#                             one, belongs to it.
+#   WHEN <time key>           optional clock position
+#   ENTRY <id>, <id>          which nodes lead here ("start" for an opening)
+#   TAKES <text>              what this node costs. Every node should have one.
+#   IF <who>                  opens a presence branch: the outcomes below this
+#                             line exist ONLY if that character is there.
+#                             "IF nobody" is the default branch.
+#   ROLL <text>               the check, in prose. Read by humans, not parsed.
+#   -> <id> SETS k=v k=v      an exit, and the flags it sets.
+#   -> END <text>             a terminal.
+# ---------------------------------------------------------------------------
+
+NODE_RE = re.compile(r"^##+\s*NODE\s+([A-Za-z0-9_.\-]+)\s*(?:[·:\-–—]\s*(.*))?$")
+EXIT_RE = re.compile(r"^\s*(?:->|→)\s*([A-Za-z0-9_.\-]+)\s*(.*)$")
+SETS_RE = re.compile(r"\bSETS\b\s*(.*)$")
+FLAG_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z0-9_\-]+)")
+LABELS = ("WHEN", "ENTRY", "TAKES", "IF", "ROLL")
+
+
+def parse_graph(path):
+    """Read a fate-graph file. Unrecognised lines are prose and are kept."""
+    text = pathlib.Path(path).read_text()
+    nodes, order, cur, branch = {}, [], None, None
+    fenced = False
+
+    for raw in text.splitlines():
+        if raw.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            # Fenced blocks are how a GM documents the format. Never parsed.
+            continue
+        m = NODE_RE.match(raw)
+        if m:
+            nid = m.group(1)
+            cur = {"id": nid, "name": (m.group(2) or "").strip(),
+                   "when": None, "entry": [], "takes": None,
+                   "branches": [], "prose": []}
+            branch = None
+            nodes[nid] = cur
+            order.append(nid)
+            continue
+        if cur is None:
+            continue
+
+        line = raw.strip()
+        label = line.split(" ", 1)[0].upper() if line else ""
+        rest = line[len(label):].strip() if label in LABELS else ""
+
+        if label == "WHEN":
+            cur["when"] = rest
+        elif label == "ENTRY":
+            cur["entry"] = [x.strip() for x in rest.replace(";", ",").split(",") if x.strip()]
+        elif label == "TAKES":
+            cur["takes"] = rest
+        elif label == "IF":
+            branch = {"who": rest or "nobody", "roll": None, "exits": []}
+            cur["branches"].append(branch)
+        elif label == "ROLL":
+            if branch is None:
+                branch = {"who": "anyone", "roll": None, "exits": []}
+                cur["branches"].append(branch)
+            branch["roll"] = rest
+        else:
+            em = EXIT_RE.match(raw)
+            if em:
+                if branch is None:
+                    branch = {"who": "anyone", "roll": None, "exits": []}
+                    cur["branches"].append(branch)
+                tail = em.group(2) or ""
+                sm = SETS_RE.search(tail)
+                flags = dict(FLAG_RE.findall(sm.group(1))) if sm else {}
+                note = SETS_RE.sub("", tail).strip()
+                branch["exits"].append({"to": em.group(1), "note": note, "sets": flags})
+            elif line and branch is not None and branch["roll"] and not branch["exits"]:
+                branch["roll"] += " " + line
+            elif line:
+                cur["prose"].append(line)
+
+    return {"path": str(path), "order": order, "nodes": nodes}
+
+
+def validate_graph(g):
+    """Everything a GM gets wrong at two in the morning."""
+    problems, nodes = [], g["nodes"]
+    reachable, terminal = set(), set()
+
+    for nid in g["order"]:
+        n = nodes[nid]
+        exits = [e for b in n["branches"] for e in b["exits"]]
+        for e in exits:
+            if e["to"].upper() == "END":
+                terminal.add(nid)
+                continue
+            if e["to"] not in nodes:
+                problems.append({"node": nid, "kind": "dangling-exit",
+                                 "detail": f"exits to unknown node {e['to']!r}"})
+            else:
+                reachable.add(e["to"])
+        for src in n["entry"]:
+            if src.lower() != "start" and src not in nodes:
+                problems.append({"node": nid, "kind": "unknown-entry",
+                                 "detail": f"entry from unknown node {src!r}"})
+        if not exits and nid not in terminal:
+            problems.append({"node": nid, "kind": "dead-end",
+                             "detail": "no exits and not marked END"})
+        if not n["takes"]:
+            problems.append({"node": nid, "kind": "takes-nothing",
+                             "detail": "no TAKES line -- an act that only gives "
+                                       "has not happened"})
+        if not any(b["who"].lower() == "nobody" for b in n["branches"]) and n["branches"]:
+            problems.append({"node": nid, "kind": "no-default",
+                             "detail": "no 'IF nobody' branch -- what happens "
+                                       "when the party is somewhere else?"})
+
+    for nid in g["order"]:
+        n = nodes[nid]
+        if nid in reachable:
+            continue
+        if any(s.lower() == "start" for s in n["entry"]):
+            continue
+        problems.append({"node": nid, "kind": "orphan",
+                         "detail": "nothing leads here"})
+
+    flags = {}
+    for n in nodes.values():
+        for b in n["branches"]:
+            for e in b["exits"]:
+                for k, v in e["sets"].items():
+                    flags.setdefault(k, set()).add(v)
+    return {"problems": problems, "ok": not problems,
+            "flags": {k: sorted(v) for k, v in sorted(flags.items())}}
+
+
+def graph_mermaid(g):
+    """A picture, for a human. Artifacts and most markdown viewers render it."""
+    out = ["flowchart TD"]
+    for nid in g["order"]:
+        n = g["nodes"][nid]
+        label = (n["name"] or nid).replace('"', "'")
+        out.append(f'  {nid.replace(".", "_")}["{label}"]')
+    for nid in g["order"]:
+        n = g["nodes"][nid]
+        for b in n["branches"]:
+            for e in b["exits"]:
+                if e["to"].upper() == "END":
+                    continue
+                who = b["who"]
+                tag = "" if who.lower() in ("anyone", "") else who
+                sets = " ".join(f"{k}={v}" for k, v in e["sets"].items())
+                lab = " ".join(x for x in (tag, sets) if x)
+                a, b2 = nid.replace(".", "_"), e["to"].replace(".", "_")
+                out.append(f'  {a} -->|{lab}| {b2}' if lab else f"  {a} --> {b2}")
+    return "\n".join(out)
+
+
+def cmd_graph(args):
+    """Read, check and render the fate graph.
+
+    The file is the authority and a human writes it. This only ever reads."""
+    g = parse_graph(args.file)
+    if args.mermaid:
+        print(graph_mermaid(g))
+        return
+    report = validate_graph(g)
+    if args.node:
+        n = g["nodes"].get(args.node)
+        if not n:
+            fail(f"no node {args.node!r}. Have: " + ", ".join(g["order"]))
+        out({"success": True, "node": n,
+             "leads_to": sorted({e["to"] for b in n["branches"] for e in b["exits"]}),
+             "reached_from": [k for k, v in g["nodes"].items()
+                              if any(e["to"] == args.node
+                                     for b in v["branches"] for e in b["exits"])]})
+        return
+    out({"success": True, "file": g["path"], "nodes": len(g["order"]),
+         "ok": report["ok"], "problems": report["problems"],
+         "flags": report["flags"],
+         "openings": [n for n in g["order"]
+                      if any(s.lower() == "start" for s in g["nodes"][n]["entry"])]})
+
+
 def cmd_sync_arc(args):
     """Reconcile the campaign's beats to an arc document.
 
@@ -4180,6 +4377,13 @@ def build_parser():
                        help="Where the projection expects everybody to be, watch by watch")
     s.add_argument("--campaign", required=True)
     s.add_argument("--all", action="store_true", help="include past watches")
+
+    s = sub.add_parser("graph",
+                       help="Read, check and render the fate graph")
+    s.add_argument("--file", required=True)
+    s.add_argument("--node", help="show one node and what reaches it")
+    s.add_argument("--mermaid", action="store_true",
+                   help="emit a mermaid flowchart")
 
     s = sub.add_parser("sync-arc",
                        help="Reconcile the campaign's beats to an arc document")
