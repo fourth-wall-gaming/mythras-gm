@@ -30,6 +30,7 @@ import os
 import re
 import sys
 
+import mythras_engine as eng
 import mythras_gm as gm
 
 FORMAT_VERSION = "1.1"
@@ -886,6 +887,26 @@ def import_campaign(path, new_name=None, new_ids=False):
 
         for b in tree["beats"]:
             bid = rid(b["id"])
+            # `when` is what a human authors; the index is derived from it. A
+            # beat file that carries only `when` must still be schedulable --
+            # otherwise it imports clean, reads correctly in every listing, and
+            # silently never fires, because due-ness is decided on the index.
+            # `when` is authored and the index is derived from it, so the
+            # index is never trusted over the string. Two beats survived a
+            # calendar change carrying indices from the old one: they read
+            # correctly everywhere and would have fired two days early.
+            if b.get("when"):
+                try:
+                    b["time_index"] = eng.parse_time_key(b["when"])
+                except ValueError:
+                    # Refuse rather than store it. A `when` that does not parse
+                    # imports clean, reads correctly in every listing, and then
+                    # never fires -- the worst failure this format has, because
+                    # nothing looks wrong until a scene silently does not happen.
+                    gm.fail(f"beat {b.get('title')!r}: cannot read when "
+                            f"{b['when']!r}. Expected '<day>/<watch>', e.g. "
+                            f"'d-3/night'. A trailing comment on the line will "
+                            f"do this -- the front matter reader is not YAML.")
             q = (f'insert $e isa myth-beat, has id "{bid}", '
                  f'has name "{gm.escape_string(b["title"])}", '
                  f'has myth-beat-status "{gm.escape_string(b.get("status") or "pending")}", '

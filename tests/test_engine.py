@@ -348,3 +348,53 @@ def test_orphaned_futures_are_the_demonstrated_leak():
         {"id": "f4", "status": "not-yet-true", "from": None},        # GM's to place
     ]
     assert [f["id"] for f in eng.orphaned_futures(facts, beats)] == ["f1"]
+
+
+def test_importer_derives_time_index_from_when():
+    """A beat file that carries only `when` must still be schedulable.
+
+    Without this the beat imports clean, appears correctly in every listing,
+    and silently never fires -- because due-ness is decided on the index, not
+    on the string a human wrote.
+    """
+    import inspect, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "mythras-gm"))
+    import campaign_io
+    src = inspect.getsource(campaign_io.import_campaign)
+    assert 'if b.get("when"):' in src
+    assert "parse_time_key" in src
+
+
+def test_importer_refuses_an_unparseable_when():
+    """Storing a bad time key is worse than failing on it.
+
+    A `when` the engine cannot parse imports clean, shows correctly in every
+    listing, and silently never fires. Sixteen beats did exactly this because
+    the front matter reader is not YAML and took a trailing comment as part
+    of the value.
+    """
+    import inspect, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "mythras-gm"))
+    import campaign_io
+    src = inspect.getsource(campaign_io.import_campaign)
+    assert "cannot read when" in src
+    assert "gm.fail" in src.split('b["time_index"] = eng.parse_time_key')[1][:600]
+
+
+def test_importer_never_trusts_a_stored_index_over_when():
+    """A stale index outlives a calendar change and fires the beat early.
+
+    Two beats did exactly this: `when` said d1/day and d2/dusk while the
+    stored indices still meant d0/day and d0/dusk, so the private audience
+    would have fired two days before the standoff that depends on it.
+    """
+    import inspect, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "mythras-gm"))
+    import campaign_io
+    src = inspect.getsource(campaign_io.import_campaign)
+    block = src.split("for b in tree[\"beats\"]:")[1][:800]
+    assert 'if b.get("when"):' in block
+    assert 'b.get("time_index") is None' not in block
