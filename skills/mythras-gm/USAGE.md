@@ -42,17 +42,6 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
      already `played` or `narrated` is left alone, because the past is not the
      arc's to rewrite. Resolved ids are written back into the file so the next
      sync matches on identity rather than on a title somebody has reworded.
-   - `graph --file <graph.md> [--node <id>] [--mermaid]` — read and check the
-     **fate graph**: the branching form of the arc, where an outcome depends on
-     a die or on who was in the room. `sync-arc` answers *what happens*; this
-     answers *what could*. It is **read-only by design** — the file is written
-     and owned by the Gamesmaster, and the tool's whole job is to tell them
-     what they have left broken (an exit to a node that does not exist, a node
-     nothing leads to, a node that takes nothing from anyone, a node with no
-     `IF nobody` branch and therefore no answer to "what if the party is
-     somewhere else"). `--node` reads one node with what leads to it and what
-     it leads to; `--mermaid` draws the whole thing. See **The fate graph**
-     below.
    - `list-facets [--dim <d>]` — the facet vocabulary, so a query can be
      composed without guessing at spellings.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
@@ -189,50 +178,6 @@ Walk the player through it conversationally, then persist once:
 
    Non-weapon gear may stay as plain strings.
 5. `create-character --campaign <id> --name ... --narrative "<backstory>"`.
-
-## The fate graph
-
-A campaign arc that can only go one way is a timetable. The fate graph is the
-same arc written so that the dice, and the question of who was standing in the
-room, decide which way it goes.
-
-It is **one file**, Markdown, hand-written. The parser recognises seven labels
-and treats every other line as prose, which is the point: a half-finished node
-is still a valid node, and a GM can argue with themselves in the middle of one.
-Fenced code blocks are never parsed, so the format can be documented inside the
-file it describes.
-
-```
-## NODE T1.1 · The room at the Sylph's Embrace
-WHEN   d-3/night          where it sits on the clock (optional)
-ENTRY  A4, A3             what leads here; "start" marks an opening
-TAKES  the party's anonymity      what this node costs
-
-Prose. As much as you like. None of it is parsed.
-
-IF nobody
-  -> T1.2   SETS EM=dead SANTO=free
-IF Gardwen
-  ROLL Piety (Hard) — and say why the grade is what it is
-  -> T1.2   SETS EM=alive
-  -> END    she does not come back out
-```
-
-Three rules the checker enforces, each of them a story rule rather than a
-technical one:
-
-- **`IF nobody` is the default branch** — what happens when the party is
-  somewhere else. Write it first and write it honestly. It is usually the worst
-  outcome, and it is the entire reason that being present matters.
-- **Every node takes something.** A node that only gives has not happened
-  (`TABLE.md §2b`).
-- **Nothing is unreachable.** A node nothing leads to is a scene you wrote and
-  will never run.
-
-Flags set on exits (`SETS HOUSE=complicit`) are the memory of the run: what the
-graph knows about the world by the time the party reaches Act IV. `graph` lists
-every flag and every value any path can give it, which is how you find the one
-you set in two places and read in none.
 
 ## Living World (agendas, clocks, beats)
 
