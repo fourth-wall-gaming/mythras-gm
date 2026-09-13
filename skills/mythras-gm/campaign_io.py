@@ -161,6 +161,7 @@ def export_campaign(campaign_id, outdir):
                 "passions": c.get("myth-passions-json"),
                 "combat_styles": c.get("myth-combat-styles-json"),
                 "spells": c.get("myth-spells-json"),
+                "powers": c.get("myth-powers-json"),
                 "extras": c.get("myth-extras-json"),
                 "actor_notes": c.get("myth-actor-notes"),
                 "fatigue": c.get("myth-fatigue"),
@@ -828,6 +829,8 @@ def import_campaign(path, new_name=None, new_ids=False):
                  f'has created-at {_ts(c.get("created_at"))}')
             if c.get("spells"):
                 q += f', has myth-spells-json "{gm.escape_string(json.dumps(c["spells"]))}"'
+            if c.get("powers"):
+                q += f', has myth-powers-json "{gm.escape_string(json.dumps(c["powers"]))}"'
             if c.get("extras"):
                 q += f', has myth-extras-json "{gm.escape_string(json.dumps(c["extras"]))}"'
             if c.get("actor_notes"):

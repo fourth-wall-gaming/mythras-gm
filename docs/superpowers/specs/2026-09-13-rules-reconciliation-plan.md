@@ -1,9 +1,12 @@
 # Reconciling the rules — plan
 
-> **Status.** Steps 1, 2, 3, 5, 6 and 7 are done. **Step 4 — the character
-> question — is open, and it is the only thing left.** Two claims in the
-> original plan turned out to be wrong when checked against the books; both are
-> corrected below and marked.
+> **Status: done.** All seven steps. The decision on step 4 was made by the
+> player and it was not one of the three options I offered — see **The
+> architecture** below. Three claims in the original plan turned out to be wrong
+> when checked against the books; all three are corrected and marked.
+>
+> **Every spell on every sheet is now ORC and has a rule behind it.** 51 spells,
+> 6 powers, nothing outstanding.
 
 ## The problem in one line
 
@@ -14,7 +17,7 @@ Imperative** is ours to redistribute.
 
 | | what it is | may we republish? |
 |---|---|---|
-| **ORC** | Mythras Imperative SRD, CFI SRD — both vendored, both ORC licensed | **Yes**, with the ORC notice. Share-alike applies to mechanics we publish. |
+| **ORC** | Mythras Imperative SRD, CFI SRD — both vendored, both ORC licensed. **CFI for spells, Mythras for powers.** | **Yes**, with the ORC notice. Share-alike applies to mechanics we publish. |
 | **Full Classic Fantasy** | the commercial book: Berserker, Druid, Paladin, Ranger, Bard, Monk, their rank tables and spell lists | **No.** Not ORC. We may *play* it from a book we own; we may not ship it. |
 | **Full Mythras** | the commercial book — corrected, see below | **No.** Same terms. |
 | **Ours** | Purewater, its people, the binding school, the wild-elf line, the Order's rites, Piety-as-devotion | Yes — Reserved Material, ours to keep. |
@@ -36,10 +39,35 @@ twenty-four, and just as much not ours. They are on Conall's sheet.
 
 This is not a legal opinion. It is the prudent reading, and the repo is public.
 
-## What to do about the two characters — THE OPEN QUESTION
+## The architecture (this is the decision)
 
-Three options, cheapest first. **This is the one decision I cannot make alone**,
-because it changes two player characters.
+I offered three options. The answer was a fourth and a better one, and it
+resolves the whole class of problem rather than the two characters:
+
+> **CFI is the base. Magic and spells resolve through it, and no new spells are
+> ever written. Mythras provides rules for Powers — use and extend those for
+> everything not obvious in CFI.**
+
+That covers Magda's rage, Hanzo's and Gardwen's spirit magic, and Nerissa's
+ritual magic on the lake, and it is licence-clean by construction: the
+Mythras power chassis is ORC, and what we build on it is ours. Written up as
+`magic/powers/how-powers-work-here`.
+
+**A spell is CFI. A power is Mythras. There is no third thing.** If a character
+is described with a spell CFI does not list, either it is a CFI spell under
+another name — check `spell_registry.json` — or it is not a spell.
+
+### What that produced
+
+| character | was | is |
+|---|---|---|
+| **Magda** | Berserker class features scattered across `extras.abilities`, including a free Action Point | **Berserk** and **Hel's Mark** as powers; Artful Dodger corrected to the real CFI ability |
+| **Gardwen** | druid spells + nine woodland spells | CFI Cleric Rank 2 with access to the whole list; **The Wild Line** and **Woodwise** as powers |
+| **Hanzo, Santo** | the binding school as seven spells at 1 MP each | **The Binding** — a six-step sequence with anchors and a morning reinforcement |
+| **Nerissa, Lilura** | rites stored inside the `spells` field as prose | **The Rites of the Lady**, with Limited Power doing the work |
+| **Conall, Hesper** | 15 spells from books we cannot ship | mapped to their CFI equivalents or dropped as duplicates |
+
+The old three options, kept for the record:
 
 1. **Rebuild on CFI classes.** Magda becomes a Fighter of Barbarian culture with
    a Berserk *passion* driving Rage rather than a class feature; Gardwen stays a
@@ -54,9 +82,10 @@ because it changes two player characters.
    from Mythras Imperative mechanics, sharing no CFI text. Legitimate, most
    work, and the result is ours.
 
-**Recommendation: 1.** It removes the problem rather than managing it, and the
-characters lose nothing a player would notice. Gardwen is already most of the
-way there — it is four spells, not a rebuild.
+None of them was taken, and the fourth answer is better than my recommendation
+because it stops the problem recurring. The reason the binding school kept
+drifting was never the licence — it was that none of those things is one Action,
+one Cost and one target, and writing them as spells was fighting the format.
 
 ## The spell audit, as it actually came out
 
@@ -66,8 +95,10 @@ SRDs and the rules graph:
 | | count | |
 |---|---|---|
 | **ORC** | 45 | Mythras Imperative or CFI. Every one now has a rule. |
-| **ours** | 9 | the binding school and the wild-elf line. Already correct. |
-| **not ours** | 24 | 20 full Classic Fantasy, 4 full Mythras. No rule, by design. |
+| **ours** | 9 | the binding school and the wild-elf line. **Now powers, not spells.** |
+| **not ours** | 24 | 20 full Classic Fantasy, 4 full Mythras. All resolved — mapped, dropped, or folded into a power. |
+
+**After the consolidation: 51 spell names, all ORC, plus 6 powers, all ours.**
 
 The full table is `skills/mythras-gm/spell_registry.json`, generated by
 `scripts/build_spell_registry.py`. Eleven of the 45 are the same spell under
@@ -87,28 +118,52 @@ another label and are recorded as aliases — `Flaming Hands → Burning Hands`,
 3. ~~**Classify every remaining spell.**~~ **Done.** `source` and `licence` on
    every one of the 78, and a `licence` facet on every generated rule, so
    `query-rules --facet licence=orc` answers.
-4. **Decide the character question** (above). Then apply it. — **OPEN.**
-5. ~~**Ingest CFI into the rules graph.**~~ **Done for magic.** 143 spells and
-   the 16 sections of the magic chapter, generated by
-   `scripts/ingest_cfi_spells.py` and `scripts/ingest_cfi_chapter.py`. The graph
-   went from 112 rules to 273. `get-rule --id magic/cfi/spell-command` now
-   answers with Cost 3, 1 Minute, 100 ft, Resist Willpower.
-   **Classes are not ingested**, because which classes we ingest is step 4.
-6. ~~**Record the house rules.**~~ **Done, and the premise was wrong.**
+4. ~~**Decide the character question.**~~ **Done, and answered better than
+   asked** — see the architecture above. Applied across all 41 characters by
+   `scripts/consolidate_to_cfi.py`, which is kept as the record of what changed
+   and why: 71 changes, every one with its reason on the line. The live campaign
+   was updated alongside the package.
+
+   **Balance was the brief, and the two calls worth naming:** Magda loses the
+   free extra Action Point her sheet gave her — a free AP is the strongest thing
+   in Mythras combat and no book grants it — and gains nothing back, because
+   Berserk already carries her. Gardwen loses three druid spells and gains
+   access to the entire CFI cleric list at Rank 2, which is a large net gain;
+   her one core power against a budget of four is deliberate, since she is also
+   a full caster.
+5. ~~**Ingest CFI into the rules graph.**~~ **Done.** 143 spells and the 16
+   sections of the magic chapter, generated by `scripts/ingest_cfi_spells.py`
+   and `scripts/ingest_cfi_chapter.py`. The graph went from 112 rules to 271.
+   `get-rule --id magic/cfi/spell-command` now answers with Cost 3, 1 Minute,
+   100 ft, Resist Willpower. Classes are read from the vendored chapter as
+   needed rather than ingested — every class in play (Cleric, Fighter,
+   Magic-User) is already CFI, so there is nothing to convert.
+6. ~~**Record the house rules.**~~ **Done — and there were none.** The premise
+   was wrong twice over.
+
    The plan said casting on Piety 87 was a large house rule against Mythras's
-   Magic (POW+CHA) = 32. It is not: the game runs **CFI** magic, where a cleric
-   casts on **Channel (INT+CHA)**. Gardwen's Channel 85 is in-book and correct.
-   What is genuinely outside both books is **Piety**, which appears once in the
-   whole CFI SRD, inside the text of Spiritshield, and is nowhere defined. It is
-   now ours and written down: Piety is devotion, Channel is what casts the spell.
-   The real contradiction was elsewhere and larger — Mythras Imperative makes
-   every spell Intensity 1 on a fixed MP ladder, CFI scales Intensity to
-   skill/10 and charges the spell's own Cost line. Both books are in the graph;
-   `magic/which-book` now says which governs and tabulates where they disagree.
-7. ~~**Add the guardrail.**~~ **Done.** `build_spell_registry.py --strict` exits
-   non-zero when a sheet names a spell with no rule behind it. It found 57 on
-   first run and reports 24 now — and those 24 are exactly the not-ours set, so
-   the remaining gap is a licence decision, not missing data.
+   Magic (POW+CHA) = 32. Wrong book: the game runs **CFI** magic, where a cleric
+   casts on **Channel (INT+CHA)**.
+
+   Then I said Piety itself was outside both books, because it appears exactly
+   once in the CFI SRD, inside the text of Spiritshield. Also wrong. CFI gives
+   every cleric **two** professional skills — Channel *and* **Devotion
+   (POW+CHA)**. Piety is our name for Devotion, and Nerissa's own sheet says so:
+   *"Piety (Devotion) 92"*. Channel sets a spell's Intensity, Devotion sets its
+   Magnitude. Both sheets now use the CFI names.
+
+   The real contradiction was elsewhere and larger. Mythras Imperative makes
+   every spell Intensity 1 on a fixed MP ladder; CFI scales Intensity to
+   skill/10 and charges the spell's own Cost line, with nothing spent on a
+   failure. Both books are in the graph; `magic/which-book` now says which
+   governs and tabulates where they part.
+7. ~~**Add the guardrail.**~~ **Done, and it is green.**
+   `build_spell_registry.py --strict` exits non-zero when a sheet names a spell
+   or a power with no rule behind it. It found 57 on the first run, 24 after the
+   CFI ingest, and **0 now**. `tests/test_powers.py` holds the line: one test
+   fails if any sheet ever again depends on a book we cannot ship, another if a
+   name appears with no rule, and a third if the registry has drifted from the
+   sheets.
 
 ## Not in scope
 

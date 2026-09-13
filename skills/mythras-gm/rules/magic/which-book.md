@@ -33,18 +33,29 @@ Where both books name the same spell — Light, Sleep, Calm, Chill, Darkness,
 Heal, Knock — **they are not the same spell**, and the one in play is the one
 under `magic/cfi/`.
 
-## The one thing that is neither
+## Piety is Devotion
 
-**Piety.** Gardwen and Nerissa both cast on a Piety skill. It is not a Mythras
-skill and it is not a Classic Fantasy Imperative skill — it appears once in the
-whole CFI SRD, inside the text of Spiritshield, and is nowhere defined. It comes
-from full Classic Fantasy.
+Gardwen and Nerissa both cast on a **Piety** skill, and the first pass through
+these books concluded it was outside both of them. It is not.
 
-Played as: **Piety is devotion, not casting.** It is the cleric's standing with
-their god — what an Exhort is rolled against, what a rite is performed on, what
-falls when they act against the faith. **Channel is what casts the spell.** A
-cleric with high Piety and poor Channel is devout and clumsy, which is a real
-kind of priest.
+CFI gives every cleric two professional skills: **Channel (INT+CHA)** and
+**Devotion (POW+CHA)**. Piety is our name for Devotion, and the numbers confirm
+it — Nerissa's own sheet reads *"Piety (Devotion) 92"*, and Gardwen's POW 18 +
+CHA 14 is a Devotion base of 32 under a skill of 87. They do different jobs and
+both are needed:
 
-This is ours, written here because two character sheets depend on it and nothing
-recorded what it meant.
+- **Channel** makes the spell happen, and sets its **Intensity** (skill/10).
+- **Devotion** is standing with the god, and sets the spell's **Magnitude** —
+  how hard it is to dispel or resist. It is also what an Exhort is rolled
+  against and what falls when a cleric acts against the faith.
+
+So there is no house rule here at all. Sheets should say **Devotion**; where one
+still says Piety, it means the same thing.
+
+## Clerics do not have a spell list
+
+Worth stating because two sheets are built as though they do. A CFI cleric has
+**access to every cleric spell of their Rank or below** and does not know spells
+the way a mage knows them — they pray for them. What a sheet needs is the
+**Rank** and **what is currently in memory**, not an inventory. A cleric who
+wants something else on their list waits for morning.

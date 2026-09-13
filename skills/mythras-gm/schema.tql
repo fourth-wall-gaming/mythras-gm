@@ -35,6 +35,8 @@ attribute myth-luck-current, value integer;
 attribute myth-magic-current, value integer;
 attribute myth-experience-rolls, value integer;    # banked experience rolls
 attribute myth-spells-json, value string;          # {"folk":[...],"theism":[...],"sorcery":[...],"mysticism":[...],"windworking":[...]}
+attribute myth-powers-json, value string;          # [{"name":"Berserk","rule":"magic/powers/berserk","boosts":[...],"limits":[...]}]
+                                                   # Mythras Powers carry everything the CFI spell list has no entry for.
 attribute myth-extras-json, value string;          # lossless bag for system-specific fields (cult_rank, cults, features, spirits, natural_armor, strike_rank...)
 attribute myth-actor-notes, value string;          # how to PLAY them: bearing, speech, tell | wants, won't, because
 attribute myth-staging-notes, value string;        # how to PLAY a place: sense, shape, lives, hands, costs, turns
@@ -219,6 +221,7 @@ entity myth-character sub alh-domain-thing,
     owns myth-magic-current,
     owns myth-experience-rolls,
     owns myth-spells-json,
+    owns myth-powers-json,
     owns myth-extras-json,
     owns myth-actor-notes,
     plays myth-campaign-membership:element,
@@ -242,6 +245,7 @@ entity myth-creature-template sub alh-domain-thing,
     owns myth-equipment-json,
     owns myth-combat-styles-json,
     owns myth-spells-json,
+    owns myth-powers-json,
     owns myth-extras-json,
     plays myth-campaign-membership:element,
     plays myth-template-instance:template,

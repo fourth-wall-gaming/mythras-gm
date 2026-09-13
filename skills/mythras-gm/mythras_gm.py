@@ -195,7 +195,8 @@ def _link_to_campaign(driver, campaign_id, element_id, element_type):
 CHAR_ATTRS = ["description", "content", "myth-char-type", "myth-status",
               "myth-characteristics-json", "myth-attributes-json", "myth-skills-json",
               "myth-hit-locations-json", "myth-equipment-json", "myth-passions-json",
-              "myth-combat-styles-json", "myth-spells-json", "myth-extras-json",
+              "myth-combat-styles-json", "myth-spells-json", "myth-powers-json",
+              "myth-extras-json",
               "myth-actor-notes",
               "myth-fatigue", "myth-luck-current",
               "myth-magic-current", "myth-experience-rolls"]
@@ -240,6 +241,9 @@ def _combat_card(c):
         "hit_locations": c.get("myth-hit-locations-json") or [],
         "combat_styles": c.get("myth-combat-styles-json") or {},
         "passions": c.get("myth-passions-json") or {},
+        # Powers are on the card because Berserk changes every number in a
+        # fight. Spells are not: they are looked up when cast.
+        "powers": [p.get("name") for p in (c.get("myth-powers-json") or [])],
     }
     return card
 
@@ -459,7 +463,7 @@ def _transform_sheet(sheet, char_type):
     consumed = {"name", "stats", "skills", "combat_styles", "hit_locations",
                 "attributes", "equipment", "notes", "passions",
                 "folk_spells", "theism_spells", "sorcery_spells",
-                "mysticism_spells", "windworking_spells"}
+                "mysticism_spells", "windworking_spells", "powers"}
     extras = {k: v for k, v in sheet.items() if k not in consumed}
     if strike_rank:
         extras["strike_rank"] = strike_rank
@@ -475,6 +479,7 @@ def _transform_sheet(sheet, char_type):
         "equipment": equipment,
         "passions": _flatten_kv_list(sheet.get("passions")),
         "spells": spells,
+        "powers": sheet.get("powers") or [],
         "extras": extras,
         "notes": sheet.get("notes", ""),
     }
@@ -594,6 +599,7 @@ def cmd_import_characters(args):
                 has myth-passions-json "{escape_string(json.dumps(t["passions"]))}",
                 has myth-combat-styles-json "{escape_string(json.dumps(t["combat_styles"]))}",
                 has myth-spells-json "{escape_string(json.dumps(t["spells"]))}",
+                has myth-powers-json "{escape_string(json.dumps(t.get("powers") or []))}",
                 has myth-extras-json "{escape_string(json.dumps(t["extras"]))}",
                 has myth-fatigue "Fresh",
                 has myth-luck-current {t["attributes"].get("luck_points", 2)},
@@ -751,6 +757,7 @@ def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-spells-json": args.spells,
+        "myth-powers-json": args.powers,
         "myth-fatigue": args.fatigue, "myth-status": args.status,
         "myth-actor-notes": args.actor_notes,
         "description": args.description, "content": args.narrative,
@@ -3941,6 +3948,9 @@ def build_parser():
     s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
     s.add_argument("--narrative", help="full rich-text backstory (stored as content)")
     s.add_argument("--spells", help="JSON spell lists, e.g. {\"binding\": [...], \"arcane\": [...]}")
+    s.add_argument("--powers", help="JSON list of powers, e.g. "
+                   "[{\"name\": \"Berserk\", \"rule\": \"magic/powers/berserk\"}]. "
+                   "Powers carry everything the CFI spell list has no entry for")
 
     s = sub.add_parser("apply-damage")
     s.add_argument("--id", required=True)
