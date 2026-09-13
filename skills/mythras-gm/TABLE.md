@@ -237,6 +237,35 @@ same length is badly paced, whatever its word counts say.
 
 ---
 
+## 2b. Pressure — the rules the last two runs needed
+
+Two sessions produced fourteen allies, no losses, and an antagonist who was a
+timetable. The prose was fine and the story had no shape. These are the
+countable fixes.
+
+1. **Every act takes something.** Not a setback — a loss that does not come
+   back: a person, a place, a standing, a route. A stretch of play in which the
+   party only gains has not happened yet. If the dice will not produce it, the
+   antagonist's playbook must.
+2. **Most people say no the first time.** An ally is a scene, not a
+   conversation. Everybody wants something, is frightened of something, or is
+   already committed elsewhere, and the default answer to a stranger asking for
+   help in an occupied city is **no**. A run of eight scenes that each end in
+   somebody agreeing is a recruitment drive, not a story.
+3. **The antagonist answers within a watch.** He is not a schedule. Write his
+   counters as *triggers* — when they do this, he does that — and fire them
+   while the party is still in the room, not into the journal afterwards.
+4. **The world interrupts.** Offscreen beats are allowed to walk into a scene.
+   §8 says the world is not waiting to be witnessed, and resolving everything
+   into the journal for later discovery is exactly waiting to be witnessed.
+5. **Violence must be able to win.** If the armed faction has never actually
+   hurt anybody the players care about, nobody is afraid of it. Escalate by
+   rungs — tolls, then a beating, then a death nobody answers for, then
+   reprisal — and never skip one.
+6. **At the crisis, the allies are unavailable.** Fourteen friends who all
+   arrive on time is a rescue by committee. Strand them for reasons already
+   established, and let the PCs be the only ones who can act.
+
 ## 3. The wall between mechanics and fiction
 
 Mechanics are never narrated. They appear in their own marked block, and prose
