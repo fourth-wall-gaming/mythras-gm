@@ -1,5 +1,10 @@
 # Reconciling the rules — plan
 
+> **Status.** Steps 1, 2, 3, 5, 6 and 7 are done. **Step 4 — the character
+> question — is open, and it is the only thing left.** Two claims in the
+> original plan turned out to be wrong when checked against the books; both are
+> corrected below and marked.
+
 ## The problem in one line
 
 The game is played on **Classic Fantasy**, and only **Classic Fantasy
@@ -7,13 +12,12 @@ Imperative** is ours to redistribute.
 
 ## The licence boundary
 
-Three populations, and they must stop being stored the same way.
-
 | | what it is | may we republish? |
 |---|---|---|
 | **ORC** | Mythras Imperative SRD, CFI SRD — both vendored, both ORC licensed | **Yes**, with the ORC notice. Share-alike applies to mechanics we publish. |
 | **Full Classic Fantasy** | the commercial book: Berserker, Druid, Paladin, Ranger, Bard, Monk, their rank tables and spell lists | **No.** Not ORC. We may *play* it from a book we own; we may not ship it. |
-| **Ours** | Purewater, its people, the binding school, the wild-elf line, the Order's rites | Yes — Reserved Material, ours to keep. |
+| **Full Mythras** | the commercial book — corrected, see below | **No.** Same terms. |
+| **Ours** | Purewater, its people, the binding school, the wild-elf line, the Order's rites, Piety-as-devotion | Yes — Reserved Material, ours to keep. |
 
 **What CFI actually contains:** four classes (Cleric, Fighter, Magic-User,
 Rogue), two spell lists (Cleric, Mage), 143 spells, and Barbarian as a
@@ -21,22 +25,28 @@ Rogue), two spell lists (Cleric, Mage), 143 spells, and Barbarian as a
 flexibility, with no write-up. Druid appears zero times.
 
 **So both PCs sit outside it.** Magda is a barbarian berserker — the culture is
-CFI, the class is not. Gardwen is a druid with a druid spell list (Barkskin,
-Entangle, Animal Friendship, Slow Poison), none of which is in CFI.
+CFI, the class is not. Gardwen's sheet already reads `class: Cleric`, but four
+of her spells (Animal Friendship, Barkskin, Entangle, and Know Passions under
+that name) are druid, and CFI has no trace of them.
+
+**Correction — there is a third book, not two.** The plan assumed everything
+outside CFI was full Classic Fantasy. It is not. Babble, Mimic, Incognito and
+MindSpeech are **full Mythras** folk magic — beyond the Imperative's
+twenty-four, and just as much not ours. They are on Conall's sheet.
 
 This is not a legal opinion. It is the prudent reading, and the repo is public.
 
-## What to do about the two characters
+## What to do about the two characters — THE OPEN QUESTION
 
 Three options, cheapest first. **This is the one decision I cannot make alone**,
 because it changes two player characters.
 
 1. **Rebuild on CFI classes.** Magda becomes a Fighter of Barbarian culture with
-   a Berserk *passion* driving Rage rather than a class feature; Gardwen becomes
-   a Cleric of a woodland faith whose spell list is drawn from CFI's cleric list
-   plus our own woodland spells. Cheapest to ship, and both characters survive
-   in play almost unchanged, because what makes them is the passions and the
-   cards, not the class label.
+   a Berserk *passion* driving Rage rather than a class feature; Gardwen stays a
+   Cleric and her four druid spells are rewritten as woodland spells of ours,
+   alongside the wild-elf line already in the graph. Cheapest to ship, and both
+   characters survive in play almost unchanged, because what makes them is the
+   passions and the cards, not the class label.
 2. **Keep the builds, ship nothing.** Mark both sheets `licence: private` and
    exclude them from the published package. The game runs; the repo carries a
    hole where two PCs should be.
@@ -45,53 +55,62 @@ because it changes two player characters.
    work, and the result is ours.
 
 **Recommendation: 1.** It removes the problem rather than managing it, and the
-characters lose nothing a player would notice.
+characters lose nothing a player would notice. Gardwen is already most of the
+way there — it is four spells, not a rebuild.
 
-## The spell audit, and the three populations in it
+## The spell audit, as it actually came out
 
-78 real spell names are in play. CFI covers 30. The other 48 are not one thing:
+78 distinct spell names sit on character sheets. Counted against both vendored
+SRDs and the rules graph:
 
-- **Renames of CFI spells.** `flaming hands` is CFI's **Burning Hands**;
-  `charm being` is **Charm Person/Monster**; `illusion, lesser` and
-  `audible illusion` look like relabelled CFI entries. These need mapping, not
-  writing — we are otherwise inventing rules that already exist.
-- **Ours already.** The binding school (`open the channel`, `seat the bound`,
-  `reinforce the seat`, `draw forth`) and the wild-elf line (`spirit sight`,
-  `speak with the bound`, `unseat`) are in the rules graph and are Reserved
-  Material. Correct as they stand.
-- **Full Classic Fantasy.** Druid spells with no CFI equivalent. These follow
-  whichever option is chosen above.
-- **Not spells at all.** Prose leaked into the `spells` field — Nerissa carries
-  *"Exhort 80 — she can ask the Lady for things outside the spell list"* and
-  *"the Drowning is not expertise and must never be played as such…"* as if they
-  were spell names. They can never resolve and they corrupt every audit.
+| | count | |
+|---|---|---|
+| **ORC** | 45 | Mythras Imperative or CFI. Every one now has a rule. |
+| **ours** | 9 | the binding school and the wild-elf line. Already correct. |
+| **not ours** | 24 | 20 full Classic Fantasy, 4 full Mythras. No rule, by design. |
+
+The full table is `skills/mythras-gm/spell_registry.json`, generated by
+`scripts/build_spell_registry.py`. Eleven of the 45 are the same spell under
+another label and are recorded as aliases — `Flaming Hands → Burning Hands`,
+`Charm Being → Charm Person`, `Purify Water → Purify Food and Drink`,
+`Know Passions → Know Alignment`, and seven more.
 
 ## Order of work
 
-1. **Separate the prose out of `spells`.** Pure data cleaning, no decisions.
-   Those lines are GM notes and belong in `actor_notes`. Do this first, because
-   every count below is wrong until it is done.
-2. **Map the renames to CFI.** Produce an explicit alias table, checked in, so
-   `flaming hands → Burning Hands` is recorded rather than rediscovered.
-3. **Classify every remaining spell** as `orc` / `ours` / `full-cf`, as a field
-   on the rule, not as a guess made at the table.
-4. **Decide the character question** (above). Then apply it.
-5. **Ingest CFI into the rules graph** — classes, both spell lists, magic
-   chapter — so that `query-rules` answers a spell lookup instead of returning
-   nothing and inviting me to improvise. This is the fix for the actual failure:
-   Command was ruled 1 MP for a scene when the book says Cost 3 for one Turn.
-6. **Record the house rules that already exist**, explicitly, as house rules:
-   - casting rolls on **Piety 87 / Channel 85**, where Mythras says
-     **Magic (POW+CHA)** — which for Gardwen would be 32. That is a very large
-     house rule and no file records it as a decision.
-   - petty-magic conventions carried over from earlier runs.
-7. **Add the guardrail.** A check that fails when a character sheet references a
-   spell with no rule behind it. The whole failure chain here — 71 uncovered
-   spells, a ruling invented from analogy — was invisible because nothing ever
-   compared the sheets to the rulebook.
+1. ~~**Separate the prose out of `spells`.**~~ **Done.** Thirteen entries, all on
+   Nerissa: her rites, her doctrine, and a note on why she is powerful, stored
+   as if they were spell names. Moved to `extras`, with the part that changes how
+   she is played added to her actor notes. Applied to the package and to the live
+   campaign.
+2. ~~**Map the renames to CFI.**~~ **Done.** Eleven aliases, each checked against
+   the vendored text one at a time rather than guessed from the shape of the word.
+3. ~~**Classify every remaining spell.**~~ **Done.** `source` and `licence` on
+   every one of the 78, and a `licence` facet on every generated rule, so
+   `query-rules --facet licence=orc` answers.
+4. **Decide the character question** (above). Then apply it. — **OPEN.**
+5. ~~**Ingest CFI into the rules graph.**~~ **Done for magic.** 143 spells and
+   the 16 sections of the magic chapter, generated by
+   `scripts/ingest_cfi_spells.py` and `scripts/ingest_cfi_chapter.py`. The graph
+   went from 112 rules to 273. `get-rule --id magic/cfi/spell-command` now
+   answers with Cost 3, 1 Minute, 100 ft, Resist Willpower.
+   **Classes are not ingested**, because which classes we ingest is step 4.
+6. ~~**Record the house rules.**~~ **Done, and the premise was wrong.**
+   The plan said casting on Piety 87 was a large house rule against Mythras's
+   Magic (POW+CHA) = 32. It is not: the game runs **CFI** magic, where a cleric
+   casts on **Channel (INT+CHA)**. Gardwen's Channel 85 is in-book and correct.
+   What is genuinely outside both books is **Piety**, which appears once in the
+   whole CFI SRD, inside the text of Spiritshield, and is nowhere defined. It is
+   now ours and written down: Piety is devotion, Channel is what casts the spell.
+   The real contradiction was elsewhere and larger — Mythras Imperative makes
+   every spell Intensity 1 on a fixed MP ladder, CFI scales Intensity to
+   skill/10 and charges the spell's own Cost line. Both books are in the graph;
+   `magic/which-book` now says which governs and tabulates where they disagree.
+7. ~~**Add the guardrail.**~~ **Done.** `build_spell_registry.py --strict` exits
+   non-zero when a sheet names a spell with no rule behind it. It found 57 on
+   first run and reports 24 now — and those 24 are exactly the not-ours set, so
+   the remaining gap is a licence decision, not missing data.
 
 ## Not in scope
 
-- Re-ingesting Mythras Imperative; the existing 112 rules are from it and are
-  fine.
+- Re-ingesting Mythras Imperative; the existing rules are from it and are fine.
 - Rewriting any vendored file. They are upstream copies and stay verbatim.

@@ -1,0 +1,30 @@
+---
+id: "magic/cfi/spell-polymorph-other"
+title: "Polymorph Other"
+category: "magic"
+domain: "magic"
+topic: "spells"
+kind: "spell"
+summary: "Mage 3. The caster can alter the form of one corporeal targeted creature into that of another, with each point of Intensity altering SIZ by up to 5 points."
+facets: {"phase": ["casting"], "kind": ["spell"], "magic-system": ["mage"], "licence": ["orc"], "source": ["classic-fantasy-imperative"]}
+links: ["magic/casting", "magic/cfi/spell-list"]
+licence: "orc"
+source: "Classic Fantasy Imperative, ORC License. Adapted from the vendored SRD (vendor/cfi-srd); see vendor/README.md for the notice."
+---
+_Transmutation_
+
+**Rank:** Mage 3 · **Casting Time:** 2 Actions · **Sphere:** None · **Duration:** Permanent · **Cost:** 3, +1/additional Intensity (+1 EXP) · **Range:** 15 ft/Intensity · **Area:** 1 Target · **Resist:** Willpower
+
+The caster can alter the form of one corporeal targeted creature into that of another, with each point of Intensity altering SIZ by up to 5 points. Therefore, transforming an orc of SIZ 16 into a SIZ 1 rabbit would require 3 levels of Intensity (15 SIZ points of difference). The subject of this spell is allowed a Willpower roll to resist. Large creatures (SIZ 21-40) are less susceptible to being polymorphed, with their Resistance roll being Easy, while the Resistance roll for Huge creatures (SIZ 41+) is Very Easy.
+
+The entire transformation process takes a full Round and can be quite stressful to the creature in question, requiring a second Willpower roll to retain their original personality, with a Failure stunning the subject for 1d10 minutes, and a Fumble resulting in death from mental shock. Each doubling or halving of the creature's original SIZ makes the Willpower roll to retain the personality one grade more difficult, as would a complete change of environment, such as changing a person into a fish. A successful roll allows the victim to retain their INT and CHA as well as any skills requiring those Characteristics.
+
+The transformation grants the recipient the assumed creature's form of breathing, if other than normal; any natural attacks; and all mundane modes of movement. It does not grant any heightened or magical Abilities possessed by the creature. For example, a creature that has been polymorphed into a dragon will not gain the creature's breath attack or spell-like abilities, but will gain the ability to fly, it's tough hide, deadly bite, claw attacks, and so on. In addition, the victim gains the new form's physical skills such as Athletics, Brawn, Fly, Swim, as well as its Hit Points and Damage Modifier. Assuming the transformed individual retained their INT, they still lose the capacity to speak, unless the new form possesses the ability to articulate words. Those that were able to cast spells in their previous form would still be able to cast in the new form, assuming they still possess the capability to produce the verbal and somatic components. In the case of a drastic change, such as being changed from biped to quadruped, or a land animal to a sea creature, for example, the Games Master should feel free to penalize by at least one Difficulty Grade, the use of any skills that would take time to learn while adjusting to the new form until there has been sufficient time to practice. This is especially true of physical skills such as Athletics, Unarmed, Swim, Fly, Combat Skills, and so on.
+
+The Willpower roll to retain one's personality is required every day that the subject remains transformed until failed, causing the person to finally succumb to the mentality of the new form, with INT changing to INS in the case of a non-sapient creature. All special and magical Abilities owned by the new form that were not acquired previously, such as gaze attacks, breath weapons, and so on, are now available to the creature as the transformation is complete. Characters that lose their identity in this way become Non-Player Characters under the control of the Games Master.
+
+Prior to succumbing mentally to the transformation, the polymorphed creature is susceptible to Dispel Magic as normal, with no roll to resist required, as it would be one's subconscious desire to return to normal. The transformation does require another Willpower roll to resist the strain, with a Failure stunning the subject for 1d10 minutes, and a Fumble resulting in death from mental shock.
+
+If the victim had previously succumbed to the new form, Dispel Magic may still be used; however, the victim will attempt to resist returning to the natural form with a Willpower roll. Failing this roll means the victim transforms back into the natural form, which, of course, requires another Willpower roll to resist the mental shock from the transformation. Once lost, a victim's natural identity is no longer attainable, instead the victim assumes the strange and alien form is not natural and yearns to be returned to its prior 'normal.' _For example, an orc that was polymorphed into a rabbit and assumed the creature's identity would believe that it is now a rabbit that has been rather rudely transformed into an orc._ Only a Wish, or other similar magic, has any chance of restoring the victim's identity once it has been lost.
+
+All worn and carried equipment magically melds into the new form; however, in some cases, the Games Master may allow magic items that would still be able to be used in the creature's new form to remain, such as a magic ring or boots. Note this requires the creature's new SIZ to not be vastly different from the original. There is a POW x1% chance for each worn magic item of a non-offensive nature, subject to Games Master approval, to transfer its effects to the creature's new form. A creature with a +1 ring of protection for example, could gain a +1 bonus to its natural Armor Points. Creatures with the natural capability to shape change, such as doppelgängers and lycanthropes, will be transformed as normal, but may assume their normal form after 1 Round. If slain, a polymorphed creature reverts to its natural form, even if it has previously lost all traces of identity.
