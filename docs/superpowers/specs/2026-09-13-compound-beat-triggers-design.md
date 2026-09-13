@@ -46,7 +46,53 @@ myth-beat             the run's live state
 
 Nothing reads upward. Beats are a projection and never the source.
 
-### Conditions accelerate; time backstops
+### Two kinds of beat
+
+The original draft assumed every beat is something **the world does**. Writing
+the Orrin Sculle beat proved that wrong: some beats are something **the world
+offers**, and forcing those onto a clock destroys them.
+
+| | **Pressure** | **Opportunity** |
+|---|---|---|
+| What it is | the world acts | the world offers |
+| Example | Santo comes back with three paid knights | Orrin Sculle is on the after deck when you come aboard |
+| Conditions | `needs`, ANDed: `played` / `fact` / `knows` | `contact`, disjunction allowed |
+| Backstop | `by` is **required** | `by` must be **null** |
+| If ignored | happens anyway, on schedule | never happens at all |
+| Staging | onscreen or offscreen, from presence | always onscreen, by definition |
+
+This is the doomline and the game board, and they are different objects. A
+pressure beat with no backstop is a thread that can die quietly. An opportunity
+beat *with* one is a scene that ambushes the party somewhere they never went.
+
+**The split preserves the presence rule rather than breaking it.** Presence was
+excluded from pressure triggers because it would collapse "does this happen"
+into "do they see it", and the doomline depends on those being separate. For an
+opportunity beat they are **the same question by definition** — the beat exists
+because somebody arrived. That is precisely why it is a second kind and not a
+flag on the first.
+
+**Disjunction is allowed here and only here.** One scene can have two doors into
+it — aboard the ship, or near the boy by any other route — and splitting that
+into two beats would duplicate the scene and let both fire. `any:` is legal
+under `contact` and nowhere else.
+
+**Opportunity beats fire once.** If an outcome leaves the door open (Orrin's
+fear-wins branch, where he throws them off and can be tried again), the second
+approach is a *different and harder* scene: revise the beat, do not repeat it.
+No `repeatable` flag.
+
+**Where they surface.** Not in `tick`'s due list — they are not due, they are
+available. Two places instead:
+
+- **`forecast`** lists them as the board: what is reachable and where.
+- **`brief --id <place>`** carries the opportunities attached to that place.
+  This is the load-bearing one. The GM briefs a place immediately before
+  describing it, which is exactly the moment an opportunity standing there needs
+  to be in front of them — and it catches the case `tick` cannot, where the
+  party walks somewhere mid-scene with no clock advance.
+
+### Conditions accelerate; time backstops (pressure beats)
 
 The central rule, and the one that keeps the doomline pressing:
 
@@ -64,21 +110,20 @@ their exact current behaviour with no migration.
 
 ### The grammar
 
-Three condition kinds, deliberately no more:
+Four condition kinds, deliberately no more. The first three belong to pressure
+beats; the fourth belongs only to opportunity beats.
 
-| Kind | Waits on | Why it is in |
-|---|---|---|
-| `played` | another beat reaching `played` or `narrated` | ordering; makes threads instead of timetables |
-| `fact` | a `myth-fact` reaching `established` | truth in the world, regardless of who knows it |
-| `knows` | a `myth-knows` edge between a character and a fact | knowledge rather than truth — this is what makes an antagonist *react* |
+| Kind | Beat kind | Waits on | Why it is in |
+|---|---|---|---|
+| `played` | pressure | another beat reaching `played` or `narrated` | ordering; makes threads instead of timetables |
+| `fact` | pressure | a `myth-fact` reaching `established` | truth in the world, regardless of who knows it |
+| `knows` | pressure | a `myth-knows` edge between a character and a fact | knowledge rather than truth — this is what makes an antagonist *react* |
+| `contact` | opportunity | a PC reaching a place or a character | the party arriving is the whole event |
 
-Conditions are ANDed. There is no `or`, no nesting, and no negation: a beat
-that needs alternatives is two beats, which is also clearer to read.
-
-**Presence is deliberately excluded.** Presence already decides *staging* —
-whether the party witnesses a beat. Letting it also decide *firing* would
-collapse "does this happen" and "do they see it" into one thing, and the
-doomline depends on those being separate.
+Pressure conditions are ANDed, with no `or`, no nesting and no negation: a
+pressure beat that needs alternatives is two beats. Opportunity conditions take
+`any:`, because one scene may legitimately have two doors into it and splitting
+it would let both fire.
 
 In the arc document:
 
@@ -92,33 +137,71 @@ In the arc document:
     - knows: {who: hanzo, fact: the-party-have-the-scroll}
 ```
 
+And an opportunity beat:
+
+```yaml
+- title: Orrin Sculle decides
+  id: myth-beat-a97a385e1c03
+  kind: opportunity
+  by: null                        # required to be null
+  needs:
+    any:
+      - contact: cailan           # a PC reaches the boy, any route
+      - contact: the-dragonbarge  # or gets aboard
+```
+
+`kind:` defaults to `pressure` when absent, so every existing entry is already
+correct without being touched.
+
 Authored by slug or title. `sync-arc` resolves each to an id and writes the
 resolved form back, so the next sync matches on identity rather than on a title
 since reworded.
 
 **Refusal rule.** An unknown condition kind, or a slug resolving to nothing, is
-a hard error at `sync-arc` time that names what is valid. Never an empty-set
+a hard error at `sync-arc` time that names what is valid. So is a mismatch
+between kind and shape: a pressure beat with no `by`, an opportunity beat that
+has one, `any:` outside a `contact` condition, or `contact` in a pressure
+beat's `needs`. Never an empty-set
 success, which silently means *never fires* — the failure mode where a thread
 dies quietly and nobody notices for three sessions.
 
 ### Storage
 
-One new attribute, `myth-beat-needs-json`, on `myth-beat`. No change to the
-relation graph. Additive, so it applies to the live database with a `define`.
+Two new attributes on `myth-beat`, both additive, applied to the live database
+with a `define`. No change to the relation graph.
+
+- `myth-beat-needs-json` — the conditions, whichever kind.
+- `myth-beat-kind` — `pressure` | `opportunity`, defaulting to `pressure` when
+  absent so that all 47 existing beats are already correct.
+
+An opportunity beat has no `myth-time-index`, which is what keeps it out of
+every existing time-ordered query for free.
 
 ### Evaluation
 
 `beat_is_due(beat, now_index, clock_filled)` gains a fourth argument: a
-world-state snapshot — the set of played beat ids, established fact ids, and
-`(knower, fact)` pairs. It stays a **pure function**, unit-testable with no
-database, which matters because it is the most consequential function in the
-engine and goes from two branches to four.
+world-state snapshot — the sets of played beat ids, established fact ids,
+`(knower, fact)` pairs, and the places and characters the PCs are currently in
+contact with. It stays a **pure function**, unit-testable with no database,
+which matters because it is the most consequential function in the engine.
 
 ```python
 def beat_is_due(beat, now_index, clock_filled=None, world=None) -> bool
 ```
 
 `world=None` preserves today's behaviour exactly.
+
+**Opportunity beats are evaluated by a separate function**, not by threading a
+kind flag through `beat_is_due`:
+
+```python
+def available_beats(beats, world) -> list[dict]
+```
+
+They answer a different question — *what is reachable from here* rather than
+*what has come due* — and they must never join the due list, because the GM
+reads that list as things to narrate now. Two functions keep that separation
+structural instead of relying on a caller to filter correctly.
 
 ## The safeguard
 
@@ -204,8 +287,9 @@ quiet because nothing happened to be scheduled.
 
 - `unless` / auto-cancelling clauses. Divergence is an authoring event; the
   cast checks provide the reminder at the moment the beat would have fired.
-- `or`, nesting, negation in the grammar.
-- Presence as a trigger condition.
+- `or` and nesting in pressure conditions; negation anywhere.
+- Presence as a *pressure* trigger.
+- A `repeatable` flag on opportunity beats.
 - Any rewrite of the 47 archived beats. They are the archived run's history.
 
 ## Testing
@@ -214,8 +298,13 @@ quiet because nothing happened to be scheduled.
   matter most: no `needs` behaves exactly as today; `by` fires with conditions
   unmet; conditions met fires before `by`.
 - Coherence checks get a positive and a negative case each.
+- `available_beats` gets its own cases: a disjunction where neither, one, and
+  both doors are open; and an assertion that no opportunity beat ever appears in
+  `due_beats` output.
 - `sync-arc` gets a round-trip test: slugs in, ids written back, second sync
   reports `unchanged`.
+- A refusal test for each kind/shape mismatch (pressure without `by`,
+  opportunity with one, `any:` outside `contact`, `contact` in a pressure beat).
 - A refusal test per malformed condition, asserting the error names the valid
   kinds.
 - The existing 157 tests must stay green, and a regression test asserts that a
@@ -223,8 +312,12 @@ quiet because nothing happened to be scheduled.
 
 ## Order of work
 
-1. `beat_is_due` + world snapshot, pure, with tests. No wiring.
-2. Schema attribute + `sync-arc` authoring, resolution and write-back.
+1. `beat_is_due` + world snapshot, and `available_beats`, both pure, with
+   tests. No wiring.
+2. Schema attributes + `sync-arc` authoring, resolution, write-back and the
+   kind/shape refusals.
 3. `tick` partition into due/held, and the coherence checks.
-4. `forecast` waiting-on, and `tick` near-misses.
-5. The Act I arc document for the new run.
+4. `forecast` waiting-on and the board; `tick` near-misses; opportunities
+   surfaced through `brief --id <place>`.
+5. The Act I arc document for the new run, and `beats/orrin-sculle-decides.md`
+   reconciled to whatever the final syntax turns out to be.
