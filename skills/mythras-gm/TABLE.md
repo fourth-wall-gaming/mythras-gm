@@ -90,6 +90,25 @@ whose own text specified a stolen scroll in the Baron's own hand.
 The shape: what this act is for, what it takes from them, where it ends, and
 what the next one needs to be true.
 
+**At all times means at all times — not "at session start".** Reading a file
+once and trusting it to stay is how the world's physical laws and everybody's
+pronouns got missed, twice in one day, and it will always fail the same way:
+the file drops out of context and nothing tells you it has gone.
+
+So the plan lives **in the save file** and rides on the calls you already make.
+`get-context`, `forecast` and `tick` each return `arc` — every act, what it is
+FOR, what it TAKES, and which one the clock is currently in. It costs a few
+hundred tokens and it cannot decay, because you cannot look at the world state
+without it.
+
+**Check it constantly, and check it for drift.** The arc is a parse of
+`story.md`; if play has moved somewhere the acts no longer describe, that is not
+a nuisance, it is the signal to rewrite (below) and then
+`update-campaign --arc-file <story.md>` to push the new plan back into the save.
+
+**If you are about to address the player and you cannot say what this act is for
+and what it takes, you do not have the story. Load it before you speak.**
+
 ### Three files and they only work together
 
 | | what it is | when you read it |

@@ -279,6 +279,69 @@ def cmd_get_campaign(args):
     out({"success": True, "campaign": c})
 
 
+def _parse_arc_acts(path):
+    """Pull the act skeleton out of a story file: name, span, purpose, cost.
+
+    Only the skeleton. The beat tables stay in the file and in the catalog --
+    duplicating them here is how story.md and beats/ start disagreeing, which
+    story.md's own first section forbids.
+    """
+    text = open(path, encoding="utf-8").read()
+    acts, cur = [], None
+    for line in text.splitlines():
+        m = re.match(r"^#\s+ACT\s+([IVXL]+)\s*[-—–]\s*(.*)$", line.strip())
+        if m:
+            if cur:
+                acts.append(cur)
+            rest = m.group(2)
+            span, _, title = rest.partition("·")
+            cur = {"act": m.group(1),
+                   "when": span.replace("`", "").strip(),
+                   "title": title.strip() or rest.strip(),
+                   "for": "", "takes": ""}
+            continue
+        if not cur:
+            continue
+        t = line.strip()
+        if t.startswith("**Takes:**"):
+            cur["takes"] = t[len("**Takes:**"):].strip()
+        elif t and not t.startswith(("|", "#", "-", "**", "`")) and not cur["for"]:
+            cur["for"] = t
+    if cur:
+        acts.append(cur)
+    if not acts:
+        fail(f"no `# ACT ...` headings found in {path}")
+    return acts
+
+
+def _campaign_arc(driver, cid, now_index=None):
+    """The plan, small enough to ride along with everything else.
+
+    It rides on get-context, forecast and tick rather than being read once at
+    session start, because read-it-once is how the world's physical laws and
+    everybody's pronouns got missed. What must not decay out of context is not
+    what happened -- it is what the whole thing is FOR.
+    """
+    c = _get_entity(driver, "myth-campaign", cid, ["myth-arc-json"])
+    acts = (c or {}).get("myth-arc-json") or []
+    if isinstance(acts, str):
+        acts = json.loads(acts or "[]")
+    if not acts:
+        return {"acts": [], "now": None,
+                "guidance": "NO ARC LOADED. The plan is not in the save, so "
+                            "nothing will remind you what this act is for. "
+                            "`update-campaign --arc-file <story.md>`."}
+    here = None
+    if now_index is not None:
+        for a in acts:
+            lo = a.get("index_from")
+            hi = a.get("index_to")
+            if lo is not None and hi is not None and lo <= now_index <= hi:
+                here = a["act"]
+                break
+    return {"acts": acts, "now": here}
+
+
 def cmd_update_campaign(args):
     """Edit campaign-level state. `set-scene` covers the scene; this covers the
     rest -- including the session number and the prose game-date, both of which
@@ -295,6 +358,20 @@ def cmd_update_campaign(args):
         if args.staging_notes is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-staging-notes",
                       args.staging_notes)
+        if args.arc_file is not None:
+            acts = _parse_arc_acts(args.arc_file)
+            for a in acts:
+                span = a["when"].replace("to", " ").split()
+                keys = [w for w in span if re.match(r"^d-?\d+(/\w+)?$", w)]
+                try:
+                    a["index_from"] = eng.parse_time_key(
+                        keys[0] if "/" in keys[0] else keys[0] + "/dawn")
+                    a["index_to"] = eng.parse_time_key(
+                        keys[-1] if "/" in keys[-1] else keys[-1] + "/night")
+                except (IndexError, ValueError):
+                    a["index_from"] = a["index_to"] = None
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-arc-json",
+                      json.dumps(acts))
         if args.session_number is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-session-number",
                       args.session_number, quote=False)
@@ -2673,6 +2750,7 @@ def cmd_forecast(args):
         if not camp:
             fail(f"No campaign '{args.campaign}'")
         now = camp.get("myth-time-index")
+        arc = _campaign_arc(driver, args.campaign, now)
         agendas = _campaign_agendas(driver, args.campaign)
         beats = _campaign_beats(driver, args.campaign)
         pc_ids, pc_places = _pc_presence(driver, args.campaign)
@@ -2714,6 +2792,7 @@ def cmd_forecast(args):
          "time_index": now,
          "horizon": thread[-1]["when"] if thread else None,
          "beats": len(thread),
+         "arc": arc,
          "thread": thread,
          "silent_agendas": silent,
          "silent_count": len(silent)})
@@ -2778,6 +2857,9 @@ def cmd_tick(args):
                   for a in agendas
                   if a["id"] in active and a["id"] not in scheduled]
 
+    with get_driver() as driver:
+        arc = _campaign_arc(driver, args.campaign, now)
+
     out({"success": True,
          "from": eng.format_time_key(was) if was is not None else None,
          "now": args.to, "time_index": now,
@@ -2785,6 +2867,7 @@ def cmd_tick(args):
          "cancelled_beats": settle["cancelled_beats"],
          "retired_facts": settle["retired_facts"],
          "pc_locations": pc_places,
+         "arc": arc,
          "due_beats": due,
          "onscreen": [b["id"] for b in due if b["staging"] == "onscreen"],
          "offscreen": [b["id"] for b in due if b["staging"] == "offscreen"],
@@ -3705,6 +3788,11 @@ def cmd_get_context(args):
                        if b["agenda"] is None or b["agenda"] in active_ids]
             pc_ids, pc_places = _pc_presence(driver, args.campaign)
             result["world_clock"] = eng.format_time_key(now)
+            # The plan rides on the save file. Read-it-once is how the world's
+            # physical laws and everybody's pronouns got missed, and the thing
+            # that must never decay out of context is not what happened but
+            # what the whole of it is FOR.
+            result["arc"] = _campaign_arc(driver, args.campaign, now)
             result["due_beats"] = [
                 {"id": b["id"], "title": b["title"], "when": b["when"],
                  "place": b["place_name"], "agenda": b["agenda_title"],
@@ -3958,6 +4046,10 @@ def build_parser():
     s.add_argument("--staging-notes", help="the world's physical laws -- the few "
                    "facts that would break the fiction if forgotten. Shown with "
                    "EVERY place brief, because locations do not nest")
+    s.add_argument("--arc-file", help="path to the campaign's story.md; parses "
+                   "the act skeleton (what each act is FOR and what it TAKES) "
+                   "into the save, so the plan rides on get-context, forecast "
+                   "and tick instead of being read once and forgotten")
 
     s = sub.add_parser("create-character")
     s.add_argument("--campaign")
