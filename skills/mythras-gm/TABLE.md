@@ -133,6 +133,56 @@ stop. Open the file. It is usually there, and the version on file is usually
 better, because it was written with the whole arc in view and you are writing
 with one scene in view.
 
+### Writing a thread for a new character
+
+A new PC arriving in a running scenario is not a side-quest and must not become
+one. They need a thread that **braids into the main plot** — beats in every act,
+crossing beats that already exist, so that what they do changes the campaign
+rather than running beside it.
+
+The method, in order. It took about twenty minutes for Kag and it is worth every
+one of them.
+
+1. **Read the arc first.** `get-context` carries it. What each act is FOR and
+   what it TAKES. You are looking for a load on the story that this particular
+   person is uniquely placed to feel.
+2. **Find where they already are.** Do not invent a corner of the setting for
+   them. Kag is Crowbill's — and `Crowbill names his price` and
+   `Nus lifts the binding locket` were *already* in the catalog, the second of
+   them labelled the hinge of the whole adventure. The thread wrote itself the
+   moment I looked, and it was better than anything I would have made up.
+3. **The intersection is where their ordinary work breaks.** Not a summons, not
+   a prophecy. Kag's collections come up short, in a pattern, for a reason that
+   is the main plot seen from underneath. **It must be something only they would
+   notice** — which means it runs on their best skills, not their class.
+4. **One beat per act, braided, never parallel.** Some are new; at least one
+   should be *their angle on somebody else's existing beat*
+   (`The Pearl was the account` is `the-pearl-goes-dark` read from inside a
+   ledger). A thread with no shared beats is a second campaign.
+5. **Aim the thread at a decision only they can make.** Kag's ends at
+   `Nus asks her if it can be done` — the fuse for the hinge, handed to her,
+   with no warning given, because she is the one person equipped to work out
+   what it costs.
+6. **The passions are the fault line, not the skills.** Build the collision in
+   at creation and then let it sit. Loyalty 60 against Ambition 55 is five
+   points, and five points is not much to carry for a career.
+7. **Give the signature a beat of its own.** Whatever the character does that is
+   *them* — write it into the catalog as an opportunity beat, with a GM note on
+   how often. In the catalog it gets spent deliberately; improvised, it becomes
+   a tic in every scene (`§6`, *a want is not a compulsion*).
+8. **Then write it into `story.md` and re-sync.** Beat files that are not in the
+   plan do not exist:
+   `update-campaign --arc-file <story.md>`. If it is not in the arc, it will not
+   be in context, and if it is not in context you will forget it by Tuesday.
+
+**Known gap.** Steps 5 and 7 want *opportunity* beats — no time, fires on
+contact — and `add-beat` will not take a beat without a `--when`. Until the
+compound-trigger spec is built, give them a late backstop and carry the real
+condition in `onscreen_if`, which is the documented convention anyway:
+**a `when` is the latest a beat can happen, and conditions bring it forward.**
+Put the caveat in the body, never in the front matter — that reader is not YAML
+and will swallow a trailing comment into the field.
+
 ### Improvisation has a ceiling, and it is not low
 
 Improvise freely **in the gaps between planned beats** — how a scene opens, what
