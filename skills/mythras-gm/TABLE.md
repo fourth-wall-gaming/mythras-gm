@@ -617,6 +617,44 @@ carry the scene — that is what it is for.
 A person who is frightened does not say they are frightened. They keep the table
 between you.
 
+### Characters do not explain the scene they are in
+
+The speech-cap in 2.2 catches length. This catches the thing that makes a long
+speech worth writing in the first place, and it is the more common failure by
+far.
+
+**An NPC must never narrate the logic of the exchange they are having.** Not
+what the other person just did and why. Not what the manoeuvre was. Not what it
+means, what it cost, what it will be worth, or what it says about anybody.
+Somebody who has just been out-played does not deliver an appreciation of the
+play, and nobody in life has ever said *and that is the part he will have
+understood better than you do*.
+
+That sentence is not characterisation. It is the GM's reasoning, wearing a
+character, and it arrives whenever you are pleased with a piece of subtext and
+cannot bear for it to go unnoticed.
+
+**Let it go unnoticed.** The player either sees it or sees it next week.
+
+The tells, all of which mean stop and cut:
+
+- a character summarising what another character did
+- a character explaining why something worked, or didn't
+- *"whether you meant it or not"*, *"that's the part that matters"*,
+  *"what you've actually done is"* — any sentence whose subject is the
+  conversation
+- a speech that could be cut to four words with nothing lost from the fiction,
+  only from your explanation of it
+
+**What to do with the understanding instead.** Put it in the *choice*, never in
+the mouth. If she has seen through the lie and does not mind, she laughs once
+and turns the lamp up so it falls on both of them — and says "mm". The turning
+up of the lamp IS the speech. It is two seconds long, it cannot be
+misunderstood, and it does not explain itself.
+
+A character's cleverest line should be **shorter** than their ordinary ones, not
+longer. When somebody finally understands everything, they mostly stop talking.
+
 ### Withholding is a choice with a reason, never a default
 
 Reaching for the physical answer first (above) is about *how* a character
