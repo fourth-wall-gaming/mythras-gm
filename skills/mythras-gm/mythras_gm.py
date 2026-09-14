@@ -292,6 +292,9 @@ def cmd_update_campaign(args):
             _set_attr(driver, "myth-campaign", args.campaign, "description", args.description)
         if args.game_date is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-game-date", args.game_date)
+        if args.staging_notes is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-staging-notes",
+                      args.staging_notes)
         if args.session_number is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-session-number",
                       args.session_number, quote=False)
@@ -650,9 +653,24 @@ def _brief_location(driver, loc_id):
           $c has name $cn;
         fetch {{ "cn": $cn }};''')
 
+    # The world's physical laws ride with every place, because locations do not
+    # nest: "there are no roads" is a fact about Purewater and there is nothing
+    # to carry it down into the Merchant's Quarter. Narrating a quarter without
+    # them is how twenty horsemen came to ride through a canal city.
+    laws = _fetch(driver, f'''
+        match
+          $l isa myth-location, has id "{escape_string(loc_id)}";
+          (campaign: $camp, element: $l) isa myth-campaign-membership;
+          $camp has myth-staging-notes $sn;
+        fetch {{ "sn": $sn }};''')
+
     notes = l.get("myth-staging-notes")
     out({"success": True, "id": loc_id, "kind": "location", "name": l["name"],
          "type": l.get("myth-location-type"),
+         "world_constraints": laws[0]["sn"] if laws else
+             "NONE RECORDED. Set them with `update-campaign --staging-notes` -- "
+             "the handful of physical facts that would break the fiction if "
+             "forgotten.",
          "description": l.get("description"),
          "staging_notes": notes,
          "present": sorted({r["cn"] for r in here}),
@@ -3889,6 +3907,9 @@ def build_parser():
     s.add_argument("--time-index", type=int, help="numeric world clock; prefer tick in play")
 
     sub.add_parser("list-campaigns")
+    s.add_argument("--staging-notes", help="the world's physical laws -- the few "
+                   "facts that would break the fiction if forgotten. Shown with "
+                   "EVERY place brief, because locations do not nest")
 
     s = sub.add_parser("create-character")
     s.add_argument("--campaign")

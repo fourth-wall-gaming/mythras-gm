@@ -555,6 +555,30 @@ So the loop is:
 If you catch yourself performing a gesture because it was written down, stop:
 the card has failed and you are reciting.
 
+### Before you narrate a place, run `brief --id <location>`
+
+The same rule as for a person, for the same reason, and it was missing.
+
+It returns three things: the gazetteer entry (where this place sits), the
+**staging notes** (what it does to a scene — sense, shape, lives, hands, costs,
+turns), and the **world constraints** — the handful of physical facts about the
+setting that would break the fiction if forgotten.
+
+**Run it again every time the party moves.** Not once at the top of a session.
+The failure this exists to stop happened mid-scene: Caravan Square was briefed,
+the party walked two bridges to the Merchant's Quarter, and it was narrated
+cold — with twenty horsemen riding through a city that has no roads.
+
+**Locations do not nest.** There is no containment relation, so a fact about the
+city cannot reach a quarter on its own. That is what `world_constraints` is
+for; it hangs on the campaign and rides with every place. Set it with
+`update-campaign --staging-notes` and keep it to the few things that are always
+true — how people move, what cannot physically be here, what everybody can see.
+
+If the brief has no staging notes, describe the place from what is actually
+there and **write the card while the scene is still in front of you**. A place
+with no card is a place that will be different next time somebody visits it.
+
 ### A want is not a compulsion
 
 **Most of the time, people behave normally.** WANTS is what a character reaches

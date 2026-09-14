@@ -201,6 +201,7 @@ relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-r
 
 entity myth-campaign sub alh-collection,
     owns myth-game-date,
+    owns myth-staging-notes,                       # the world's physical laws; shown with EVERY place brief
     owns myth-current-scene,
     owns myth-session-number,
     owns myth-time-index,
