@@ -266,6 +266,59 @@ countable fixes.
    arrive on time is a rescue by committee. Strand them for reasons already
    established, and let the PCs be the only ones who can act.
 
+## 2c. What the world finds out
+
+The commonest way to over-run this game is to model everybody's knowledge. Four
+knowledge edges for a scuffle on a bridge buys a world where nobody ever forgets
+anything, and cities forget almost everything. That is what makes the thing they
+*do* remember land.
+
+**An incident is noise until it reaches an ear that can act on it. Only that
+moment is recorded.** Everything before it is fiction and one die.
+
+### The roll
+
+After anything conspicuous, one d100 behind the screen. Two things set the bar:
+how loud it was, and how much it matters to somebody who already wants to know.
+**Relevance beats volume.** A man glimpsing his own face in a crowd is quiet and
+almost nothing — unless his brother has spent a year looking for exactly that,
+and then it is the loudest thing in the city.
+
+| what it was | bar | segments if it lands |
+|---|---|---|
+| quiet; few witnesses; nothing broken | 10% | 1 |
+| public and ordinary — a brawl, a shouting match, an arrest | 25% | 1 |
+| spectacular — a death, a fire, open magic in front of a crowd | 50% | 2 |
+| a witness reporting to a principal about that principal's own project | 75–90% | 3 |
+
+**+10 to the bar for every prior incident on that clock.** The escalation lives
+in the bar, never in the incident. No single clever act is dangerous; a pattern
+is — which is also just true, and is why it feels fair when it finally lands.
+
+This is a starting place, not a formula. Read what the party actually did and
+who was actually standing there, and pick the number.
+
+### Where it is kept
+
+A dormant agenda with a clock, held by whoever the right ear would be. Beats
+already fire on `clock>=N`, so the payoff needs no new machinery: hang a beat at
+four of six and it arrives on its own, as a scene, when it has been earned.
+
+### The two failure modes
+
+**Do not record the incident.** No fact, no knowledge edges, no named NPC
+carrying a grudge, until the clock lands. The roll and a line in the agenda log
+is the whole of it.
+
+**Do not punish invention by shrinking the map.** A clever act does not close a
+bridge, cancel a route, or remove an option. The consequence of a small
+conspicuous thing is a small human one — a man gets shouted at, somebody
+grumbles and is told to shut up — and it should be funny. Pressure comes from
+the pattern, later, and arrives through the clock. Cut the players slack when
+they try things.
+
+---
+
 ## 3. The wall between mechanics and fiction
 
 Mechanics are never narrated. They appear in their own marked block, and prose
