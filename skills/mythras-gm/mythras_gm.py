@@ -712,6 +712,50 @@ def cmd_list_locations(args):
                       "where, not how to play there.")})
 
 
+def _brief_beat(driver, bid):
+    """A beat, with the whole of its text and what stands either side of it.
+
+    The rule this exists to serve: you may not narrate toward a beat you have
+    not opened. `forecast` gives titles and one-line summaries, which is enough
+    to know something is coming and not nearly enough to run it -- and the gap
+    between those two is where a GM starts inventing mechanisms that the file
+    already had. It cost a session: an entire demonology was improvised for a
+    beat whose text specified a stolen scroll in the Baron's own hand.
+    """
+    b = _beat_record(driver, bid)
+    if not b:
+        fail(f"No myth-beat with id '{bid}'")
+
+    # What else is scheduled around it, so the beat is read in its thread and
+    # not on its own. A beat is a move in an act, never a self-contained scene.
+    camp = _fetch(driver, f'''
+        match
+          $b isa myth-beat, has id "{escape_string(bid)}";
+          (campaign: $c, element: $b) isa myth-campaign-membership;
+          $c has id $ci;
+        fetch {{ "ci": $ci }};''')
+    neighbours = []
+    if camp:
+        idx = b.get("time_index")
+        for other in _campaign_beats(driver, camp[0]["ci"]):
+            if other["id"] == bid or other.get("time_index") is None or idx is None:
+                continue
+            if abs(other["time_index"] - idx) <= 2:
+                neighbours.append({
+                    "when": other.get("when"), "title": other["title"],
+                    "status": other.get("status"), "id": other["id"],
+                    "summary": other.get("summary")})
+        neighbours.sort(key=lambda r: (r["when"] or "", r["title"]))
+
+    out({"success": True, "kind": "beat", **b,
+         "around_it": neighbours,
+         "guidance": (
+             "This is the catalog entry. `story.md` says what this beat is FOR "
+             "in the act it belongs to -- read that too before you run it. If "
+             "play has moved past what is written here, do not narrate around "
+             "the mismatch: `revise-beat` it and rewrite the plan.")})
+
+
 def cmd_brief(args):
     """Everything needed to SPEAK as somebody, and nothing else.
 
@@ -727,6 +771,10 @@ def cmd_brief(args):
         # A place is briefed the same way and for the same reason as a person.
         if args.id.startswith("myth-loc-"):
             return _brief_location(driver, args.id)
+        # A beat is briefed for the same reason as a person or a place: you do
+        # not play what you have not read.
+        if args.id.startswith("myth-beat-"):
+            return _brief_beat(driver, args.id)
 
         c = _get_entity(driver, "myth-character", args.id,
                         ["description", "myth-status", "myth-actor-notes",

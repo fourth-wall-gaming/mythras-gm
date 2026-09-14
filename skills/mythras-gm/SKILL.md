@@ -24,22 +24,35 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
 
 ## Before you narrate one line
 
-**Read `TABLE.md`, then `styles/gamesmaster.md`.** Every session, first thing,
-before the recap. They are not lazy-loaded and they are not optional: `TABLE.md`
-is how the table is run and the style card is how it sounds. About 1.2k tokens
-once, against a 13k `get-context` -- you can afford it.
+**Read `TABLE.md`, then `styles/gamesmaster.md`, then the campaign's
+`setting/the-story.md`.** Every session, first thing, before the recap. **And
+again after every compaction** -- a summary keeps what happened and loses what it
+was for.
 
-A session that starts without them will be in the wrong voice, and you will not
-notice, because the wrong voice feels like competence.
+None of the three is lazy-loaded and none is optional. `TABLE.md` is how the
+table is run, the style card is how it sounds, and **the story file is what the
+whole thing is moving toward**. About 3k tokens once, against a 13k
+`get-context` -- you can afford it.
+
+A session that starts without the first two will be in the wrong voice, and you
+will not notice, because the wrong voice feels like competence. A session that
+starts without the third will be in the wrong *story*, and you will not notice
+either, because a scene that goes well feels like the plan.
 
 ## Quick Start
 
-0. **Read `TABLE.md` and `styles/gamesmaster.md`.** See above.
+0. **Read `TABLE.md`, `styles/gamesmaster.md` and `setting/the-story.md`.**
+   See above. Re-read the story file after any compaction.
 1. `list-campaigns` -- find the campaign (or `create-campaign`; published
    campaigns load with `import-campaign --path <clone> --new-ids`)
 2. `get-context --campaign <id> --compact` -- load scene, PC **combat cards**
    (live state only), NPC names, factions, last 5 events. **This is your save
    file.** Use `--compact` for play; drop it only when you need full sheets.
+2a. **`brief --id <beat-id>` before you narrate toward any beat.** `forecast`
+   and `tick` give titles and one-liners -- enough to know something is coming,
+   nowhere near enough to run it. The gap between the two is where a GM invents
+   a mechanism the file already had (`TABLE.md` section 0b). Places and people
+   are briefed the same way and for the same reason.
 3. **`tick --campaign <id> --to "<time key>"` -- the world moves.** Before each
    new scene (and never narrate a day forward without it), advance the world
    clock. It returns every NPC/faction beat that has come due, flagged
