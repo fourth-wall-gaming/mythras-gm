@@ -35,6 +35,7 @@ attribute myth-luck-current, value integer;
 attribute myth-magic-current, value integer;
 attribute myth-experience-rolls, value integer;    # banked experience rolls
 attribute myth-spells-json, value string;          # {"folk":[...],"theism":[...],"sorcery":[...],"mysticism":[...],"windworking":[...]}
+attribute myth-played-pcs, value string;           # comma-separated ids of the PCs somebody is actually playing; staging counts only these
 attribute myth-arc-json, value string;             # [{"act":"I","when":"d-3","title":"THE COLUMN","for":...,"takes":...}]
 attribute myth-powers-json, value string;          # [{"name":"Berserk","rule":"magic/powers/berserk","boosts":[...],"limits":[...]}]
                                                    # Mythras Powers carry everything the CFI spell list has no entry for.
@@ -203,6 +204,7 @@ relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-r
 entity myth-campaign sub alh-collection,
     owns myth-game-date,
     owns myth-staging-notes,                       # the world's physical laws; shown with EVERY place brief
+    owns myth-played-pcs,
     owns myth-arc-json,                            # the act skeleton from story.md; rides on get-context/forecast/tick
     owns myth-current-scene,
     owns myth-session-number,

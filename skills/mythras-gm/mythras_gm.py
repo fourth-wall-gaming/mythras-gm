@@ -358,6 +358,9 @@ def cmd_update_campaign(args):
         if args.staging_notes is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-staging-notes",
                       args.staging_notes)
+        if args.played is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-played-pcs",
+                      args.played)
         if args.arc_file is not None:
             acts = _parse_arc_acts(args.arc_file)
             for a in acts:
@@ -1680,6 +1683,20 @@ def cmd_spawn(args):
     out({"success": True, "id": cid, "from_template": t["name"]})
 
 
+def _place_character(driver, cid, loc_id):
+    """Put somebody somewhere, replacing wherever they were."""
+    _write(driver, f"""
+        match
+          $c isa myth-character, has id "{escape_string(cid)}";
+          $r isa myth-presence, links (located: $c);
+        delete $r;""")
+    _write(driver, f"""
+        match
+          $c isa myth-character, has id "{escape_string(cid)}";
+          $l isa myth-location, has id "{escape_string(loc_id)}";
+        insert (located: $c, location: $l) isa myth-presence;""")
+
+
 def cmd_move_character(args):
     with get_driver() as driver:
         # remove any existing presence
@@ -2034,7 +2051,19 @@ def _campaign_agendas(driver, campaign_id):
 
 
 def _pc_presence(driver, campaign_id):
-    """(pc ids, location ids the PCs are standing in) for beat staging."""
+    """(pc ids, location ids the PCs are standing in) for beat staging.
+
+    Only the PCs somebody is actually PLAYING count. A campaign carries four
+    or five sheets of type `pc` and most of them are GM-run, and staging
+    against all of them marks every beat in the world onscreen -- which is the
+    same as marking none of them, and is how a whole act went by with the flag
+    telling me nothing. Set it with `update-campaign --played <ids>`.
+    """
+    camp = _get_entity(driver, "myth-campaign", campaign_id, ["myth-played-pcs"])
+    played = (camp or {}).get("myth-played-pcs")
+    if isinstance(played, str):
+        played = [p.strip() for p in played.split(",") if p.strip()]
+
     pcs = _fetch(driver, f'''
         match
           $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
@@ -2043,6 +2072,8 @@ def _pc_presence(driver, campaign_id):
              has myth-status "active";
         fetch {{ "id": $i }};''')
     pc_ids = [r["id"] for r in pcs]
+    if played:
+        pc_ids = [i for i in pc_ids if i in played]
     places = []
     for pid in pc_ids:
         rows = _fetch(driver, f'''
@@ -2350,6 +2381,21 @@ def cmd_fire_beat(args):
         if not beat:
             fail(f"No beat '{args.id}'")
         _set_attr(driver, "myth-beat", args.id, "myth-beat-status", args.outcome)
+
+        # A beat has a place and a cast, and a beat that HAPPENED happened
+        # there, to them. Nothing used to consume either: firing one set a
+        # status and moved nobody, so two characters sat at a ford for two
+        # in-game days while the fiction ran on without them. move-character
+        # existed and was manual, which is the same as not existing.
+        moved = []
+        if args.outcome in ("played", "narrated") and beat.get("place") and not args.no_move:
+            for cid in beat["cast"]:
+                if _fetch(driver, f"""
+                        match $c isa myth-character, has id "{escape_string(cid)}";
+                        fetch {{ "id": $c.id }};"""):
+                    _place_character(driver, cid, beat["place"])
+                    moved.append(cid)
+
         event_id = None
         if args.log:
             summary = args.summary or beat["summary"] or beat["title"]
@@ -2448,6 +2494,7 @@ def cmd_fire_beat(args):
         cascade = _cascade(driver, args.campaign,
                            established=established_now) if args.campaign else {}
     out({"success": True, "id": args.id, "outcome": args.outcome,
+         "moved_to_place": moved, "place": beat.get("place_name"),
          "event": event_id, "clock": clock, "branch": branch,
          "facts_established": established_now, "facts_retired": retired_now,
          "cascade": cascade})
@@ -4050,6 +4097,10 @@ def build_parser():
                    "the act skeleton (what each act is FOR and what it TAKES) "
                    "into the save, so the plan rides on get-context, forecast "
                    "and tick instead of being read once and forgotten")
+    s.add_argument("--played", help="comma-separated ids of the PCs somebody is "
+                   "actually playing. Beat staging counts only these -- a "
+                   "campaign full of GM-run PCs otherwise marks every beat in "
+                   "the world onscreen, which tells you nothing")
 
     s = sub.add_parser("create-character")
     s.add_argument("--campaign")
@@ -4433,6 +4484,11 @@ def build_parser():
     s.add_argument("--branch",
                    help="which declared outcome happened; applies that branch's "
                         "effects to the rest of the thread")
+    s.add_argument("--no-move", action="store_true",
+                   help="do NOT move the beat's cast to the beat's place. A "
+                        "beat that happened, happened somewhere, to somebody, "
+                        "so moving them is the default -- use this only when "
+                        "the cast were demonstrably elsewhere")
 
     s = sub.add_parser("timeline",
                        help="Where the projection expects everybody to be, watch by watch")
