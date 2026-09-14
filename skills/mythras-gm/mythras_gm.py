@@ -739,7 +739,16 @@ def cmd_brief(args):
               $a has name $an, has myth-agenda-status $as;
             fetch {{ "an": $an, "as": $as }};""")
 
+    # Pronouns ride at the top of the brief because getting them wrong
+    # misgenders somebody in the fiction and a name is not evidence. Never
+    # infer them from one; if this says nothing, the sheet must be fixed first.
+    _ex = json.loads(c.get("myth-extras-json") or "{}") if isinstance(
+        c.get("myth-extras-json"), str) else (c.get("myth-extras-json") or {})
+    _pron = _ex.get("pronouns")
     out({"success": True, "id": args.id, "name": c["name"],
+         "pronouns": _pron or "NOT RECORDED -- do not guess, and do not infer "
+                              "from the name. Set extras.pronouns first.",
+         "gender_note": _ex.get("gender_note"),
          "status": c.get("myth-status"),
          "description": c.get("description"),
          "location": where[0]["ln"] if where else None,
