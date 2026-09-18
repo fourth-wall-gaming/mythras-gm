@@ -27,12 +27,24 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    card to `<manuscript>/style.md` and set `style:` in `book.yaml` -- the
    style must be reproducible in a later session.
 
-3. **Outline.** Basic rule: **one session = one chapter.** Each chapter
-   covers a full play session's events in order; narrative beats within the
-   session become scene breaks, not separate chapters. One line per chapter:
-   working title + session number + which journal events it covers (cite
-   event ids from the source.md comments). Present it to the user and wait
-   for approval before drafting.
+3. **Outline.** **Chapters are driven by story beats, not by sessions.** Cut
+   the book where the *story* turns — a day closing, a plan being made, a
+   thing being found out, somebody deciding something they cannot undo — and
+   ignore where play happened to stop for the night. A session boundary is an
+   accident of somebody's evening and has no meaning to a reader.
+
+   In practice a chapter is usually one movement of the story: a stretch that
+   has one question in it and answers it. Beats inside that movement become
+   scene breaks. A session that ran long becomes several chapters; three thin
+   sessions that were all one manoeuvre become one.
+
+   Watch the shape rather than the clock: if a chapter is running past roughly
+   5,000 words it is carrying more than one turn and wants splitting, and if
+   two adjacent chapters are answering the same question they want merging.
+
+   One line per chapter: working title + which journal events it covers (cite
+   event ids from the source.md comments). Present the outline to the user and
+   wait for approval before drafting.
 
 4. **Draft.** One chapter at a time to `chapters/NN-<slug>.md`, starting each
    file with `# Chapter N — Title`. Scene breaks within a chapter are a line
