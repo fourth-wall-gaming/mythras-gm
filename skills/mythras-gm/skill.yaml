@@ -1,5 +1,5 @@
 name: mythras-gm
-version: 0.2.0
+version: 1.0.0
 description: Gamesmaster system for Mythras Imperative -- persistent RPG campaigns (characters, encounters, worldbuilding, session journal) in TypeDB, with the original Veilwrack sky-realm setting.
 author: skillful-alhazen
 license: MIT

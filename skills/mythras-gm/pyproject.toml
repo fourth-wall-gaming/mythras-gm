@@ -1,6 +1,6 @@
 [project]
 name = "mythras-gm"
-version = "0.2.0"
+version = "1.0.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "typedb-driver>=3.8.0,<3.9",

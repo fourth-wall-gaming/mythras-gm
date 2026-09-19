@@ -2,7 +2,7 @@
   "name": "mythras-gm",
   "displayName": "Mythras Imperative Gamesmaster",
   "description": "Run persistent tabletop RPG campaigns as Gamesmaster using Mythras Imperative rules, with all game state in TypeDB. Includes dice engine, combat resolution, character generation, campaign publishing, and worldbuilding persistence.",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "author": {
     "name": "Fourth Wall Gaming",
     "url": "https://github.com/fourth-wall-gaming"
