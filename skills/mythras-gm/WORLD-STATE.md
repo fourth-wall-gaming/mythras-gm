@@ -30,7 +30,7 @@ owner. Orphaned history attaches itself to whoever is currently on screen.
 |---|---|---|
 | **Liveness** | Is this still true? | `myth-canon-status` — absent means live |
 | **Attribution** | Who was there? | `myth-event-involvement`; `myth-event-visibility` |
-| **Perspective** | What do they think it *meant*? | `myth-knowledge` |
+| **Perspective** | What do they think it *meant*? | `myth-knows`, subject-shaped |
 | **Forward** | What happens next? | `doing`, sibling of `score` in `myth-extras-json` |
 
 Every schema addition is optional and absent means the sane default, so nothing
@@ -94,13 +94,24 @@ what happened and the record of them learning it are different facts.
 
 ## Perspective: the knowledge graph
 
-**The journal is the store of facts.** Events record what happened, and
-participation already means *was there, saw it*. There is deliberately no
-separate "secret" or "fact" entity — a proposition that matters is an event, or
-a lore entry, or a person.
+**The journal is the store of what happened.** Events record it, and
+participation already means *was there, saw it*.
 
-`myth-knowledge` records everything else: what a character was **told**,
-**shown**, or **inferred**, and above all what they think it **meant**.
+`myth-knows` records everything else, and it has two shapes, because this model
+and the living world's fact graph were once two relations and are now one:
+
+- **knower → subject** — an event, lore entry, character, place or faction.
+  What they were **told**, **shown**, or **inferred**, and above all what they
+  think it **meant**. This is the half described below. It is annotation: the
+  living world never gates on it.
+- **knower → fact** — a proposition in the fact graph, with
+  `certainty`/`source`/`since`. This is the half `require-fact`, `forecast`,
+  `tick` and `check-consistency` read, and what a beat waits on.
+
+`set-knowledge` writes both: `--depth` implies a certainty and `--route`
+implies a source, so an edge written in GM terms is never invisible to the
+engine. `character-view` reports both under `knows` (facts) and `reads`
+(subjects); `brief` reports the subject half as `believes`.
 
 ```bash
 set-knowledge --knower <char> --subject <event|lore|character|location|faction> \

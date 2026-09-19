@@ -297,7 +297,7 @@ Events carry a camera position (`--visibility`) and their participants
 character could actually know — run it before handing a PC a fact. Canon that
 stops being true is retired, not deleted (`retire-canon`).
 
-**What they believe.** The journal is the store of facts; `myth-knowledge`
+**What they believe.** The journal is the store of what happened; `myth-knows`
 records what a character was told, shown or inferred, and above all **what they
 think it meant** -- which may be flatly wrong, and usually is what drives them
 (`set-knowledge`, `get-knowledge`). A debt is not a ledger entry: it is a belief
