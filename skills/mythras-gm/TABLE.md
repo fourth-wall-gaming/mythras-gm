@@ -884,6 +884,11 @@ NPC-versus-NPC, where nobody is being asked anything.
   advance** for two agendas that cannot both succeed, then `cascade`.
 - **The world is not waiting to be witnessed.** Run `tick` between scenes.
 
+- **Close the loop at session end.** For each NPC carrying a `doing`: either
+  `set-doing --did "..."` because it moved, or leave it because it did not. No
+  `doing` should sit unexamined for more than two sessions. This is GM-side
+  bookkeeping at a session boundary and is invisible at the table.
+
 ---
 
 ## 9. Knowledge
@@ -903,6 +908,16 @@ NPC-versus-NPC, where nobody is being asked anything.
   a session. Some of those are legitimately secret; most are edges you forgot.
   Two sessions of play left seven of forty-two established facts unheld,
   including who killed Emmeralda.
+- **Before handing a PC a fact, check who learned it: `get-log --known-to
+  <char-id>`.** It returns only events that character took part in and could
+  know about. If it warns about unattributed events the answer is incomplete --
+  backfill with `update-event --involves` rather than guessing. An empty result
+  is missing data, not proof of ignorance.
+- **`set-knowledge` is for the reading, not the fact.** `--depth` and `--route`
+  say how firmly and by what path; `--note` is THEIR reading of it, which may be
+  flatly wrong, and `--attitude` is what it makes them want. A false reading
+  held firmly is what drives a character's next scene. `get-knowledge --knower`
+  reads it back; `--subject` asks who knows about a thing.
 - **Facts carry situation. Prose carries character.** Never write "what has
   happened" into a character sheet's narrative; it cannot be reconciled and it
   will be wrong the moment play diverges.
@@ -926,6 +941,18 @@ NPC-versus-NPC, where nobody is being asked anything.
 - **Persist relentlessly.** `log-event` after every scene; `set-scene` and
   `move-character` when the party moves; damage, healing, fatigue and luck
   immediately.
+- **The camera has a position, and every `log-event` says where it was.**
+  `--visibility played` (on screen, the default), `reported` (the party was
+  told), `offscreen` (happened elsewhere -- GM-side only; players learn of it
+  through consequences, never cutaways), `meta` (bookkeeping about the game, not
+  an event in it). Mark your own correction notes `meta` or they pollute both
+  knowledge scoping and the recent-events window.
+- **Canon that stops being true is retired, not deleted.** `retire-canon --id X
+  --status superseded --by Y`. The record keeps its audit trail and stops being
+  read as live. GM truth from a rejected version of a campaign once sat in a
+  character's content field looking exactly as authoritative as live canon, and
+  got played. When a crew retires, mark the PCs `retired` *and* retire the lore
+  that was only ever true for them.
 - **Session boundaries:** open with `--type session-start`, close with
   `--type session-end` and a summary, bump the session number with
   `update-campaign --session-number`, and award 1–3 experience rolls.

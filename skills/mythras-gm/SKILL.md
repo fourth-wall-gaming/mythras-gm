@@ -11,6 +11,16 @@ tower and your save file -- every mechanical resolution goes through
 `mythras_gm.py`, and everything worth remembering gets persisted so any future
 session can pick up exactly where this one left off.
 
+> **Non-negotiables.** (1) **Every roll goes through the CLI** —
+> `roll-skill`, `roll-opposed`, `resolve-attack`, `apply-damage`. Never
+> free-hand, estimate, or narrate dice you didn't roll through the engine.
+> (2) **The database is the save.** Persist with `log-event`, `set-scene`,
+> `update-character`, etc.; never hand-edit a campaign's exported files to change
+> game state. (3) A campaign's **published file tree is a snapshot, not the live
+> game** — if you find yourself reading a `mythras-gm` campaign folder (it carries
+> a `CLAUDE.md` saying so), stop and drive play through this skill and its DB
+> instead of GMing off the files.
+
 **Triggers:** play rpg, run campaign, create character, roll dice, start encounter,
 continue campaign, mythras, gamesmaster, novelize campaign, write novel
 
@@ -38,6 +48,21 @@ A session that starts without the first two will be in the wrong voice, and you
 will not notice, because the wrong voice feels like competence. A session that
 starts without the third will be in the wrong *story*, and you will not notice
 either, because a scene that goes well feels like the plan.
+
+**Database and campaign defaults.** `TYPEDB_DATABASE` defaults to **`mythras`**
+on port **1730** -- this game's own server, not the Alhazen stack's -- so you no
+longer need to prefix every call. `--campaign` may be omitted: it resolves from
+`$MYTHRAS_CAMPAIGN`, or from the only campaign in the database if there is
+exactly one. With several and no hint the CLI **refuses and lists them** rather
+than guessing. Set `MYTHRAS_CAMPAIGN` once at the start of a session and drop
+the flag.
+
+**Two write behaviours worth knowing**, both learned the hard way:
+`update-character --skills/--passions/--attributes/--extras` **merge** into the
+stored document (pass `--replace-json`, or `--extras-replace` for the extras bag
+alone, for the old destructive behaviour), and any command that links to a
+campaign **fails loudly** if that campaign is not in the current database
+instead of silently creating an unreachable orphan.
 
 ## Quick Start
 
@@ -94,6 +119,8 @@ Every token you load is re-sent on every turn. Load the minimum:
   - `get-rule --id <domain>/<slug> [--linked]` -- one specific piece.
   - e.g. impaling wingspear into a flying foe's wing:
     `query-rules --facet effect=impale --facet condition=flying --facet body=avian --linked`
+  - For Classic Fantasy Imperative campaigns the CFI pieces live in the same
+    `rules/` tree and are selected with `--system classic-fantasy`. See USAGE.md.
 - **`get-log --campaign <id> --limit N [--session N] [--full]`** when you need
   more history than the recent events in context (default 15). **`--full` adds
   the event title and the narrative** -- the verbatim dialogue written with
@@ -254,6 +281,29 @@ reciting, not playing.
 **Before executing commands, read USAGE.md for the complete command reference
 (character creation, combat cheat sheet, worldbuilding, campaign publishing).
 Conduct rules are in `TABLE.md`.**
+
+**Playing NPCs.** Every recurring NPC carries a *character score* in
+`myth-extras-json` -- want/ought, driver vs stated reason, relational status, a
+tactics ladder, and whether they catch a lie (default: they do not). Read the
+score before the scene, play the ladder in order, and append what happened to
+`observed` afterwards with `update-character --extras`. Without this, every NPC
+converges on the GM's own temperament: perceptive, self-aware, and articulate
+about their own motives. See `CHARACTER-SCORES.md`.
+
+**The world between scenes.** A score is who an NPC *is*; its sibling `doing`
+is what they are *up to* on the days the party is elsewhere (`set-doing`).
+Events carry a camera position (`--visibility`) and their participants
+(`--involves`), so **`get-log --known-to <char-id>`** answers what a given
+character could actually know — run it before handing a PC a fact. Canon that
+stops being true is retired, not deleted (`retire-canon`).
+
+**What they believe.** The journal is the store of facts; `myth-knowledge`
+records what a character was told, shown or inferred, and above all **what they
+think it meant** -- which may be flatly wrong, and usually is what drives them
+(`set-knowledge`, `get-knowledge`). A debt is not a ledger entry: it is a belief
+plus how they feel about it. **`get-character --brief` is the whole pre-scene
+read** -- who they are, what they are up to, and what they believe -- without a
+stat block. See `WORLD-STATE.md`.
 
 **Novelization:** to turn a campaign's journal into a typeset PDF novel
 (in a chosen author style -- Hemingway, Tolkien, Moorcock, or freeform),

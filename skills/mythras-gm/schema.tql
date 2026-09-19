@@ -57,6 +57,35 @@ attribute myth-pending-attack-json, value string;  # a frozen attack awaiting th
 # World
 attribute myth-location-type, value string;        # spire | roost | windlane | ruin | stilled-zone ...
 attribute myth-event-type, value string;           # scene | combat | skill-roll | decision | gm-note | session-start | session-end
+# Where the camera was. A SECOND axis from myth-event-type: an offscreen event
+# can still be a combat. Absent means "played", so nothing needs backfilling.
+#   played    - on screen, the party was there
+#   reported  - the party was told about it in the fiction
+#   offscreen - happened elsewhere; GM-side only, players learn via consequences
+#   meta      - bookkeeping ABOUT the campaign, not an event IN it
+attribute myth-event-visibility, value string;
+
+# Canon liveness. Absent means live, so no backfill and every read treats a
+# missing value as authoritative. Superseded canon STAYS in the graph -- deleting
+# it loses the audit trail -- but stops being read as true. This exists because
+# GM truth from a rejected version of a campaign sat in a character's content
+# field looking exactly as authoritative as live canon, and got played.
+attribute myth-canon-status, value string;         # live | superseded | retracted
+attribute myth-superseded-by, value string;        # id of the entry that replaces this
+
+# CHARACTER-CENTRED KNOWLEDGE GRAPH.
+# The JOURNAL is the store of facts: myth-game-event records what happened, and
+# myth-event-involvement already means "was there, saw it". This layer records
+# everything else -- what a character was TOLD, what they INFERRED, what they
+# think it MEANT (which may be wrong), and how they FEEL about it. Subjects are
+# events, lore, places, factions, and other characters.
+#
+# Perspective lives on the edge, not in the world. Two characters can hold the
+# same event and read it incompatibly, and neither reading changes the journal.
+attribute myth-knowledge-depth, value string;      # glimpsed | knows | can-prove
+attribute myth-knowledge-route, value string;      # witnessed | told | shown | inferred | bought | rumour
+attribute myth-knowledge-note, value string;       # THEIR reading of it; may be flatly wrong
+attribute myth-attitude, value string;             # how they feel about it / what it makes them want
 
 # Living world (agendas, clocks, beats). See entities myth-agenda / myth-beat below.
 # The world keeps moving whether or not the PCs are watching: every NPC and
@@ -100,6 +129,8 @@ attribute myth-rule-kind, value string;            # procedure | table | modifie
 attribute myth-rule-domain, value string;          # hierarchy domain (same vocab as category)
 attribute myth-rule-topic, value string;           # hierarchy topic within the domain
 attribute myth-facet-dim, value string;            # facet axis: phase | action | effect | weapon | trigger | body | severity | condition | magic-system | stat | kind
+attribute myth-system, value string;               # mythras | classic-fantasy (campaign ruleset)
+attribute myth-rule-system, value string;          # mythras | classic-fantasy (which ruleset a rule belongs to)
 
 # =============================================================================
 # RELATIONS (before entities so role names resolve in plays clauses)
@@ -167,12 +198,43 @@ relation myth-fact-about,         # fact -> what it is about
     relates fact,
     relates subject;
 
-relation myth-knows,              # knower -> fact. The edge carries HOW and WHEN.
+# myth-knows is the ONE knowledge edge. It began as knower -> fact and has
+# absorbed the knower -> subject model that grew separately on main, because two
+# relations meant a character could "know" a thing twice, in two vocabularies,
+# with no way to reconcile them.
+#
+# TWO SHAPES, ONE EDGE:
+#   knower -> fact     a proposition in the fact graph. This is what the living
+#                      world reads: myth-agenda-requires gates on it, and `tick`
+#                      will not fire a beat whose holder has not learned it.
+#   knower -> subject  an event, place, faction, character, agenda, beat or lore
+#                      entry. Annotation, not gating -- what they were told,
+#                      what they make of it, how they feel about it.
+# Exactly one of the two is played per edge, so both roles are optional.
+#
+# TWO VOCABULARIES, AND WHICH ONE IS LOAD-BEARING:
+#   certainty / source / since   ENGINE-FACING. Read by require-fact, forecast,
+#                                tick and check-consistency. Always set.
+#   depth / route / note / attitude   GM-FACING. Richer, and note and attitude
+#                                record a reading that may be flatly wrong.
+#                                Nothing in the living world branches on them;
+#                                they exist so a character's misapprehension
+#                                survives in the graph instead of being flattened
+#                                into one of four certainty words.
+# set-knowledge writes both halves, deriving certainty from depth and source
+# from route, so an edge is never half-populated.
+relation myth-knows,
     owns myth-knowledge-certainty,
     owns myth-knowledge-source,
     owns myth-knowledge-since,
+    owns myth-knowledge-depth,
+    owns myth-knowledge-route,
+    owns myth-knowledge-note,
+    owns myth-attitude,
+    owns myth-session-number,
     relates knower,
-    relates fact;
+    relates fact @card(0..1),
+    relates subject @card(0..1);
 
 relation myth-agenda-requires,    # agenda -> fact its holder must know before acting
     relates agenda,
@@ -202,6 +264,7 @@ relation myth-rule-link,          # rule -> rule (chain a procedure to its sub-r
 # =============================================================================
 
 entity myth-campaign sub alh-collection,
+    owns myth-system,
     owns myth-game-date,
     owns myth-staging-notes,                       # the world's physical laws; shown with EVERY place brief
     owns myth-played-pcs,
@@ -212,6 +275,8 @@ entity myth-campaign sub alh-collection,
     plays myth-campaign-membership:campaign;
 
 entity myth-character sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-char-type,
     owns myth-status,
     owns myth-characteristics-json,
@@ -240,7 +305,8 @@ entity myth-character sub alh-domain-thing,
     plays myth-agenda-target:target,
     plays myth-beat-cast:member,
     plays myth-knows:knower,
-    plays myth-fact-about:subject;
+    plays myth-fact-about:subject,
+    plays myth-knows:subject;
 
 entity myth-creature-template sub alh-domain-thing,
     owns myth-characteristics-json,
@@ -254,9 +320,12 @@ entity myth-creature-template sub alh-domain-thing,
     owns myth-extras-json,
     plays myth-campaign-membership:element,
     plays myth-template-instance:template,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knows:subject;
 
 entity myth-location sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-location-type,
     owns myth-staging-notes,
     plays myth-campaign-membership:element,
@@ -265,9 +334,12 @@ entity myth-location sub alh-domain-thing,
     plays myth-lore-about:subject,
     plays myth-agenda-target:target,
     plays myth-beat-at:place,
-    plays myth-fact-about:subject;
+    plays myth-fact-about:subject,
+    plays myth-knows:subject;
 
 entity myth-faction sub alh-domain-thing,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     plays myth-campaign-membership:element,
     plays myth-faction-membership:faction,
     plays myth-event-involvement:participant,
@@ -276,7 +348,8 @@ entity myth-faction sub alh-domain-thing,
     plays myth-agenda-target:target,
     plays myth-beat-cast:member,
     plays myth-knows:knower,
-    plays myth-fact-about:subject;
+    plays myth-fact-about:subject,
+    plays myth-knows:subject;
 
 entity myth-encounter sub alh-domain-thing,
     owns myth-encounter-status,
@@ -288,12 +361,16 @@ entity myth-encounter sub alh-domain-thing,
     plays myth-event-involvement:participant;
 
 entity myth-game-event sub alh-note,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-event-type,
+    owns myth-event-visibility,
     owns myth-session-number,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:event,
     plays myth-beat-outcome:event,
-    plays myth-fact-from:origin;
+    plays myth-fact-from:origin,
+    plays myth-knows:subject;
 
 # LIVING WORLD - What the world is doing while the PCs are elsewhere.
 #
@@ -321,7 +398,8 @@ entity myth-agenda sub alh-note,
     plays myth-consequence:agenda,
     plays myth-event-involvement:participant,
     plays myth-lore-about:subject,
-    plays myth-fact-about:subject;
+    plays myth-fact-about:subject,
+    plays myth-knows:subject;
 
 entity myth-beat sub alh-note,
     owns myth-beat-status,
@@ -339,7 +417,8 @@ entity myth-beat sub alh-note,
     plays myth-fact-from:origin,
     plays myth-event-involvement:participant,
     plays myth-lore-about:subject,
-    plays myth-fact-about:subject;
+    plays myth-fact-about:subject,
+    plays myth-knows:subject;
 
 # LORE - Generic worldbuilding detail for any campaign.
 # Each entry is a rich-text note (content inherited from alh-note) with a
@@ -349,12 +428,15 @@ entity myth-beat sub alh-note,
 attribute myth-lore-category, value string;     # cosmology | species | culture | ...
 attribute myth-lore-visibility, value string;   # gm-only | player-facing
 entity myth-lore sub alh-note,
+    owns myth-canon-status,
+    owns myth-superseded-by,
     owns myth-lore-category,
     owns myth-lore-visibility,
     plays myth-campaign-membership:element,
     plays myth-event-involvement:participant,
     plays myth-lore-about:lore,
-    plays myth-lore-about:subject;
+    plays myth-lore-about:subject,
+    plays myth-knows:subject;
 
 # FACTS - The single home of situational truth.
 #
@@ -400,6 +482,7 @@ entity myth-rule-facet sub alh-identifiable-entity,   # name = the facet value
     plays myth-rule-tagged:facet;
 
 entity myth-rule sub alh-note,
+    owns myth-rule-system,
     owns myth-rule-category,
     owns myth-rule-kind,
     owns myth-rule-domain,

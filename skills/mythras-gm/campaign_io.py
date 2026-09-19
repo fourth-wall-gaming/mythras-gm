@@ -211,7 +211,8 @@ def export_campaign(campaign_id, outdir):
         for lid in _member_ids(driver, campaign_id, "myth-lore"):
             l = gm._get_entity(driver, "myth-lore", lid,
                                ["description", "content", "myth-lore-category",
-                                "myth-lore-visibility", "created-at"])
+                                "myth-lore-visibility", "myth-canon-status",
+                                "created-at"])
             subjects = gm._fetch(driver, f'''
                 match
                   $l isa myth-lore, has id "{gm.escape_string(lid)}";
@@ -334,7 +335,8 @@ def export_campaign(campaign_id, outdir):
         for eid in _member_ids(driver, campaign_id, "myth-game-event"):
             e = gm._get_entity(driver, "myth-game-event", eid,
                                ["description", "content", "myth-event-type",
-                                "myth-session-number", "created-at"])
+                                "myth-session-number", "myth-event-visibility",
+                                "myth-canon-status", "created-at"])
             involved = gm._fetch(driver, f'''
                 match
                   $e isa myth-game-event, has id "{gm.escape_string(eid)}";
@@ -345,6 +347,8 @@ def export_campaign(campaign_id, outdir):
                 "id": e["id"], "type": e.get("myth-event-type"),
                 "summary": e.get("description"), "narrative": e.get("content"),
                 "session": e.get("myth-session-number"),
+                "visibility": e.get("myth-event-visibility"),
+                "canon": e.get("myth-canon-status"),
                 "involves": sorted(r["pi"] for r in involved),
                 "at": _ts(e.get("created-at") or gm.get_timestamp()),
             })
@@ -382,7 +386,7 @@ def export_campaign(campaign_id, outdir):
         slug = _slugify(l["name"], used)
         vis = l.get("myth-lore-visibility", "player")
         meta = {"id": l["id"], "title": l["name"], "category": cat,
-                "visibility": vis,
+                "visibility": vis, "canon": l.get("myth-canon-status"),
                 "summary": l.get("description"), "about": l.get("about") or None,
                 "created_at": _ts(l.get("created-at") or gm.get_timestamp())}
         _write(os.path.join(outdir, "lore", cat, slug + ".md"),
@@ -652,6 +656,49 @@ published by The Design Mechanism, Copyright 2023, used under the ORC License.
 """
     _write(os.path.join(outdir, "README.md"), readme)
 
+    claude_md = f"""# Running this campaign (mythras-gm)
+
+This directory is a **published snapshot** of a `mythras-gm` campaign — a Mythras
+Imperative RPG whose **live, authoritative state lives in TypeDB**, not in these
+files. The file tree is an export for reading, diffing, and version control. It
+is **not the save game**, and editing it does not change the game.
+
+> **AI assistants: if the user asks to play, continue, or GM this campaign,
+> invoke the `mythras-gm` skill and run through its CLI. Do NOT game-master
+> directly off these files.** GMing from the file tree bypasses the dice engine
+> and the persistent database: your rolls aren't auditable, and any state you
+> change here is silently discarded the next time the campaign is exported.
+
+## How to run
+
+1. **Invoke the `mythras-gm` skill** (triggers: "play", "continue campaign",
+   "run mythras", "gamesmaster"). Read its `SKILL.md`, then `USAGE.md`.
+2. **Make sure this campaign is loaded into TypeDB:**
+   - `list-campaigns` — look for **{camp['name']}** (`{campaign_id}`).
+   - If it isn't there, `import-campaign --path <this-directory>` (add
+     `--new-ids` only to load a second copy alongside an existing one).
+3. `get-context --campaign {campaign_id} --compact` — **this is the save file**:
+   current scene, PC combat cards, factions, recent events.
+4. Recap the scene in a few sentences, then play.
+
+## Operating rules (non-negotiable)
+
+- **Every mechanical resolution goes through the CLI** — `roll-skill`,
+  `roll-opposed`, `resolve-attack`, `apply-damage`, `heal`. Never free-hand,
+  estimate, or narrate dice you didn't roll through the engine; it is the shared,
+  deterministic dice tower, and it looks skills up from the DB for you.
+- **The database is the save.** Persist anything worth remembering with
+  `log-event`, `set-scene`, `update-character`, `add-lore`, etc. Never hand-edit
+  the JSON/markdown here to change game state — those edits don't reach TypeDB and
+  are lost on the next export.
+- **Load rules lazily** from the rules graph (`query-rules`, `get-rule`) — never
+  read `rules/*.md` wholesale into context.
+- **Re-export** (`export-campaign`) when you want a fresh file snapshot for git.
+
+Campaign id: `{campaign_id}`
+"""
+    _write(os.path.join(outdir, "CLAUDE.md"), claude_md)
+
     gm.out({"success": True, "campaign": camp["name"], "output": outdir, **counts})
 
 
@@ -864,6 +911,7 @@ def import_campaign(path, new_name=None, new_ids=False):
             gm._write(driver, f'insert $e isa myth-lore, has id "{lid}", '
                       f'has name "{gm.escape_string(l["title"])}", '
                       f'has myth-lore-category "{gm.escape_string(l.get("category") or "uncategorized")}", '
+                      + (f'has myth-canon-status "{gm.escape_string(l["canon"])}", ' if l.get("canon") else '') +
                       f'has myth-lore-visibility "{gm.escape_string(l.get("visibility") or "player")}", '
                       f'has created-at {_ts(l.get("created_at"))}'
                       + _opt("description", l.get("summary"))
@@ -1043,7 +1091,9 @@ def import_campaign(path, new_name=None, new_ids=False):
                       f'has created-at {_ts(ev.get("at"))}'
                       + _opt("content", ev.get("narrative"))
                       + (f', has myth-session-number {ev["session"]}'
-                         if ev.get("session") is not None else "") + ";")
+                         if ev.get("session") is not None else "")
+                      + _opt("myth-event-visibility", ev.get("visibility"))
+                      + _opt("myth-canon-status", ev.get("canon")) + ";")
             link(evid, "myth-game-event")
             for pid in ev.get("involves") or []:
                 pid = rid(pid)

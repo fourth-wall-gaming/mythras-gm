@@ -61,9 +61,29 @@ def test_damage_modifier():
     assert eng.damage_modifier(22, 24) == "+1d10"
 
 
+def test_action_points_table():
+    """Classic Fantasy core derives AP from INT+DEX, not a flat 2.
+
+    CF Imperative uses 2-at-Rank-1 rising by class Rank table and diverges here;
+    TDM500 is the book these campaigns run.
+    """
+    def ap(int_v, dex):
+        return eng.derive_attributes(dict(CHARS, INT=int_v, DEX=dex))["action_points"]
+
+    assert ap(6, 6) == 1      # 12, top of band 1
+    assert ap(6, 7) == 2      # 13, bottom of band 2
+    assert ap(12, 12) == 2    # 24, top of band 2
+    assert ap(12, 13) == 3    # 25, bottom of band 3 -- Ommet
+    assert ap(10, 17) == 3    # 27 -- Fitch
+    assert ap(18, 18) == 3    # 36, top of band 3
+    assert ap(18, 19) == 4    # 37
+    assert ap(24, 24) == 4    # 48
+    assert ap(25, 24) == 5    # 49
+
+
 def test_derive_attributes():
     a = eng.derive_attributes(CHARS)
-    assert a["action_points"] == 2
+    assert a["action_points"] == 3  # INT 13 + DEX 15 = 28 -> band 25-36
     assert a["initiative_bonus"] == 14
     assert a["healing_rate"] == 2
     assert a["luck_points"] == 2

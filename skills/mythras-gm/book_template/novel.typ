@@ -46,7 +46,12 @@
     v(16%)
     align(center, text(size: 17pt, weight: "regular", smallcaps(it.body)))
     v(0.5em)
-    align(center, text(size: 11pt)[✦])
+    // U+2756 BLACK DIAMOND MINUS WHITE X. Do NOT use U+2726 (BLACK FOUR
+    // POINTED STAR) here: it is absent from Typst's default New Computer
+    // Modern and renders as a missing-glyph box on every chapter opener.
+    // U+2733 falls back to a colour emoji font. U+2756 and U+2042 both
+    // render correctly; keep them distinct (2756 chapters, 2042 scene breaks).
+    align(center, text(size: 11pt)[❖])
     v(2em)
   }
 

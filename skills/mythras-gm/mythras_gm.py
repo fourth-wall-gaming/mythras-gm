@@ -77,6 +77,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
 import mythras_effects as fx
+import world_tools as wt
+from score_tools import deep_merge, validate_score
 
 try:
     from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
@@ -155,6 +157,35 @@ def fail(msg):
     sys.exit(1)
 
 
+DEFAULT_CAMPAIGN = os.getenv("MYTHRAS_CAMPAIGN")
+
+
+def resolve_campaign(campaign_id):
+    """Return the campaign to act on.
+
+    Explicit --campaign wins. Otherwise MYTHRAS_CAMPAIGN, otherwise the only
+    campaign in the database if there is exactly one. With several and no hint
+    we refuse rather than guess, because picking the wrong campaign writes
+    plausible-looking data into somebody else's game.
+    """
+    if campaign_id:
+        return campaign_id
+    if DEFAULT_CAMPAIGN:
+        return DEFAULT_CAMPAIGN
+    with get_driver() as driver:
+        rows = _fetch(driver, """
+            match $c isa myth-campaign, has id $i, has name $n;
+            fetch { "id": $i, "name": $n };""")
+    if len(rows) == 1:
+        return rows[0]["id"]
+    if not rows:
+        fail(f"No campaigns in database '{TYPEDB_DATABASE}'. "
+             f"Check TYPEDB_DATABASE, or create one with create-campaign.")
+    listing = "; ".join(f'{r["name"]} ({r["id"]})' for r in sorted(rows, key=lambda r: r["name"]))
+    fail(f"{len(rows)} campaigns in '{TYPEDB_DATABASE}' -- pass --campaign or set "
+         f"MYTHRAS_CAMPAIGN. Available: {listing}")
+
+
 # ---------------------------------------------------------------------------
 # Generic TypeDB helpers
 # ---------------------------------------------------------------------------
@@ -205,6 +236,19 @@ def _get_entity(driver, entity_type, entity_id, attrs):
 
 
 def _link_to_campaign(driver, campaign_id, element_id, element_type):
+    """Link an element to a campaign, refusing silently-orphaning writes.
+
+    If the campaign is absent -- almost always because TYPEDB_DATABASE points at
+    the wrong database -- the insert below matches nothing and does nothing, and
+    the caller happily reports success while the element dangles unreachable.
+    That has cost a whole session of campaign log before. Check first and fail loudly.
+    """
+    if not _fetch(driver, f'''
+            match $c isa myth-campaign, has id "{escape_string(campaign_id)}";
+            fetch {{ "id": $c.id }};'''):
+        fail(f"No campaign '{campaign_id}' in database '{TYPEDB_DATABASE}'. "
+             f"Set TYPEDB_DATABASE to the campaign's database and retry "
+             f"(the element was created but is NOT linked).")
     _write(driver, f'''
         match
           $c isa myth-campaign, has id "{escape_string(campaign_id)}";
@@ -277,6 +321,7 @@ def cmd_create_campaign(args):
     ts = get_timestamp()
     q = f'''insert $c isa myth-campaign,
         has id "{cid}", has name "{escape_string(args.name)}",
+        has myth-system "{escape_string(args.system)}",
         has myth-session-number 0, has created-at {ts}'''
     if args.description:
         q += f', has description "{escape_string(args.description)}"'
@@ -291,11 +336,12 @@ def cmd_create_campaign(args):
 def cmd_get_campaign(args):
     with get_driver() as driver:
         c = _get_entity(driver, "myth-campaign", args.campaign,
-                        ["description", "content", "myth-game-date",
-                         "myth-current-scene", "myth-session-number",
-                         "myth-time-index"])
+                        ["myth-system", "description", "content",
+                         "myth-game-date", "myth-current-scene",
+                         "myth-session-number", "myth-time-index"])
     if not c:
         fail(f"No campaign '{args.campaign}'")
+    c.setdefault("myth-system", "mythras")
     out({"success": True, "campaign": c})
 
 
@@ -372,7 +418,13 @@ def cmd_update_campaign(args):
         if args.name is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "name", args.name)
         if args.description is not None:
+            # get-context loads the description every session, so a stale one
+            # quietly feeds the wrong framing into every future game.
             _set_attr(driver, "myth-campaign", args.campaign, "description", args.description)
+        if getattr(args, "narrative", None) is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "content", args.narrative)
+        if getattr(args, "system", None) is not None:
+            _set_attr(driver, "myth-campaign", args.campaign, "myth-system", args.system)
         if args.game_date is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-game-date", args.game_date)
         if args.staging_notes is not None:
@@ -395,9 +447,12 @@ def cmd_update_campaign(args):
                     a["index_from"] = a["index_to"] = None
             _set_attr(driver, "myth-campaign", args.campaign, "myth-arc-json",
                       json.dumps(acts))
-        if args.session_number is not None:
+        session = args.session_number
+        if session is None:
+            session = getattr(args, "session", None)
+        if session is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-session-number",
-                      args.session_number, quote=False)
+                      session, quote=False)
         if args.time_index is not None:
             _set_attr(driver, "myth-campaign", args.campaign, "myth-time-index",
                       args.time_index, quote=False)
@@ -480,6 +535,49 @@ def cmd_create_character(args):
 def cmd_get_character(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
+        if getattr(args, "brief", False):
+            # What you want before playing a scene: who they are, what they are
+            # up to, what has been written about them, and what they have
+            # actually been in. NOT a stat block -- that is 2-3k tokens for
+            # someone you only intend to talk to.
+            extras = c.get("myth-extras-json") or {}
+            lore = _lore_about(driver, args.id)
+            participants = _event_participants(driver, args.campaign)
+            mine = [e for e, ps in participants.items()
+                    if any(pid == args.id for pid, _ in ps)]
+            hist = _fetch(driver, f'''
+                match
+                  $e isa myth-game-event, has id $i, has description $d;
+                  try {{ $e has myth-session-number $sn; }};
+                fetch {{ "id": $i, "summary": $d, "session": $sn }};''')
+            hist = [h for h in hist if h["id"] in set(mine)]
+            hist.sort(key=lambda h: (h.get("session") or 0))
+            brief = {
+                "id": c["id"], "name": c["name"],
+                "description": c.get("description"),
+                "status": c.get("myth-status"),
+                "type": c.get("myth-char-type"),
+            }
+            if extras.get("score"):
+                brief["score"] = extras["score"]
+            if extras.get("doing"):
+                brief["doing"] = extras["doing"]
+            if lore:
+                brief["lore"] = lore
+            if hist:
+                brief["recent"] = hist[-5:]
+            # What they think is true and how they feel about it. This is the
+            # reason to pull a brief at all: score is temperament, doing is
+            # agenda, and this is why they are in the scene.
+            edges = _subject_knowledge_edges(driver, knower_id=args.id)
+            if edges:
+                brief["knows"] = [
+                    {"subject": (e.get("subject") or (e.get("subject_desc") or "")[:70]),
+                     "depth": e.get("depth"), "route": e.get("route"),
+                     "reads_it_as": e.get("note"), "attitude": e.get("attitude")}
+                    for e in edges]
+            out({"success": True, "character": brief})
+            return
     if getattr(args, "compact", False):
         c = _combat_card(c)
     out({"success": True, "character": c})
@@ -904,6 +1002,11 @@ def cmd_brief(args):
               (agenda: $a, holder: $c) isa myth-agenda-holder;
               $a has name $an, has myth-agenda-status $as;
             fetch {{ "an": $an, "as": $as }};""")
+        # What they believe about what they have seen, and how they feel about
+        # it. An agenda says what they want; this says what they think is going
+        # on, which is what they will actually open their mouth about -- and it
+        # may be flatly wrong, which is the good stuff.
+        reads = _subject_knowledge_edges(driver, knower_id=args.id)
 
     # Pronouns ride at the top of the brief because getting them wrong
     # misgenders somebody in the fiction and a name is not evidence. Never
@@ -921,10 +1024,47 @@ def cmd_brief(args):
          "actor_notes": notes,
          "notes_source": source,
          "agendas": [f"{r['an']} ({r['as']})" for r in agendas],
+         "believes": [
+             {"about": e.get("subject") or (e.get("subject_desc") or "")[:70],
+              "reads_it_as": e.get("note"), "attitude": e.get("attitude"),
+              "how_sure": e.get("depth"), "how_they_know": e.get("route")}
+             for e in reads],
          "guidance": (None if notes else
                       "NO ACTOR NOTES. Give this character one line of business "
                       "and no dialogue, then write them with "
                       "`update-character --actor-notes` before they speak.")})
+
+
+MERGEABLE_JSON_ATTRS = ("myth-skills-json", "myth-passions-json",
+                        "myth-extras-json", "myth-attributes-json")
+
+
+def _merge_json_attr(driver, char_id, attr, incoming):
+    """Merge an incoming JSON object into the stored one.
+
+    These attributes are whole-document blobs. Writing a partial document
+    replaces the lot, which silently deletes every key you did not mention --
+    e.g. awarding experience on three skills used to wipe the other forty.
+    Default to merging; --replace-json opts back into the destructive behaviour.
+    """
+    try:
+        new = json.loads(incoming)
+    except (TypeError, ValueError):
+        return incoming
+    if not isinstance(new, dict):
+        return incoming
+    rows = _fetch(driver, f'''
+        match $e isa myth-character, has id "{escape_string(char_id)}", has {attr} $v;
+        fetch {{ "v": $v }};''')
+    current = {}
+    if rows:
+        try:
+            current = json.loads(rows[0]["v"]) or {}
+        except (TypeError, ValueError):
+            current = {}
+    if not isinstance(current, dict):
+        current = {}
+    return json.dumps(deep_merge(current, new))
 
 
 def cmd_update_character(args):
@@ -932,7 +1072,8 @@ def cmd_update_character(args):
     updates = {
         "myth-skills-json": args.skills, "myth-equipment-json": args.equipment,
         "myth-passions-json": args.passions, "myth-spells-json": args.spells,
-        "myth-powers-json": args.powers,
+        "myth-powers-json": args.powers, "myth-extras-json": args.extras,
+        "myth-attributes-json": args.attributes,
         "myth-fatigue": args.fatigue, "myth-status": args.status,
         "myth-actor-notes": args.actor_notes,
         "description": args.description, "content": args.narrative,
@@ -947,26 +1088,272 @@ def cmd_update_character(args):
         "myth-experience-rolls": args.experience_rolls,
     }
     with get_driver() as driver:
+        for attr in MERGEABLE_JSON_ATTRS:
+            if updates.get(attr) is None:
+                continue
+            if getattr(args, "replace_json", False):
+                continue
+            # --extras-replace is the narrow form of --replace-json. The extras
+            # bag is the one people genuinely want to overwrite wholesale, and
+            # it stayed write-once-at-import long enough that portrayal notes
+            # ended up smeared across description and narrative instead of
+            # living in it.
+            if attr == "myth-extras-json" and getattr(args, "extras_replace", False):
+                continue
+            updates[attr] = _merge_json_attr(driver, args.id, attr, updates[attr])
         for attr, val in updates.items():
             if val is not None:
                 _set_attr(driver, "myth-character", args.id, attr, val)
         for attr, val in numeric.items():
             if val is not None:
                 _set_attr(driver, "myth-character", args.id, attr, val, quote=False)
-        # The extras bag was write-once-at-import, which is why portrayal notes
-        # ended up smeared across description/narrative instead of living in it.
-        if args.extras is not None:
-            incoming = json.loads(args.extras)
-            if args.extras_replace:
-                merged = incoming
-            else:
-                cur = _get_entity(driver, "myth-character", args.id, ["myth-extras-json"]) or {}
-                existing = json.loads(cur.get("myth-extras-json") or "{}")
-                existing.update(incoming)
-                merged = existing
+    # Validate the score as it now STANDS, not the fragment just sent -- else
+    # appending one observation reports every other slot as missing.
+    warnings = []
+    if args.extras:
+        try:
+            score = json.loads(updates["myth-extras-json"]).get("score")
+        except (TypeError, ValueError, AttributeError):
+            score = None
+        if isinstance(score, dict):
+            warnings = validate_score(score)
+    payload = {"success": True, "id": args.id}
+    if warnings:
+        payload["score_warnings"] = warnings
+    out(payload)
+
+
+CANON_TYPES = ["myth-lore", "myth-game-event", "myth-character",
+               "myth-location", "myth-faction"]
+
+KNOWLEDGE_SUBJECT_TYPES = ["myth-game-event", "myth-lore", "myth-character",
+                           "myth-location", "myth-faction"]
+
+
+def cmd_set_knowledge(args):
+    """Record what a character knows, thinks it meant, and how they feel.
+
+    The journal is the store of facts and participation already means "was
+    there, saw it". This records everything else -- told, shown, inferred --
+    and above all the NOTE: their reading of it, which may be flatly wrong.
+    Neask holds a true event and a false reading of it, and the false reading
+    is what drives her next scene.
+    """
+    with get_driver() as driver:
+        if not _fetch(driver, f'''
+                match $k isa myth-character, has id "{escape_string(args.knower)}";
+                fetch {{ "id": $k.id }};'''):
+            fail(f"No myth-character with id '{args.knower}' in database "
+                 f"'{TYPEDB_DATABASE}'")
+        stype = _resolve_entity_type(driver, args.subject, KNOWLEDGE_SUBJECT_TYPES)
+        if not stype:
+            fail(f"No knowable subject with id '{args.subject}' in database "
+                 f"'{TYPEDB_DATABASE}' (events, lore, characters, locations, factions)")
+
+        session = args.session
+        if session is None:
+            rows = _fetch(driver, f'''
+                match $c isa myth-campaign, has id "{escape_string(args.campaign)}",
+                      has myth-session-number $s;
+                fetch {{ "s": $s }};''')
+            session = rows[0]["s"] if rows else None
+
+        # One edge per (knower, subject): replace rather than accumulate, so a
+        # character's understanding can be revised as they learn more.
+        _write(driver, f'''
+            match
+              $k isa myth-character, has id "{escape_string(args.knower)}";
+              $s isa {stype}, has id "{escape_string(args.subject)}";
+              $r isa myth-knows, links (knower: $k, subject: $s);
+            delete $r;''')
+
+        parts = []
+        for attr, val in (("myth-knowledge-depth", args.depth),
+                          ("myth-knowledge-route", args.route),
+                          ("myth-knowledge-note", args.note),
+                          ("myth-attitude", args.attitude)):
+            if val:
+                parts.append(f', has {attr} "{escape_string(val)}"')
+        # Mirror the GM vocabulary onto the engine-facing one. An edge written
+        # only in depth/route terms would be invisible to require-fact,
+        # forecast and check-consistency, which read certainty and source --
+        # so a beat would stay gated on knowledge the character demonstrably
+        # has. wt.as_certainty/as_source own the mapping.
+        certainty = wt.as_certainty(args.depth)
+        source = wt.as_source(args.route)
+        if certainty:
+            parts.append(f', has myth-knowledge-certainty "{certainty}"')
+        if source:
+            parts.append(f', has myth-knowledge-source "{source}"')
+        if session is not None:
+            parts.append(f", has myth-session-number {session}")
+        if args.since is not None:
+            parts.append(f", has myth-knowledge-since {args.since}")
+        _write(driver, f'''
+            match
+              $k isa myth-character, has id "{escape_string(args.knower)}";
+              $s isa {stype}, has id "{escape_string(args.subject)}";
+            insert $r isa myth-knows (knower: $k, subject: $s){"".join(parts)};''')
+
+    payload = {"success": True, "knower": args.knower, "subject": args.subject,
+               "subject_type": stype}
+    warnings = wt.validate_knowledge({"depth": args.depth, "route": args.route,
+                                      "note": args.note, "attitude": args.attitude})
+    if warnings:
+        payload["knowledge_warnings"] = warnings
+    out(payload)
+
+
+def _subject_knowledge_edges(driver, knower_id=None, subject_id=None):
+    """Fetch SUBJECT-shaped myth-knows edges from either end.
+
+    The fact-shaped half of the same relation is read by _knowledge_edges
+    below, which is campaign-scoped and is what the living world gates on.
+ Relation attributes must be bound
+    in the match -- $rel.attr is not fetchable in TypeDB 3.x."""
+    if knower_id:
+        anchor = f'$k isa myth-character, has id "{escape_string(knower_id)}";'
+    else:
+        anchor = f'$s has id "{escape_string(subject_id)}";'
+    return _fetch(driver, f'''
+        match
+          {anchor}
+          $r isa myth-knows, links (knower: $k, subject: $s);
+          $k has id $ki, has name $kn;
+          $s has id $si;
+          try {{ $s has name $sn; }};
+          try {{ $s has description $sd; }};
+          try {{ $r has myth-knowledge-depth $d; }};
+          try {{ $r has myth-knowledge-route $ro; }};
+          try {{ $r has myth-knowledge-note $no; }};
+          try {{ $r has myth-attitude $at; }};
+          try {{ $r has myth-session-number $sess; }};
+          try {{ $r has myth-knowledge-certainty $ct; }};
+          try {{ $r has myth-knowledge-source $src; }};
+        fetch {{ "knower_id": $ki, "knower": $kn, "subject_id": $si,
+                 "subject": $sn, "subject_desc": $sd, "depth": $d, "route": $ro,
+                 "note": $no, "attitude": $at, "session": $sess,
+                 "certainty": $ct, "source": $src }};''')
+
+
+def cmd_get_knowledge(args):
+    """What a character knows, or who knows about a thing.
+
+    With --knower, also reports what they witnessed directly, since
+    participation in an event is implicit knowledge and needs no edge.
+    """
+    with get_driver() as driver:
+        if args.knower:
+            edges = _subject_knowledge_edges(driver, knower_id=args.knower)
+            participants = _event_participants(driver, args.campaign)
+            witnessed = [eid for eid, ps in participants.items()
+                         if any(pid == args.knower for pid, _ in ps)]
+            explicit = {e["subject_id"] for e in edges}
+            # Only list witnessed events that carry no edge of their own -- an
+            # edge means we have recorded their particular reading of it.
+            plain = [e for e in witnessed if e not in explicit]
+            out({"success": True, "knower": args.knower, "knowledge": edges,
+                 "witnessed_without_note": plain})
+        else:
+            out({"success": True, "subject": args.subject,
+                 "known_by": _subject_knowledge_edges(driver, subject_id=args.subject)})
+
+
+def _resolve_entity_type(driver, entity_id, types):
+    """Return the concrete type of an id, or None. The type-probe loop was
+    duplicated in log-event, update-event and lore linking."""
+    for t in types:
+        if _fetch(driver, f'''
+                match $x isa {t}, has id "{escape_string(entity_id)}";
+                fetch {{ "id": $x.id }};'''):
+            return t
+    return None
+
+
+def cmd_retire_canon(args):
+    """Mark a record as no longer true, without deleting it.
+
+    Superseded canon keeps its audit trail but stops being read as live. Use
+    --status live to un-retire. There is no --reason flag: log-event --type
+    gm-note already exists for that.
+    """
+    with get_driver() as driver:
+        etype = _resolve_entity_type(driver, args.id, CANON_TYPES)
+        if not etype:
+            fail(f"No canon-bearing entity with id '{args.id}' in database "
+                 f"'{TYPEDB_DATABASE}'")
+        _set_attr(driver, etype, args.id, "myth-canon-status", args.status)
+        if args.by:
+            _set_attr(driver, etype, args.id, "myth-superseded-by", args.by)
+    out({"success": True, "id": args.id, "type": etype, "canon_status": args.status})
+
+
+def cmd_set_doing(args):
+    """Record what an NPC is currently up to, between scenes.
+
+    Merges into myth-extras-json alongside `score`, so a partial write never
+    discards the rest. --did appends one line to the log; there is deliberately
+    no `advance` verb, because off-camera movement is almost always "they did
+    X, so next is now Y", which is this one call.
+    """
+    with get_driver() as driver:
+        if args.clear:
             _set_attr(driver, "myth-character", args.id, "myth-extras-json",
-                      json.dumps(merged))
-    out({"success": True, "id": args.id})
+                      json.dumps(deep_merge(_extras(driver, args.id),
+                                            {"doing": {}})))
+            out({"success": True, "id": args.id, "cleared": True})
+            return
+
+        session = args.session
+        if session is None:
+            rows = _fetch(driver, f'''
+                match $c isa myth-campaign, has id "{escape_string(args.campaign)}",
+                      has myth-session-number $s;
+                fetch {{ "s": $s }};''')
+            session = rows[0]["s"] if rows else None
+
+        doing = wt.build_doing(
+            session=session, goal=args.goal, next=args.next,
+            where=args.where, blocked_by=args.blocked_by,
+            **({"with": [w.strip() for w in args.with_.split(",") if w.strip()]}
+               if args.with_ else {}))
+        if args.did:
+            doing["log"] = [args.did]
+
+        merged = deep_merge(_extras(driver, args.id), {"doing": doing})
+        _set_attr(driver, "myth-character", args.id, "myth-extras-json",
+                  json.dumps(merged))
+
+    payload = {"success": True, "id": args.id, "doing": merged.get("doing")}
+    warnings = wt.validate_doing(merged.get("doing"))
+    if warnings:
+        payload["doing_warnings"] = warnings
+    out(payload)
+
+
+def _extras(driver, char_id):
+    rows = _fetch(driver, f'''
+        match $c isa myth-character, has id "{escape_string(char_id)}",
+              has myth-extras-json $v;
+        fetch {{ "v": $v }};''')
+    if not rows:
+        return {}
+    try:
+        return json.loads(rows[0]["v"]) or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _lore_about(driver, subject_id):
+    """Lore that points AT this entity. myth-lore-about has only ever been
+    traversed lore -> subject; this is the reverse, which is what you want
+    when the subject is the thing already on screen."""
+    return _fetch(driver, f'''
+        match
+          $s has id "{escape_string(subject_id)}";
+          (lore: $l, subject: $s) isa myth-lore-about;
+          $l isa myth-lore, has id $i, has name $n;
+        fetch {{ "id": $i, "title": $n }};''')
 
 
 def cmd_apply_damage(args):
@@ -1073,13 +1460,20 @@ def _skill_value(char, skill_name):
 def cmd_roll_skill(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
-    name, skill = _resolve_skill(c, args.skill)
+    name, base = _resolve_skill(c, args.skill)
+    skill = base
+    # The augment used to vanish into the total, so a 78 that was really a 58
+    # plus a passion read as a 78 on the page and nobody could audit it.
+    aug = None
     if args.augment:
-        _, passion = _resolve_skill(c, args.augment)
-        skill += passion // 5  # +20% of passion value
+        aug_name, passion = _resolve_skill(c, args.augment)
+        aug_bonus = passion // 5  # +20% of passion value
+        skill += aug_bonus
+        aug = {"passion": aug_name, "passion_value": passion, "bonus": aug_bonus}
     result = eng.skill_check(skill, args.difficulty)
     out({"success": True, "character": c["name"], "skill_name": name,
-         "asked_for": args.skill if args.skill != name else None, **result})
+         "asked_for": args.skill if args.skill != name else None,
+         "base_skill": base, "augment": aug, **result})
 
 
 def cmd_roll_opposed(args):
@@ -1765,6 +2159,9 @@ def cmd_log_event(args):
         q += f', has content "{escape_string(args.narrative)}"'
     if args.session is not None:
         q += f', has myth-session-number {args.session}'
+    # Only write a non-default camera position; absent means "played".
+    if getattr(args, "visibility", None) and args.visibility != "played":
+        q += f', has myth-event-visibility "{escape_string(args.visibility)}"'
     q += ";"
     with get_driver() as driver:
         _write(driver, q)
@@ -1788,6 +2185,89 @@ def cmd_log_event(args):
     out({"success": True, "id": eid})
 
 
+def _event_participants(driver, campaign_id):
+    """Map every event in the campaign to its participants, in ONE round trip.
+
+    myth-event-involvement has been written by every `log-event --involves`
+    since the beginning and never read by anything, which is why the GM could
+    not tell whose story a given scene belonged to. Deliberately not the
+    per-event loop used in campaign_io -- that is N+1 over the whole journal.
+    """
+    rows = _fetch(driver, f'''
+        match
+          $camp isa myth-campaign, has id "{escape_string(campaign_id)}";
+          (campaign: $camp, element: $e) isa myth-campaign-membership;
+          $e isa myth-game-event, has id $ei;
+          (event: $e, participant: $p) isa myth-event-involvement;
+          $p has id $pi, has name $pn;
+        fetch {{ "event": $ei, "pid": $pi, "pname": $pn }};''')
+    by_event = {}
+    for r in rows:
+        by_event.setdefault(r["event"], []).append((r["pid"], r["pname"]))
+    return by_event
+
+
+def cmd_update_event(args):
+    """Amend an already-logged event in place.
+
+    Journal entries need correcting after the fact: a one-line summary that grew
+    into an essay, a missing session number, participants that were never linked,
+    or canon that changed after the session was played. Mirrors
+    cmd_update_character. --summary rewrites both name and description so the two
+    stay in step, since name is capped at 80 characters.
+    """
+    updates = {
+        "description": args.summary,
+        "content": args.narrative,
+        "myth-event-type": args.type,
+        "myth-event-visibility": getattr(args, "visibility", None),
+    }
+    with get_driver() as driver:
+        if not _fetch(driver, f'''
+                match $e isa myth-game-event, has id "{escape_string(args.id)}";
+                fetch {{ "id": $e.id }};'''):
+            fail(f"No myth-game-event with id '{args.id}'")
+
+        if args.summary is not None:
+            _set_attr(driver, "myth-game-event", args.id, "name",
+                      args.summary[:80])
+        for attr, val in updates.items():
+            if val is not None:
+                _set_attr(driver, "myth-game-event", args.id, attr, val)
+        if args.session is not None:
+            _set_attr(driver, "myth-game-event", args.id,
+                      "myth-session-number", args.session, quote=False)
+
+        linked = 0
+        participant_types = ["myth-character", "myth-location", "myth-faction",
+                             "myth-encounter"]
+        for pid in (args.involves or "").split(","):
+            pid = pid.strip()
+            if not pid:
+                continue
+            for ptype in participant_types:
+                if not _fetch(driver, f'''
+                        match $p isa {ptype}, has id "{escape_string(pid)}";
+                        fetch {{ "id": $p.id }};'''):
+                    continue
+                # don't duplicate an existing link
+                if _fetch(driver, f'''
+                        match
+                          $e isa myth-game-event, has id "{escape_string(args.id)}";
+                          $p isa {ptype}, has id "{escape_string(pid)}";
+                          $r isa myth-event-involvement, links (event: $e, participant: $p);
+                        fetch {{ "x": $p.id }};'''):
+                    break
+                _write(driver, f'''
+                    match
+                      $e isa myth-game-event, has id "{escape_string(args.id)}";
+                      $p isa {ptype}, has id "{escape_string(pid)}";
+                    insert (event: $e, participant: $p) isa myth-event-involvement;''')
+                linked += 1
+                break
+    out({"success": True, "id": args.id, "participants_linked": linked})
+
+
 def cmd_get_log(args):
     """The journal.
 
@@ -1803,33 +2283,65 @@ def cmd_get_log(args):
               (campaign: $camp, element: $e) isa myth-campaign-membership;
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
-            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
-        events = sorted(rows, key=lambda r: str(r["at"]))
-        if args.type:
-            events = [e for e in events if e["type"] == args.type]
-        limit = getattr(args, "limit", None)
-        if limit and limit > 0:
-            events = events[-limit:]
-        want_session = getattr(args, "session", None)
-        if want_session is not None or getattr(args, "full", False):
-            # content and session are optional, so they are fetched per event
-            # rather than matched -- a missing optional attribute in the match
-            # would drop the whole row.
+              try {{ $e has myth-session-number $sn; }};
+              try {{ $e has myth-event-visibility $vis; }};
+              try {{ $e has myth-canon-status $cs; }};
+            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
+                     "session": $sn, "visibility": $vis, "canon": $cs }};''')
+        participants = _event_participants(driver, args.campaign)
+    for r in rows:
+        r["who"] = participants.get(r["id"], [])
+    # Order by session first so a re-logged session sorts into place rather than
+    # onto the end, then by write time within the session.
+    events = sorted(rows, key=lambda r: (r.get("session") is None,
+                                         r.get("session") or 0, str(r["at"])))
+    if args.type:
+        events = [e for e in events if e["type"] == args.type]
+    if getattr(args, "session", None) is not None:
+        events = [e for e in events if e.get("session") == args.session]
+    involving = getattr(args, "involving", None)
+    events = wt.filter_log(
+        events,
+        involving=[i.strip() for i in involving.split(",") if i.strip()] if involving else None,
+        known_to=getattr(args, "known_to", None),
+        visibility=getattr(args, "visibility", None),
+        since_session=getattr(args, "since_session", None),
+        fiction_only=getattr(args, "fiction_only", False),
+        include_retired=getattr(args, "include_retired", False),
+    )
+    if getattr(args, "full", False):
+        # content and session are optional, so they are fetched per event rather
+        # than matched -- a missing optional attribute in the match would drop
+        # the whole row. Until this existed, verbatim dialogue written into the
+        # journal with --narrative was unreachable through the CLI, which rather
+        # defeated the point of writing it down.
+        with get_driver() as driver:
             for e in events:
                 extra = _get_entity(driver, "myth-game-event", e["id"],
                                     ["content", "myth-session-number"])
                 if extra:
                     e["title"] = extra.get("name")
                     e["narrative"] = extra.get("content")
-                    e["session"] = extra.get("myth-session-number")
-        if want_session is not None:
-            # --session was declared from the start and never read. It filters.
-            events = [e for e in events if e.get("session") == want_session]
-            if not getattr(args, "full", False):
-                for e in events:
-                    e.pop("title", None)
-                    e.pop("narrative", None)
-    out({"success": True, "events": events})
+    limit = getattr(args, "limit", None)
+    if limit and limit > 0:
+        events = events[-limit:]
+    # Report names rather than ids: the point is legibility at a glance.
+    for e in events:
+        e["who"] = [n for _, n in e["who"]]
+    payload = {"success": True, "events": events}
+    # A participation filter silently drops every event whose participants were
+    # never recorded. Say so, loudly, or an empty result reads as "this
+    # character knows nothing" when it means "we never wrote down who was there".
+    if involving or getattr(args, "known_to", None):
+        unattributed = wt.count_unattributed(rows)
+        if unattributed:
+            payload["unattributed"] = unattributed
+            payload["warning"] = (
+                f"{unattributed} of {len(rows)} events in this campaign have no "
+                f"recorded participants and were skipped by this filter. They are "
+                f"unattributed, NOT known to be irrelevant. Backfill with "
+                f"'update-event --involves' before trusting this result.")
+    out(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -1889,11 +2401,19 @@ def cmd_list_lore(args):
               (campaign: $camp, element: $l) isa myth-campaign-membership;
               $l isa myth-lore, has id $i, has name $n,
                  has myth-lore-category $c, has myth-lore-visibility $v;
-            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+              try {{ $l has myth-canon-status $cs; }};
+            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v,
+                     "canon": $cs }};''')
     if args.category:
         rows = [r for r in rows if r["category"] == args.category]
     if args.visibility:
         rows = [r for r in rows if r["visibility"] == args.visibility]
+    # Retired canon is out of the index by default -- that is the whole point.
+    if not getattr(args, "include_retired", False):
+        rows = [r for r in rows if wt.is_live(r.get("canon"))]
+    else:
+        for r in rows:
+            r.setdefault("canon", "live")
     out({"success": True, "lore": sorted(rows, key=lambda r: (r["category"], r["title"]))})
 
 
@@ -3399,15 +3919,28 @@ def cmd_character_view(args):
         facts = _campaign_facts(driver, camp_id)
         edges = _flatten_edges(_knowledge_edges(driver, camp_id))
         who = _get_entity(driver, "myth-character", args.id, ["myth-char-type"])
+        # The other half of myth-knows: what they were told or shown about a
+        # thing, and what they made of it. Facts are what they can ACT on;
+        # these are what they BELIEVE about an event, a place or a person. A
+        # view that showed only the first reported a character who had just
+        # been given a reading of a scene as knowing nothing at all.
+        reads = _subject_knowledge_edges(driver, knower_id=args.id)
     view = eng.character_view(facts, edges, args.id)
     for f in view:
         f["since_key"] = (eng.format_time_key(f["since"]) if f.get("since") is not None else None)
+    reads = [{"subject": e.get("subject") or (e.get("subject_desc") or "")[:70],
+              "subject_id": e.get("subject_id"), "depth": e.get("depth"),
+              "route": e.get("route"), "reads_it_as": e.get("note"),
+              "attitude": e.get("attitude")} for e in reads]
     if args.compact:
         view = [{"statement": f["statement"], "certainty": f["certainty"],
                  "source": f.get("source"), "since": f.get("since_key"),
                  "truth": f["truth"]} for f in view]
+        reads = [{"subject": r["subject"], "reads_it_as": r["reads_it_as"]}
+                 for r in reads]
     out({"success": True, "character": args.id,
-         "name": who["name"] if who else None, "knows": view})
+         "name": who["name"] if who else None, "knows": view,
+         "reads": reads})
 
 
 def cmd_require_fact(args):
@@ -3482,8 +4015,8 @@ def cmd_check_consistency(args):
 # ---------------------------------------------------------------------------
 
 RULES_DIR = os.path.join(_SKILL_DIR, "rules")
-RULE_ATTRS = ["description", "content", "myth-rule-category", "myth-rule-kind",
-              "myth-rule-domain", "myth-rule-topic"]
+RULE_ATTRS = ["description", "content", "myth-rule-system", "myth-rule-category",
+              "myth-rule-kind", "myth-rule-domain", "myth-rule-topic"]
 
 
 def _get_or_create_facet(driver, dim, value):
@@ -3732,11 +4265,18 @@ def cmd_init_db(args):
     note("schema", True, ", ".join(
         os.path.basename(f) for f in (payload or {}).get("applied", [])) or "already current")
 
-    a2 = _A()
-    a2.dir = None
-    ok, payload = _quiet(cmd_load_rules, a2)
-    note("rules graph", ok,
-         f"{(payload or {}).get('rules_loaded', '?')} pieces" if ok
+    # Both systems. rules/ holds Mythras and Classic Fantasy side by side and
+    # load-rules is scoped to one at a time, so loading only the default left a
+    # database with no CFI spells in it -- which is most of the spell library.
+    loaded, rules_ok = {}, True
+    for system in ("mythras", "classic-fantasy"):
+        a2 = _A()
+        a2.dir, a2.system = None, system
+        ok, payload = _quiet(cmd_load_rules, a2)
+        rules_ok = rules_ok and ok
+        loaded[system] = (payload or {}).get("rules_loaded", "?") if ok else "failed"
+    note("rules graph", rules_ok,
+         ", ".join(f"{v} {k}" for k, v in loaded.items()) + " pieces" if rules_ok
          else "load-rules failed; query-rules will return nothing")
 
     # --- leave a breadcrumb so a campaign plugin can find this engine ------
@@ -3911,18 +4451,47 @@ def cmd_doctor(args):
         sys.exit(1)
 
 
-def cmd_load_rules(args):
-    """Walk rules/<domain>/*.md (frontmatter + body), (re)build the rules graph.
+def _piece_system(meta):
+    """The ruleset a rule piece belongs to. Frontmatter `system` wins.
 
-    Idempotent: clears all myth-rule / facets / tag / link relations, then
-    reloads from disk. Rules are GLOBAL (no campaign membership).
+    Nothing in rules/ carries that key, because the tree predates system
+    scoping and marks the boundary a different way: the ORC licence. Every
+    Classic Fantasy piece was adapted from the vendored CFI SRD and so carries
+    `licence: orc`, a `source` naming it, and a `cfi/` segment in its id. Those
+    signals are the ones that actually exist on disk, so read them rather than
+    asking 271 files to repeat themselves -- and rather than shipping a second
+    copy of the CFI rules under a directory that has the key but no attribution.
+    """
+    explicit = meta.get("system")
+    if explicit:
+        return str(explicit).strip().lower()
+    rid = str(meta.get("id", ""))
+    if rid.startswith("cfi/") or "/cfi/" in rid:
+        return "classic-fantasy"
+    facets = meta.get("facets") or {}
+    sources = facets.get("source") or [] if isinstance(facets, dict) else []
+    if any("classic-fantasy" in str(x).lower() for x in sources):
+        return "classic-fantasy"
+    if "classic fantasy" in str(meta.get("source", "")).lower():
+        return "classic-fantasy"
+    return "mythras"
+
+
+def cmd_load_rules(args):
+    """Walk <dir>/*.md (frontmatter + body) and (re)build the rules graph for ONE
+    system. Idempotent per-system: clears only this system's myth-rule pieces,
+    their tags, and their links, then reloads. Shared facets are reused, never
+    deleted (the other system may still tag them). Rules are GLOBAL (no campaign).
     """
     import campaign_io
-    rules_dir = args.dir or RULES_DIR
+    system = (args.system or "mythras").strip().lower()
+    if args.dir:
+        rules_dir = args.dir if os.path.isabs(args.dir) else os.path.join(_SKILL_DIR, args.dir)
+    else:
+        rules_dir = RULES_DIR
     if not os.path.isdir(rules_dir):
         fail(f"No rules directory: {rules_dir}")
 
-    # Gather every markdown file that carries a frontmatter `id`.
     pieces = []
     for root, _dirs, files in os.walk(rules_dir):
         for fn in sorted(files):
@@ -3931,18 +4500,58 @@ def cmd_load_rules(args):
             meta, body = campaign_io._parse_md(os.path.join(root, fn))
             if not meta.get("id"):
                 continue
+            if _piece_system(meta) != system:
+                continue
             meta["content"] = body
             pieces.append(meta)
 
     if not pieces:
-        fail(f"No rule files with frontmatter `id` under {rules_dir}")
+        fail(f"No rule files with frontmatter `id` and system '{system}' under {rules_dir}")
 
     with get_driver() as driver:
-        # Clear the existing graph (data matches with bound vars -- safe).
-        for rel in ("myth-rule-tagged", "myth-rule-link"):
-            _write(driver, f"match $x isa {rel}; delete $x;")
-        for ent in ("myth-rule", "myth-rule-facet"):
-            _write(driver, f"match $x isa {ent}; delete $x;")
+        # Clear ONLY this system's graph. Delete tags/links that touch a rule of
+        # this system, then the rule entities. Leave facets (shared) in place.
+        # Also clear legacy untagged rules (pre-system-scoping migration) when
+        # reloading the default "mythras" system so the first tagged load succeeds.
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-tagged, links (rule: $r);
+            delete $rel;''')
+        # Delete outbound links (this system's rule is the source role).
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-link, links (rule: $r);
+            delete $rel;''')
+        # Delete inbound links (this system's rule is the target role).
+        # Accepted behaviour: reloading system S drops inbound links FROM other
+        # systems into S; those are rebuilt when the other system is reloaded.
+        # This ensures NO dangling myth-rule-link relation survives.
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+                  $rel isa myth-rule-link, links (linked: $r);
+            delete $rel;''')
+        _write(driver, f'''
+            match $r isa myth-rule, has myth-rule-system "{escape_string(system)}";
+            delete $r;''')
+        if system == "mythras":
+            # Migration: remove legacy rules that have no myth-rule-system attribute.
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-tagged, links (rule: $r);
+                delete $rel;''')
+            # Delete outbound links for untagged legacy rules.
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-link, links (rule: $r);
+                delete $rel;''')
+            # Delete inbound links for untagged legacy rules (target role).
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                      $rel isa myth-rule-link, links (linked: $r);
+                delete $rel;''')
+            _write(driver, '''
+                match $r isa myth-rule; not { $r has myth-rule-system $s; };
+                delete $r;''')
 
         ts = get_timestamp()
         for p in pieces:
@@ -3950,6 +4559,7 @@ def cmd_load_rules(args):
             q = f'''insert $r isa myth-rule,
                 has id "{escape_string(rid)}",
                 has name "{escape_string(p.get("title", rid))}",
+                has myth-rule-system "{escape_string(system)}",
                 has myth-rule-category "{escape_string(p.get("category", p.get("domain", "core")))}",
                 has myth-rule-kind "{escape_string(p.get("kind", "reference"))}",
                 has myth-rule-domain "{escape_string(p.get("domain", p.get("category", "core")))}",
@@ -3971,7 +4581,8 @@ def cmd_load_rules(args):
                           $f isa myth-rule-facet, has id "{escape_string(fid)}";
                         insert (rule: $r, facet: $f) isa myth-rule-tagged;''')
 
-        # Links in a second pass, once every rule exists.
+        # Links in a second pass. A CFI piece may link to a Mythras piece, so do
+        # not constrain target system here; just require the target to exist.
         link_count = 0
         for p in pieces:
             rid = p["id"]
@@ -3986,7 +4597,8 @@ def cmd_load_rules(args):
                         insert (rule: $r, linked: $t) isa myth-rule-link;''')
                     link_count += 1
 
-    out({"success": True, "rules_loaded": len(pieces), "links_loaded": link_count})
+    out({"success": True, "system": system,
+         "rules_loaded": len(pieces), "links_loaded": link_count})
 
 
 def cmd_list_rules(args):
@@ -4000,10 +4612,13 @@ def cmd_list_rules(args):
     with get_driver() as driver:
         rows = _fetch(driver, '''
             match $r isa myth-rule, has id $i, has name $n,
+                  has myth-rule-system $sys,
                   has myth-rule-domain $dm,
                   has myth-rule-topic $tp, has myth-rule-kind $k;
-            fetch { "id": $i, "title": $n,
+            fetch { "id": $i, "title": $n, "system": $sys,
                     "domain": $dm, "topic": $tp, "kind": $k };''')
+        if args.system:
+            rows = [r for r in rows if r["system"] == args.system]
         # category == domain by construction, so it isn't emitted; filter on domain.
         if args.category:
             rows = [r for r in rows if r["domain"] == args.category]
@@ -4111,6 +4726,16 @@ def cmd_query_rules(args):
         if getattr(args, "match", "any") == "all":
             scores = {rid: n for rid, n in scores.items() if n == len(wanted)}
         ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if args.system:
+            keep = set()
+            for rid, _ in ranked:
+                row = _fetch(driver, f'''
+                    match $r isa myth-rule, has id "{escape_string(rid)}",
+                          has myth-rule-system "{escape_string(args.system)}";
+                    fetch {{ "id": $r.id }};''')
+                if row:
+                    keep.add(rid)
+            ranked = [(rid, sc) for rid, sc in ranked if rid in keep]
         if args.limit and args.limit > 0:
             ranked = ranked[:args.limit]
 
@@ -4147,11 +4772,12 @@ def cmd_get_context(args):
     NPCs (names), locations, factions, active encounters, recent events."""
     with get_driver() as driver:
         camp = _get_entity(driver, "myth-campaign", args.campaign,
-                           ["description", "content", "myth-game-date",
-                            "myth-current-scene", "myth-session-number",
-                            "myth-time-index"])
+                           ["myth-system", "description", "content",
+                            "myth-game-date", "myth-current-scene",
+                            "myth-session-number", "myth-time-index"])
         if not camp:
             fail(f"No campaign '{args.campaign}'")
+        camp.setdefault("myth-system", "mythras")
 
         def members(entity_type, extra=""):
             return _fetch(driver, f'''
@@ -4188,7 +4814,24 @@ def cmd_get_context(args):
                 fetch {{ "id": $li, "name": $ln }};""")
             card["location"] = rows[0]["id"] if rows else None
             card["location_name"] = rows[0]["name"] if rows else None
-        npcs = [r for r in chars if r["type"] != "pc"]
+        # Only NPCs still in play. Without the status filter every NPC ever
+        # spawned -- the dead, the one-scene guards -- stays in the save file
+        # for good, which is both a token leak and a canon-confusion source.
+        npcs = [r for r in chars if r["type"] != "pc" and r["status"] == "active"]
+        # One line each for what the NPCs are up to. Without this the save file
+        # is a list of names and the world cannot be described as moving --
+        # only as standing still.
+        cur_session = camp.get("myth-session-number")
+        for n in npcs:
+            line = wt.doing_line(_extras(driver, n["id"]).get("doing"),
+                                 current_session=cur_session)
+            if line:
+                n["doing"] = line
+        # Retired and dead PCs, NAMED. They used to be filtered out entirely
+        # while their events stayed in the log with no visible owner, which is
+        # exactly how one crew's history gets attributed to the crew on screen.
+        former_pcs = [r for r in chars
+                      if r["type"] == "pc" and r["status"] != "active"]
 
         encounters = _fetch(driver, f'''
             match
@@ -4203,15 +4846,52 @@ def cmd_get_context(args):
               (campaign: $camp, element: $e) isa myth-campaign-membership;
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
-            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts }};''')
+              try {{ $e has myth-session-number $sn; }};
+              try {{ $e has myth-event-visibility $vis; }};
+              try {{ $e has myth-canon-status $cs; }};
+            fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
+                     "session": $sn, "visibility": $vis, "canon": $cs }};''')
+        participants = _event_participants(driver, args.campaign)
         recent_n = 5 if compact else 15
-        recent = sorted(events, key=lambda r: str(r["at"]))[-recent_n:]
+        # Bookkeeping notes are not play. Three of the last five events were GM
+        # corrections at one point, which buried the actual fiction.
+        fiction = wt.filter_log(events, fiction_only=True)
+        recent = sorted(fiction, key=lambda r: str(r["at"]))[-recent_n:]
+        # Offscreen developments the party has not met yet -- the GM's own
+        # standing reminder of what is moving. Never player-facing.
+        offscreen = [e for e in wt.filter_log(events, visibility="offscreen")
+                     if (e.get("session") or 0) >= (camp.get("myth-session-number") or 0) - 1]
+        offscreen = sorted(offscreen, key=lambda r: str(r["at"]))[-5:]
+        # Whose scene was this. The cheapest guard in the system against
+        # attributing one crew's history to another.
+        for e in recent:
+            who = [n for _, n in participants.get(e["id"], [])]
+            if who:
+                e["who"] = who
+
+        # Date each former PC by the last session they actually appear in, so a
+        # retired crew reads as a closed chapter rather than a list of names.
+        last_seen = {}
+        for e in events:
+            for pid, _ in participants.get(e["id"], []):
+                s = e.get("session")
+                if s is not None and s > last_seen.get(pid, 0):
+                    last_seen[pid] = s
+        former = [{"id": r["id"], "name": r["name"], "status": r["status"],
+                   "last_session": last_seen.get(r["id"])}
+                  for r in former_pcs][:6]
 
         result = {"success": True, "campaign": camp, "player_characters": pcs,
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
                   "recent_events": recent}
+        if former:
+            result["former_player_characters"] = former
+        if offscreen:
+            result["offscreen_since"] = [
+                {"summary": e["summary"], "session": e.get("session")}
+                for e in offscreen]
 
         # The living world: what is in motion, and what is already due. Kept
         # small enough for compact mode -- a resumed session must know what the
@@ -4253,7 +4933,9 @@ def cmd_get_context(args):
                   (campaign: $camp, element: $l) isa myth-campaign-membership;
                   $l isa myth-lore, has id $i, has name $n,
                      has myth-lore-category $c, has myth-lore-visibility $v;
-                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v }};''')
+                  try {{ $l has myth-canon-status $cs; }};
+                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v,
+                         "canon": $cs }};''')
             result["lore_index"] = sorted(lore, key=lambda r: (r["category"], r["title"]))
 
     out(result)
@@ -4469,23 +5151,60 @@ def build_parser():
     s.add_argument("--name", required=True)
     s.add_argument("--description")
     s.add_argument("--game-date")
+    s.add_argument("--system", default="mythras",
+                   choices=["mythras", "classic-fantasy"],
+                   help="ruleset for this campaign (default: mythras)")
 
     s = sub.add_parser("get-campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("set-scene")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--scene", required=True)
     s.add_argument("--game-date")
 
     s = sub.add_parser("update-campaign",
-                       help="Edit campaign name, description, game-date, session number or world clock")
-    s.add_argument("--campaign", required=True)
+                       help="Edit campaign name, premise, ruleset, game-date, "
+                            "session number or world clock")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name")
-    s.add_argument("--description")
+    s.add_argument("--description", help="the premise; get-context loads this every session")
+    s.add_argument("--narrative", help="long-form notes (stored as content)")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"])
     s.add_argument("--game-date", help="prose date shown at the top of the save")
     s.add_argument("--session-number", type=int)
+    s.add_argument("--session", type=int, dest="session",
+                   help="alias for --session-number")
     s.add_argument("--time-index", type=int, help="numeric world clock; prefer tick in play")
+
+    s = sub.add_parser("set-knowledge",
+                       help="Record what a character knows, thinks it meant, and feels")
+    s.add_argument("--knower", required=True, help="character id")
+    s.add_argument("--subject", required=True,
+                   help="id of an event, lore entry, character, location or faction")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
+    s.add_argument("--depth", choices=["glimpsed", "knows", "can-prove"])
+    s.add_argument("--route",
+                   choices=["witnessed", "told", "shown", "inferred", "bought", "rumour"])
+    s.add_argument("--note", help="THEIR reading of it -- may be flatly wrong")
+    s.add_argument("--attitude", help="how they feel about it / what it makes them want")
+    s.add_argument("--session", type=int, help="defaults to the campaign's current session")
+    s.add_argument("--since", type=int,
+                   help="world-clock index when they learned it; sets "
+                        "myth-knowledge-since, which forecast and tick read")
+
+    s = sub.add_parser("get-knowledge",
+                       help="What a character knows, or who knows about a thing")
+    s.add_argument("--knower", help="character id -- what do they know")
+    s.add_argument("--subject", help="entity id -- who knows about this")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
+
+    s = sub.add_parser("retire-canon",
+                       help="Mark a record no longer true, without deleting it")
+    s.add_argument("--id", required=True)
+    s.add_argument("--status", required=True,
+                   choices=["live", "superseded", "retracted"])
+    s.add_argument("--by", help="id of the record that replaces this one")
 
     sub.add_parser("list-campaigns")
     s.add_argument("--staging-notes", help="the world's physical laws -- the few "
@@ -4518,9 +5237,26 @@ def build_parser():
 
     s = sub.add_parser("get-character")
     s.add_argument("--id", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--compact", action="store_true",
                    help="Combat-card projection (state only; omits skills, "
                         "equipment, spells, prose)")
+    s.add_argument("--brief", action="store_true",
+                   help="Read this BEFORE playing a scene: score, doing, lore "
+                        "written about them, and the last 5 events they were in. "
+                        "No stat block.")
+
+    s = sub.add_parser("set-doing", help="Record what an NPC is currently up to")
+    s.add_argument("--id", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
+    s.add_argument("--goal", help="one line: what they are trying to bring about")
+    s.add_argument("--next", help="the very next concrete thing they will do")
+    s.add_argument("--where")
+    s.add_argument("--with", dest="with_", help="comma-separated character ids")
+    s.add_argument("--blocked-by")
+    s.add_argument("--did", help="append one line to the log (off-camera movement)")
+    s.add_argument("--session", type=int, help="defaults to the campaign's current session")
+    s.add_argument("--clear", action="store_true", help="empty the doing block")
 
     s = sub.add_parser("import-characters",
                        help="Import characters from a Mythras-family JSON sheet file")
@@ -4538,7 +5274,7 @@ def build_parser():
     s.add_argument("--output", help="write to file instead of stdout")
 
     s = sub.add_parser("list-characters")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--type")
 
     s = sub.add_parser("list-locations",
@@ -4551,18 +5287,25 @@ def build_parser():
 
     s = sub.add_parser("update-character")
     s.add_argument("--id", required=True)
-    s.add_argument("--skills")
-    s.add_argument("--equipment")
-    s.add_argument("--passions")
+    s.add_argument("--skills", help="JSON object; MERGED into the stored skills")
+    s.add_argument("--equipment", help="JSON list; replaces the stored equipment")
+    s.add_argument("--passions", help="JSON object; MERGED into the stored passions")
+    s.add_argument("--extras", help="JSON object; MERGED into myth-extras-json "
+                                    "(character scores live under the 'score' key)")
+    s.add_argument("--attributes", help="JSON object; MERGED into myth-attributes-json "
+                                        "(derived attributes: action_points, damage_modifier, ...)")
+    s.add_argument("--replace-json", action="store_true",
+                   help="replace --skills/--passions/--extras wholesale instead of merging "
+                        "(destructive: deletes any key you do not supply)")
     s.add_argument("--fatigue")
     s.add_argument("--luck", type=int)
     s.add_argument("--magic-current", type=int, help="current magic points")
     s.add_argument("--experience-rolls", type=int)
     s.add_argument("--actor-notes",
                    help="how to PLAY them: bearing, speech, tell | wants, won't, because")
-    s.add_argument("--extras", help="JSON merged into the extras bag")
     s.add_argument("--extras-replace", action="store_true",
-                   help="replace the extras bag instead of merging into it")
+                   help="replace the extras bag instead of merging into it "
+                        "(the narrow form of --replace-json)")
     s.add_argument("--status")
     s.add_argument("--description", help="one-line description (e.g. pronouns, role)")
     s.add_argument("--narrative", help="full rich-text backstory (stored as content)")
@@ -4600,7 +5343,7 @@ def build_parser():
     s.add_argument("--difficulty-b", default="standard")
 
     s = sub.add_parser("start-encounter")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--description")
 
@@ -4658,14 +5401,14 @@ def build_parser():
     s.add_argument("--summary")
 
     s = sub.add_parser("add-location")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--type")
     s.add_argument("--description")
     s.add_argument("--narrative")
 
     s = sub.add_parser("add-faction")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--description")
     s.add_argument("--narrative")
@@ -4713,7 +5456,7 @@ def build_parser():
     s.add_argument("--faction", required=True)
 
     s = sub.add_parser("log-event")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--type", required=True,
                    choices=["scene", "combat", "skill-roll", "decision",
                             "gm-note", "session-start", "session-end"])
@@ -4722,13 +5465,33 @@ def build_parser():
                                    "characters of --summary")
     s.add_argument("--narrative")
     s.add_argument("--session", type=int)
+    s.add_argument("--visibility",
+                   choices=["played", "reported", "offscreen", "meta"],
+                   default="played",
+                   help="where the camera was. offscreen = the party was not "
+                        "there and learns of it only through consequences; "
+                        "meta = bookkeeping about the game, not an event in it")
     s.add_argument("--involves", help="comma-separated entity ids")
     s.add_argument("--at", help="ISO timestamp (YYYY-MM-DDTHH:MM:SS) to record the "
                                "event at; defaults to now. Use to place an event in "
                                "story order rather than wall-clock order.")
 
+    s = sub.add_parser("update-event", help="Amend an already-logged event in place")
+    s.add_argument("--id", required=True)
+    s.add_argument("--summary", help="one-line summary; also rewrites the name")
+    s.add_argument("--narrative", help="full account (stored in content)")
+    s.add_argument("--type",
+                   choices=["scene", "combat", "skill-roll", "decision",
+                            "gm-note", "session-start", "session-end"])
+    s.add_argument("--session", type=int)
+    s.add_argument("--visibility",
+                   choices=["played", "reported", "offscreen", "meta"],
+                   help="where the camera was; default played. offscreen = the party was not there and learns of it only through consequences")
+    s.add_argument("--involves",
+                   help="comma-separated entity ids to link (existing links kept)")
+
     s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--title", required=True)
     s.add_argument("--category", required=True,
                    help="free-form: cosmology, species, culture, magic-system, careers, "
@@ -4739,9 +5502,11 @@ def build_parser():
     s.add_argument("--about", help="comma-separated entity ids this lore concerns")
 
     s = sub.add_parser("list-lore", help="Index of lore entries for a campaign")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--category")
     s.add_argument("--visibility", choices=["player", "gm"])
+    s.add_argument("--include-retired", action="store_true",
+                   help="include superseded/retracted entries")
 
     s = sub.add_parser("get-lore", help="Full text of one lore entry")
     s.add_argument("--id", required=True)
@@ -5051,12 +5816,17 @@ def build_parser():
 
     # --- Rules graph (global, faceted) ---
     s = sub.add_parser("load-rules",
-                       help="(Re)build the global rules graph from rules/<domain>/*.md")
+                       help="(Re)build the rules graph for one system from <dir>/*.md")
     s.add_argument("--dir", help="rules directory (default: skill's rules/)")
+    s.add_argument("--system", default="mythras",
+                   choices=["mythras", "classic-fantasy"],
+                   help="only load/replace pieces of this ruleset (default: mythras)")
 
     s = sub.add_parser("list-rules",
                        help="Lean rule index (id/title/domain/topic); the orientation TOC")
     s.add_argument("--category")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--facets", action="store_true",
                    help="include each piece's facet tags (heavier output)")
     s.add_argument("--dim", help="filter by facet dimension (with --value)")
@@ -5075,6 +5845,8 @@ def build_parser():
                        help="Live faceted fetch: --facet dim=value (repeatable)")
     s.add_argument("--facet", action="append",
                    help="dim=value; repeat to AND/rank across facets")
+    s.add_argument("--system", choices=["mythras", "classic-fantasy"],
+                   help="restrict to one ruleset (default: all)")
     s.add_argument("--linked", action="store_true",
                    help="append one hop of myth-rule-link neighbours")
     s.add_argument("--limit", type=int, default=0,
@@ -5085,7 +5857,7 @@ def build_parser():
                         "carrying every facet asked for")
 
     s = sub.add_parser("get-log")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--session", type=int)
     s.add_argument("--type")
     s.add_argument("--limit", type=int, default=15,
@@ -5093,16 +5865,28 @@ def build_parser():
     s.add_argument("--full", action="store_true",
                    help="include the event name and the narrative "
                         "(verbatim dialogue), not just the summary")
+    s.add_argument("--involving", help="comma-separated entity ids; events any of "
+                                       "them took part in (OR)")
+    s.add_argument("--known-to", help="character id; events this character took part "
+                                      "in AND could know about. Use this before "
+                                      "giving a PC a fact.")
+    s.add_argument("--since-session", type=int, help="events from session N onwards")
+    s.add_argument("--visibility", choices=["played", "reported", "offscreen", "meta"],
+                   help="filter by where the camera was")
+    s.add_argument("--fiction-only", action="store_true",
+                   help="exclude meta bookkeeping notes")
+    s.add_argument("--include-retired", action="store_true",
+                   help="include superseded/retracted records")
 
     s = sub.add_parser("get-context")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--compact", action="store_true",
                    help="Combat cards instead of full PC sheets, drop lore "
                         "index, last 5 events. ~13k -> ~1.5k tokens.")
 
     s = sub.add_parser("export-campaign",
                        help="Export a campaign to a publishable file tree")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--output", required=True, help="directory to write")
 
     s = sub.add_parser("import-campaign",
@@ -5131,6 +5915,8 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if hasattr(args, "campaign"):
+        args.campaign = resolve_campaign(args.campaign)
     if not args.command:
         parser.print_help()
         sys.exit(1)

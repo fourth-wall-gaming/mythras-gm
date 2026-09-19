@@ -181,6 +181,19 @@ def damage_modifier(str_val: int, siz_val: int) -> str:
     return "+2d10+1d2"  # beyond table: GM extends progression manually
 
 
+def action_points(int_val: int, dex_val: int) -> int:
+    """Action Points from INT+DEX (Classic Fantasy core / Mythras).
+
+    1-12:1, 13-24:2, 25-36:3, 37-48:4, 49+:5, continuing in bands of 12.
+
+    Note the divergence: Classic Fantasy IMPERATIVE gives everyone 2 at Rank 1
+    and adds more from the class Rank tables. These campaigns run CF core
+    (TDM500), which uses this table. The engine previously hardcoded 2, which
+    silently under-powered every high-DEX character.
+    """
+    return 1 + max(0, int_val + dex_val - 1) // 12
+
+
 def _step_table(value: int) -> int:
     """Shared progression for Healing Rate / Luck Points / Exp Modifier."""
     if value <= 6:
@@ -194,7 +207,7 @@ def derive_attributes(chars: dict, species: str = "avian") -> dict:
     dex, int_v, pow_v, cha = chars["DEX"], chars["INT"], chars["POW"], chars["CHA"]
     move = {"avian": "4m walk / 12m fly", "humanoid": "6m"}.get(species, "6m")
     return {
-        "action_points": 2,
+        "action_points": action_points(int_v, dex),
         "damage_modifier": damage_modifier(str_v, siz),
         "experience_modifier": (-1 if cha <= 6 else 0 if cha <= 12 else _step_table(cha) - 1),
         "healing_rate": _step_table(con),
