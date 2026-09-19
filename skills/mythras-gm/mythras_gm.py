@@ -218,6 +218,59 @@ def _set_attr(driver, entity_type, entity_id, attr, value, quote=True):
         insert $e has {attr} {val};''')
 
 
+_SCHEMA_TYPES = {}
+
+
+def declared(driver, *type_names):
+    """Which of these attribute types the CURRENT database actually declares.
+
+    A query naming an undeclared type does not return nothing -- it fails type
+    inference and kills the whole read. So a database written before an
+    attribute existed cannot be read by code that mentions it, and adding one
+    optional attribute to schema.tql silently breaks every older save.
+
+    That is not hypothetical: merging the world-state work added nine
+    attributes (myth-system, myth-canon-status, myth-event-visibility, the
+    knowledge quartet...) and the live game database, which predates them,
+    stopped answering `get-campaign` and `export-campaign` at all. Requiring a
+    schema migration before you can READ your own save is the wrong trade, so
+    every optional attribute is filtered through here first and simply comes
+    back absent where the database has never heard of it.
+
+    Cached per database per process; the schema does not change under us mid-run.
+    """
+    db = TYPEDB_DATABASE
+    if db not in _SCHEMA_TYPES:
+        try:
+            text = driver.databases.get(db).schema()
+        except Exception:
+            return list(type_names)      # cannot tell; assume present
+        _SCHEMA_TYPES[db] = {ln.split(",")[0].removeprefix("attribute ").strip()
+                             for ln in text.splitlines()
+                             if ln.startswith("attribute ")}
+    have = _SCHEMA_TYPES[db]
+    return [t for t in type_names if t in have]
+
+
+def _opt(driver, var, *pairs):
+    """`try { $x has <attr> $v; }` clauses, but only for attributes this
+    database declares. `try` guards a missing VALUE, not a missing TYPE: naming
+    an undeclared attribute fails type inference and kills the whole query.
+    Fetching a variable that was never bound yields null, which is what the
+    callers already expect for an absent optional."""
+    have = set(declared(driver, *[a for a, _ in pairs]))
+    return "\n              ".join(
+        f"try {{ {var} has {a} ${v}; }};" for a, v in pairs if a in have)
+
+
+def _optf(driver, *triples):
+    """Fetch keys matching the clauses _opt emitted. A fetch naming a variable
+    no clause bound is an error, so the two must be trimmed together."""
+    have = set(declared(driver, *[a for a, _, _ in triples]))
+    out = "".join(f', "{key}": ${v}' for a, v, key in triples if a in have)
+    return out
+
+
 def _get_entity(driver, entity_type, entity_id, attrs):
     """Fetch listed attributes for one entity; optional attrs come back None."""
     eid = escape_string(entity_id)
@@ -227,7 +280,13 @@ def _get_entity(driver, entity_type, entity_id, attrs):
     if not rows:
         return None
     result = dict(rows[0])
+    # `id` and `name` are on the base type and always there; everything else is
+    # optional and may predate this copy of the schema.
+    present = set(declared(driver, *[a for a in attrs if a.startswith("myth-")]))
     for a in attrs:
+        if a.startswith("myth-") and a not in present:
+            result[a] = None
+            continue
         r = _fetch(driver, f'''
             match $e isa {entity_type}, has id "{eid}", has {a} $v;
             fetch {{ "v": $v }};''')
@@ -321,14 +380,17 @@ def cmd_create_campaign(args):
     ts = get_timestamp()
     q = f'''insert $c isa myth-campaign,
         has id "{cid}", has name "{escape_string(args.name)}",
-        has myth-system "{escape_string(args.system)}",
         has myth-session-number 0, has created-at {ts}'''
     if args.description:
         q += f', has description "{escape_string(args.description)}"'
     if args.game_date:
         q += f', has myth-game-date "{escape_string(args.game_date)}"'
-    q += ";"
     with get_driver() as driver:
+        # A save that predates dual-ruleset support has no myth-system; writing
+        # it there fails the insert outright. Mythras is the default anyway.
+        if declared(driver, "myth-system"):
+            q += f', has myth-system "{escape_string(args.system)}"'
+        q += ";"
         _write(driver, q)
     out({"success": True, "id": cid})
 
@@ -2159,11 +2221,16 @@ def cmd_log_event(args):
         q += f', has content "{escape_string(args.narrative)}"'
     if args.session is not None:
         q += f', has myth-session-number {args.session}'
-    # Only write a non-default camera position; absent means "played".
-    if getattr(args, "visibility", None) and args.visibility != "played":
-        q += f', has myth-event-visibility "{escape_string(args.visibility)}"'
-    q += ";"
+    q_tail = ";"
     with get_driver() as driver:
+        # Only write a non-default camera position; absent means "played". And
+        # only where the database declares it: on a save that predates the
+        # attribute, writing it would fail the insert and lose the journal
+        # entry, which is a far worse outcome than an unrecorded camera.
+        if (getattr(args, "visibility", None) and args.visibility != "played"
+                and declared(driver, "myth-event-visibility")):
+            q += f', has myth-event-visibility "{escape_string(args.visibility)}"'
+        q += q_tail
         _write(driver, q)
         _link_to_campaign(driver, args.campaign, eid, "myth-game-event")
         participant_types = ["myth-character", "myth-location", "myth-faction",
@@ -2284,10 +2351,12 @@ def cmd_get_log(args):
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
               try {{ $e has myth-session-number $sn; }};
-              try {{ $e has myth-event-visibility $vis; }};
-              try {{ $e has myth-canon-status $cs; }};
+              {_opt(driver, "$e", ("myth-event-visibility", "vis"),
+                                 ("myth-canon-status", "cs"))}
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
-                     "session": $sn, "visibility": $vis, "canon": $cs }};''')
+                     "session": $sn{_optf(driver,
+                         ("myth-event-visibility", "vis", "visibility"),
+                         ("myth-canon-status", "cs", "canon"))} }};''')
         participants = _event_participants(driver, args.campaign)
     for r in rows:
         r["who"] = participants.get(r["id"], [])
@@ -2401,9 +2470,9 @@ def cmd_list_lore(args):
               (campaign: $camp, element: $l) isa myth-campaign-membership;
               $l isa myth-lore, has id $i, has name $n,
                  has myth-lore-category $c, has myth-lore-visibility $v;
-              try {{ $l has myth-canon-status $cs; }};
-            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v,
-                     "canon": $cs }};''')
+              {_opt(driver, "$l", ("myth-canon-status", "cs"))}
+            fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v
+                     {_optf(driver, ("myth-canon-status", "cs", "canon"))} }};''')
     if args.category:
         rows = [r for r in rows if r["category"] == args.category]
     if args.visibility:
@@ -4847,10 +4916,12 @@ def cmd_get_context(args):
               $e isa myth-game-event, has id $i, has description $d,
                  has myth-event-type $t, has created-at $ts;
               try {{ $e has myth-session-number $sn; }};
-              try {{ $e has myth-event-visibility $vis; }};
-              try {{ $e has myth-canon-status $cs; }};
+              {_opt(driver, "$e", ("myth-event-visibility", "vis"),
+                                 ("myth-canon-status", "cs"))}
             fetch {{ "id": $i, "summary": $d, "type": $t, "at": $ts,
-                     "session": $sn, "visibility": $vis, "canon": $cs }};''')
+                     "session": $sn{_optf(driver,
+                         ("myth-event-visibility", "vis", "visibility"),
+                         ("myth-canon-status", "cs", "canon"))} }};''')
         participants = _event_participants(driver, args.campaign)
         recent_n = 5 if compact else 15
         # Bookkeeping notes are not play. Three of the last five events were GM
@@ -4933,9 +5004,9 @@ def cmd_get_context(args):
                   (campaign: $camp, element: $l) isa myth-campaign-membership;
                   $l isa myth-lore, has id $i, has name $n,
                      has myth-lore-category $c, has myth-lore-visibility $v;
-                  try {{ $l has myth-canon-status $cs; }};
-                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v,
-                         "canon": $cs }};''')
+                  {_opt(driver, "$l", ("myth-canon-status", "cs"))}
+                fetch {{ "id": $i, "title": $n, "category": $c, "visibility": $v
+                         {_optf(driver, ("myth-canon-status", "cs", "canon"))} }};''')
             result["lore_index"] = sorted(lore, key=lambda r: (r["category"], r["title"]))
 
     out(result)

@@ -487,3 +487,40 @@ def test_every_character_view_sees_both_shapes():
         body = source.split(f"def {fn}(")[1].split("\ndef ")[0]
         assert "_subject_knowledge_edges(" in body, f"{fn} cannot see subject edges"
         assert key in body, f"{fn} does not report them"
+
+
+# --- reading a database older than the schema ----------------------------
+#
+# Merging the world-state work added nine attributes. TypeDB fails type
+# inference on a query naming an undeclared type -- it does not return empty --
+# so every one of those attributes broke reads against any save written before
+# it existed. The live game database stopped answering get-campaign,
+# get-context and export-campaign entirely. Requiring a schema migration before
+# you can READ your own save is the wrong trade.
+
+def test_optional_attributes_are_filtered_through_declared():
+    source = open(os.path.join(os.path.dirname(__file__), "..", "skills",
+                               "mythras-gm", "mythras_gm.py"),
+                  encoding="utf-8").read()
+    assert "def declared(driver" in source, "the schema probe is gone"
+    # No raw `try { $x has <new attr> }` may survive: `try` guards a missing
+    # VALUE, not a missing TYPE.
+    for attr in ("myth-event-visibility", "myth-canon-status", "myth-system"):
+        for line in source.splitlines():
+            if f"try {{{{ $" in line and attr in line:
+                raise AssertionError(
+                    f"{attr} is named in a raw try clause, which still breaks "
+                    f"an older database: {line.strip()}")
+
+
+def test_writes_of_new_attributes_are_guarded_too():
+    """Writing an undeclared attribute fails the whole insert. Losing a journal
+    entry because the camera position could not be recorded is a bad trade."""
+    source = open(os.path.join(os.path.dirname(__file__), "..", "skills",
+                               "mythras-gm", "mythras_gm.py"),
+                  encoding="utf-8").read()
+    for fn, attr in (("cmd_log_event", "myth-event-visibility"),
+                     ("cmd_create_campaign", "myth-system")):
+        body = source.split(f"def {fn}(")[1].split("\ndef ")[0]
+        assert "declared(driver" in body, \
+            f"{fn} writes {attr} without checking the database declares it"
