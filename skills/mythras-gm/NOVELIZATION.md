@@ -9,7 +9,7 @@ you write here goes back into TypeDB.
 ```bash
 NOV="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/novelist.py"
 PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run --project "$PRJ" python "$NOV" <command> [args] 2>/dev/null
+uv run -q --project "$PRJ" python "$NOV" <command> [args]
 ```
 
 Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).

@@ -118,12 +118,32 @@ TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
 
 
-def get_driver():
+def _connect():
+    """Raw connection attempt. Raises on failure. Use get_driver() instead."""
     return TypeDB.driver(
         f"{TYPEDB_HOST}:{TYPEDB_PORT}",
         Credentials(TYPEDB_USERNAME, TYPEDB_PASSWORD),
         DriverOptions(is_tls_enabled=False),
     )
+
+
+def get_driver():
+    """Connect, or fail loudly enough that the model cannot miss it.
+
+    This used to raise, and the traceback went to stderr -- which every
+    documented invocation of this CLI piped to /dev/null. The model therefore
+    saw empty output rather than "cannot connect", and went on GMing from
+    memory with nothing persisting. fail() writes JSON to STDOUT and exits 1,
+    which survives that.
+    """
+    try:
+        return _connect()
+    except Exception as e:
+        fail(f"cannot reach TypeDB at {TYPEDB_HOST}:{TYPEDB_PORT} "
+             f"(database {TYPEDB_DATABASE}): {e}. The save file and the dice "
+             f"tower are both unavailable -- run `doctor` to find out why. Do "
+             f"NOT continue play from memory, and do not claim anything "
+             f"persisted.")
 
 
 def out(obj):
@@ -3513,6 +3533,384 @@ def _rule_links(driver, rule_id):
     return out_links
 
 
+# ---------------------------------------------------------------------------
+# Provisioning -- the database and the schema
+#
+# These two used to live in the alhazen-core plugin, which meant this skill
+# could not stand up its own database and had to locate another marketplace's
+# Python file with a `find` glob over the plugin cache. That glob was fragile,
+# it failed silently, and when it failed the schema was never loaded and every
+# query came back empty on a fresh machine. Both operations are small and both
+# are idempotent, so they belong here.
+# ---------------------------------------------------------------------------
+
+COMPOSE_FILE = os.path.join(_PROJECT_ROOT, "docker-compose.yml")
+ENGINE_POINTER = os.path.expanduser("~/.claude/mythras-gm/engine-root")
+TYPEDB_IMAGE = "typedb/typedb:3.8.0"
+
+
+def _sh(*cmd, timeout=30):
+    return _sh_env(None, *cmd, timeout=timeout)
+
+
+def _sh_env(env, *cmd, timeout=30):
+    """Run a command, returning (ok, output). `env` is merged over os.environ."""
+    import subprocess
+    try:
+        e = None
+        if env:
+            e = dict(os.environ)
+            e.update(env)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=timeout, env=e)
+        return r.returncode == 0, (r.stdout or r.stderr).strip()
+    except Exception as ex:
+        return False, str(ex)
+
+
+def _quiet(fn, args):
+    """Run another cmd_* function without letting its JSON reach stdout.
+
+    Returns (ok, payload). These functions are written as CLI entry points --
+    they print one JSON object and call sys.exit on failure -- so calling one
+    from inside another would emit two objects and make the output unparseable.
+    """
+    import contextlib
+    import io
+    buf, ok = io.StringIO(), True
+    try:
+        with contextlib.redirect_stdout(buf):
+            fn(args)
+    except SystemExit:
+        ok = False
+    payload, text = None, buf.getvalue().strip()
+    if text:
+        try:
+            payload = json.loads(text.splitlines()[-1])
+        except Exception:
+            payload = {"raw": text[:200]}
+    return ok, payload
+
+
+def _wait_for_port(seconds=40):
+    """Is anything listening? Cheap, and NOT sufficient -- see _wait_for_server."""
+    import socket
+    import time
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((TYPEDB_HOST, TYPEDB_PORT), timeout=2):
+                return True
+        except OSError:
+            time.sleep(1)
+    return False
+
+
+def _wait_for_server(seconds=60):
+    """Wait until the server will actually answer a driver connection.
+
+    TypeDB binds its port several seconds before it can serve, so a TCP check
+    passes and the very next query dies with "operation was canceled". That made
+    a restart look successful and then fail, which is precisely the flakiness a
+    fresh install cannot afford.
+    """
+    import time
+    deadline, last = time.time() + seconds, ""
+    while time.time() < deadline:
+        try:
+            with _connect() as d:
+                d.databases.all()
+            return True, ""
+        except Exception as e:
+            last = str(e)
+            time.sleep(1)
+    return False, last
+
+
+def cmd_init_db(args):
+    """Bring the whole install up, idempotently, and report every step.
+
+    This is the one thing the session-start hook calls. It is deliberately the
+    *fast* path: it will start a container that already has its image, but it
+    will never pull one, because a 400MB pull inside a SessionStart hook is
+    indistinguishable from a hang. `--pull` opts into the slow path and is what
+    /mythras-gm:setup uses.
+    """
+    import shutil
+
+    name = args.database or TYPEDB_DATABASE
+    steps = []
+
+    def note(what, ok, detail=""):
+        steps.append({"step": what, "ok": bool(ok), "detail": detail})
+        return ok
+
+    def bail(code, message):
+        out({"success": False, "error": message, "database": name,
+             "steps": steps, "remedy": message})
+        sys.exit(code)
+
+    # --- the container, unless we were told not to bother ------------------
+    if not args.no_docker and not _wait_for_port(seconds=1):
+        if not shutil.which("docker"):
+            bail(3, "Docker is not installed, so there is nowhere to run the "
+                    "save file. Install Docker Desktop, or point TYPEDB_HOST/"
+                    "TYPEDB_PORT at a TypeDB you already run.")
+        ok, msg = _sh("docker", "info", "--format", "{{.ServerVersion}}")
+        if not note("docker running", ok, msg):
+            bail(3, "Docker is installed but not running. Start Docker Desktop "
+                    "and begin a new session.")
+        if not os.path.isfile(COMPOSE_FILE):
+            bail(5, f"no docker-compose.yml at {COMPOSE_FILE}")
+
+        have_image, _ = _sh("docker", "image", "inspect", TYPEDB_IMAGE)
+        if not have_image and not args.pull:
+            bail(4, f"first run needs the {TYPEDB_IMAGE} image, which is a "
+                    f"several-hundred-megabyte download. Run "
+                    f"/mythras-gm:setup once and it will fetch it.")
+        note("image present", True, TYPEDB_IMAGE if have_image else "will pull")
+
+        # A container of this name may already exist without compose knowing
+        # about it -- on the machine this was written, the original was created
+        # by hand, and `compose up` against it fails with a name conflict rather
+        # than adopting it. So: start what exists, and only compose what doesn't.
+        container = os.getenv("MYTHRAS_CONTAINER", "mythras-typedb")
+        _, existing = _sh("docker", "ps", "-a", "--filter", f"name=^{container}$",
+                          "--format", "{{.State}}")
+        if existing.strip() == "running":
+            note("container up", True, f"{container} already running")
+        elif existing.strip():
+            ok, msg = _sh("docker", "start", container, timeout=120)
+            if not note("container up", ok, f"started existing {container}" if ok else msg):
+                bail(5, f"a container named {container} exists but would not "
+                        f"start: {msg}")
+        else:
+            # Keep compose's published port in step with where the CLI is
+            # actually looking, or the two silently diverge.
+            env = {"MYTHRAS_PORT": str(TYPEDB_PORT), "MYTHRAS_CONTAINER": container}
+            ok, msg = _sh_env(env, "docker", "compose", "-p",
+                              os.getenv("MYTHRAS_PROJECT", "mythras"),
+                              "-f", COMPOSE_FILE, "up", "-d",
+                              timeout=900 if args.pull else 120)
+            if not note("container up", ok, msg):
+                bail(5, f"could not start the TypeDB container: {msg}")
+
+        ready, why = _wait_for_server()
+        if not note("server ready", ready,
+                    f"{TYPEDB_HOST}:{TYPEDB_PORT}" if ready else why[:120]):
+            bail(5, f"the container started but TypeDB is still not serving on "
+                    f"{TYPEDB_HOST}:{TYPEDB_PORT} after a minute: {why[:160]}")
+    else:
+        live, why = _wait_for_server(seconds=5)
+        note("server ready", live, f"{TYPEDB_HOST}:{TYPEDB_PORT}"
+             if live else (why[:120] or "nothing there"))
+        if not live:
+            bail(3, f"nothing is listening on {TYPEDB_HOST}:{TYPEDB_PORT}. "
+                    f"Drop --no-docker to let this start the container, or "
+                    f"point TYPEDB_HOST/TYPEDB_PORT at a TypeDB you run.")
+
+    # --- the database ------------------------------------------------------
+    try:
+        with _connect() as driver:
+            created = not driver.databases.contains(name)
+            if created:
+                driver.databases.create(name)
+            note(f"database {name}", True, "created" if created else "present")
+    except Exception as e:
+        bail(5, f"cannot reach TypeDB at {TYPEDB_HOST}:{TYPEDB_PORT}: {e}")
+
+    # --- the schema and the rules, via our own commands -------------------
+    class _A:
+        pass
+
+    a = _A()
+    a.file, a.database = None, name
+    ok, payload = _quiet(cmd_load_schema, a)
+    if not ok:
+        bail(5, f"schema load failed into {name}: "
+                f"{(payload or {}).get('error', 'unknown')}. Run `doctor`.")
+    note("schema", True, ", ".join(
+        os.path.basename(f) for f in (payload or {}).get("applied", [])) or "already current")
+
+    a2 = _A()
+    a2.dir = None
+    ok, payload = _quiet(cmd_load_rules, a2)
+    note("rules graph", ok,
+         f"{(payload or {}).get('rules_loaded', '?')} pieces" if ok
+         else "load-rules failed; query-rules will return nothing")
+
+    # --- leave a breadcrumb so a campaign plugin can find this engine ------
+    # A plugin cannot resolve a sibling plugin's root, so the campaign package
+    # has no way to locate this CLI except by searching for it. Writing the path
+    # here turns that search into a file read.
+    try:
+        os.makedirs(os.path.dirname(ENGINE_POINTER), exist_ok=True)
+        with open(ENGINE_POINTER, "w") as fh:
+            fh.write(_PROJECT_ROOT + "\n")
+        note("engine pointer", True, ENGINE_POINTER)
+    except Exception as e:
+        note("engine pointer", False, str(e)[:120])
+
+    out({"success": True, "database": name,
+         "host": f"{TYPEDB_HOST}:{TYPEDB_PORT}", "steps": steps,
+         "verdict": "Ready."})
+
+
+BASE_SCHEMA = os.path.join(_SKILL_DIR, "schema-base.tql")
+MYTH_SCHEMA = os.path.join(_SKILL_DIR, "schema.tql")
+
+
+def _define(driver, database, tql):
+    with driver.transaction(database, TransactionType.SCHEMA) as tx:
+        tx.query(tql).resolve()
+        tx.commit()
+
+
+def _has_base_types(driver, database):
+    """Is an alh- base ontology already present? See schema-base.tql for why.
+
+    Some databases carry the full Alhazen ontology from when alhazen-core was a
+    dependency, and its shape is richer than our minimal base. Defining ours on
+    top of theirs is an error, so we look first.
+    """
+    try:
+        schema = driver.databases.get(database).schema() or ""
+    except Exception:
+        return False
+    return "alh-identifiable-entity" in schema
+
+
+def cmd_load_schema(args):
+    """Define the myth- schema into the database. Idempotent.
+
+    With no --file this loads the minimal base ontology (only where it is
+    absent) and then schema.tql. TypeDB's `define` is declarative, so
+    re-running against an already-migrated database is a no-op rather than an
+    error -- which is what makes this safe on every session start.
+    """
+    name = args.database or TYPEDB_DATABASE
+    paths = [args.file] if args.file else [BASE_SCHEMA, MYTH_SCHEMA]
+    for p in paths:
+        if not os.path.isfile(p):
+            fail(f"no schema file at {p}")
+
+    applied, skipped = [], []
+    try:
+        with get_driver() as driver:
+            if not driver.databases.contains(name):
+                fail(f"database {name} does not exist -- run init-db first")
+            for p in paths:
+                if p == BASE_SCHEMA and _has_base_types(driver, name):
+                    skipped.append({"file": p, "why": "alh- base ontology already present"})
+                    continue
+                with open(p) as fh:
+                    tql = fh.read()
+                if not tql.strip():
+                    fail(f"schema file is empty: {p}")
+                _define(driver, name, tql)
+                applied.append(p)
+    except SystemExit:
+        raise
+    except Exception as e:
+        fail(f"schema load failed into {name} -- {e}")
+    out({"success": True, "database": name,
+         "applied": applied, "skipped": skipped})
+
+
+def cmd_doctor(args):
+    """Check the install end to end and say, in order, what is wrong.
+
+    Exists because the failure this game is prone to is the SILENT one: a
+    database that isn't there, a schema that never loaded, and a CLI whose
+    errors were being swallowed -- so the model saw empty results and carried on
+    narrating as though the save were fine. One command, one answer.
+    """
+    import shutil
+    import subprocess
+
+    steps, fatal = [], []
+
+    def step(name, ok, detail="", fatal_if_bad=False):
+        steps.append({"check": name, "ok": bool(ok), "detail": detail})
+        if not ok and fatal_if_bad:
+            fatal.append(name)
+        return ok
+
+    def sh(*cmd):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            return r.returncode == 0, (r.stdout or r.stderr).strip()
+        except Exception as e:
+            return False, str(e)
+
+    # --- the machine -------------------------------------------------------
+    have_docker = shutil.which("docker") is not None
+    step("docker installed", have_docker,
+         "install Docker Desktop" if not have_docker else "")
+    if have_docker:
+        ok, msg = sh("docker", "info", "--format", "{{.ServerVersion}}")
+        step("docker running", ok, msg if not ok else f"server {msg}")
+        ok, msg = sh("docker", "ps", "--filter", "name=mythras-typedb",
+                     "--format", "{{.Names}} {{.Status}}")
+        step("container mythras-typedb up", bool(msg), msg or "not running")
+
+    step("uv available", shutil.which("uv") is not None)
+
+    # --- the database ------------------------------------------------------
+    name = TYPEDB_DATABASE
+    try:
+        with _connect() as driver:
+            step("typedb reachable", True, f"{TYPEDB_HOST}:{TYPEDB_PORT}")
+            exists = driver.databases.contains(name)
+            step(f"database {name} exists", exists,
+                 "" if exists else "run init-db", fatal_if_bad=True)
+            if exists:
+                schema = driver.databases.get(name).schema() or ""
+                has_base = "alh-identifiable-entity" in schema
+                has_myth = "myth-campaign" in schema
+                step("base ontology present", has_base,
+                     "" if has_base else "run load-schema", fatal_if_bad=True)
+                step("myth- schema loaded", has_myth,
+                     "" if has_myth else "run load-schema", fatal_if_bad=True)
+                try:
+                    rules = _fetch(driver, 'match $r isa myth-rule, has id $i; fetch { "id": $i };')
+                    step("rules graph loaded", len(rules) > 0,
+                         f"{len(rules)} pieces" if rules else "run load-rules")
+                except Exception as e:
+                    step("rules graph loaded", False, str(e)[:120])
+                try:
+                    camps = _fetch(driver, 'match $c isa myth-campaign, has id $i, has name $n; fetch { "id": $i, "name": $n };')
+                    step("campaigns", True,
+                         f"{len(camps)} found" if camps else "none yet -- import or create one")
+                except Exception as e:
+                    step("campaigns", False, str(e)[:120])
+    except SystemExit:
+        raise
+    except Exception as e:
+        step("typedb reachable", False,
+             f"{TYPEDB_HOST}:{TYPEDB_PORT} -- {e}", fatal_if_bad=True)
+
+    # --- optional extras ---------------------------------------------------
+    for tool, what in (("pandoc", "novelization PDFs"), ("typst", "novelization PDFs")):
+        have = shutil.which(tool) is not None
+        step(f"{tool} (optional)", have,
+             "" if have else f"brew install {tool} -- only needed for {what}")
+
+    ok = not fatal
+    result = {"success": True, "ok": ok, "database": name,
+              "host": f"{TYPEDB_HOST}:{TYPEDB_PORT}", "checks": steps}
+    if not ok:
+        result["blocking"] = fatal
+        result["verdict"] = ("The game CANNOT run: " + ", ".join(fatal) +
+                             ". Do not narrate, do not roll, and do not claim "
+                             "anything persisted until this is fixed.")
+    else:
+        result["verdict"] = "Ready."
+    out(result)
+    if not ok:
+        sys.exit(1)
+
+
 def cmd_load_rules(args):
     """Walk rules/<domain>/*.md (frontmatter + body), (re)build the rules graph.
 
@@ -4631,6 +5029,25 @@ def build_parser():
     s = sub.add_parser("check-consistency",
                        help="Reconcile knowledge against facts, agendas and the clock")
     s.add_argument("--campaign", required=True)
+
+    # --- Provisioning (no campaign; safe to run on session start) ---
+    s = sub.add_parser("init-db",
+                       help="Bring the install up: container, database, schema, rules (idempotent)")
+    s.add_argument("--database", help="database name (default: $TYPEDB_DATABASE)")
+    s.add_argument("--pull", action="store_true",
+                   help="allow a first-run image pull (slow; used by /mythras-gm:setup, never by the hook)")
+    s.add_argument("--no-docker", action="store_true",
+                   help="assume TypeDB is already running somewhere and skip container management")
+
+    s = sub.add_parser("load-schema",
+                       help="Define the myth- schema into the database (idempotent)")
+    s.add_argument("--file", help="path to a .tql file (default: skill's schema.tql)")
+    s.add_argument("--database", help="database name (default: $TYPEDB_DATABASE)")
+
+    s = sub.add_parser("doctor",
+                       help="Check the install end to end and say what is wrong")
+    s.add_argument("--json", action="store_true",
+                   help="machine-readable output only (no summary line)")
 
     # --- Rules graph (global, faceted) ---
     s = sub.add_parser("load-rules",

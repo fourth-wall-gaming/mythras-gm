@@ -163,6 +163,23 @@ import re as _re
 ROOT = Path(__file__).resolve().parent.parent
 
 
+PREFLIGHT = ROOT / "hooks" / "session-start.sh"
+
+
+def _hook_command():
+    hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
+    return hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+
+
+def test_the_hook_delegates_to_a_script_we_can_read():
+    """The hook used to be one 1,400-character line of shell inside JSON, which
+    is why it went wrong and stayed wrong: nothing could read it, including us."""
+    cmd = _hook_command()
+    assert "session-start.sh" in cmd, "hook should call the script, not inline shell"
+    assert len(cmd) < 120, f"hook command is growing shell again ({len(cmd)} chars)"
+    assert PREFLIGHT.exists(), "hooks/session-start.sh is missing"
+
+
 def test_the_hook_and_the_cli_agree_on_the_database():
     """The original clean-install failure: the hook loaded this skill's schema
     into alhazen-core's database while the CLI read its own, so every query
@@ -170,24 +187,82 @@ def test_the_hook_and_the_cli_agree_on_the_database():
     src = (ROOT / "skills" / "mythras-gm" / "mythras_gm.py").read_text()
     db = _re.search(r'TYPEDB_DATABASE = os\.getenv\("TYPEDB_DATABASE", "([^"]+)"\)', src).group(1)
     port = _re.search(r'TYPEDB_PORT = int\(os\.getenv\("TYPEDB_PORT", "([^"]+)"\)\)', src).group(1)
-    hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
-    cmd = hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-    assert 'export TYPEDB_DATABASE=' in cmd and db in cmd, f"hook does not export {db}"
-    assert 'export TYPEDB_PORT=' in cmd and port in cmd, f"hook does not export port {port}"
+    pre = PREFLIGHT.read_text()
+    assert 'export TYPEDB_DATABASE=' in pre and db in pre, f"preflight does not export {db}"
+    assert 'export TYPEDB_PORT=' in pre and port in pre, f"preflight does not export port {port}"
     marker = (ROOT / "skills" / "mythras-gm" / ".standalone-db")
     assert marker.exists() and db in marker.read_text()
     # and the compose file must serve that port, or the hook points at nothing
     compose = (ROOT / "docker-compose.yml").read_text()
-    assert f'"{port}:1729"' in compose, f"compose does not publish {port}"
+    assert f'"${{MYTHRAS_PORT:-{port}}}:1729"' in compose, \
+        f"compose does not publish {port} by default"
 
 
 def test_the_hook_says_so_when_it_cannot_set_the_game_up():
-    """It used to echo a note and exit 0 into a session with no schema."""
-    hook = _json.loads((ROOT / "hooks" / "hooks.json").read_text())
-    cmd = hook["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-    assert cmd.count("CANNOT run") >= 3, "each failure path must say the game cannot run"
-    for probe in ("init failed", "schema load failed", "not found"):
-        assert probe in cmd
+    """It used to echo a mild note and exit 0 into a session with no schema, so
+    the model went on GMing with nothing persisting. The refusal has to be
+    unmissable and it has to enumerate what not to do."""
+    pre = PREFLIGHT.read_text()
+    assert "PREFLIGHT FAILED" in pre
+    for forbidden in ("do not narrate", "do not roll", "persisted"):
+        assert forbidden in pre, f"refusal does not forbid: {forbidden}"
+    assert "doctor" in pre, "refusal should hand the user a diagnostic"
+
+
+def test_the_hook_never_blocks_and_never_pulls():
+    """Two deliberate constraints. A user with this plugin enabled who opens
+    Claude in an unrelated directory with Docker off must not have the session
+    seized; and an image pull inside SessionStart is indistinguishable from a
+    hang."""
+    pre = PREFLIGHT.read_text()
+    assert "exit 1" not in pre and "exit 2" not in pre, \
+        "the preflight must not block the session"
+    assert pre.count("exit 0") >= 3, "every path should exit 0"
+    assert "--pull" not in pre, "the hook must never pull an image; that is /mythras-gm:setup"
+    setup = (ROOT / "commands" / "setup.md").read_text()
+    assert "--pull" in setup, "the slow path should be the one that pulls"
+
+
+def test_no_shipped_doc_teaches_the_model_to_discard_errors():
+    """`2>/dev/null` on every documented call is how a dead database looked like
+    an empty one for a whole session."""
+    for f in sorted(ROOT.glob("skills/**/*.md")) + sorted(ROOT.glob("commands/*.md")) \
+            + sorted(ROOT.glob("agents/*.md")):
+        assert "2>/dev/null" not in f.read_text(), f"{f.name} discards stderr"
+
+
+def test_the_base_schema_covers_every_alh_supertype_used():
+    """schema.tql inherits from alh- types that used to come from another
+    plugin. If a new one is added there and not here, a fresh install fails on
+    an undefined type."""
+    skill = ROOT / "skills" / "mythras-gm"
+    used = set(_re.findall(r"sub (alh-[a-z-]+)", (skill / "schema.tql").read_text()))
+    base = (skill / "schema-base.tql").read_text()
+    defined = set(_re.findall(r"entity (alh-[a-z-]+)", base))
+    assert used, "expected schema.tql to inherit from alh- supertypes"
+    assert used <= defined, f"schema-base.tql is missing: {sorted(used - defined)}"
+    assert "owns id @key" in base, "id must keep @key -- it is what stops a double import"
+
+
+def test_the_engine_declares_no_plugin_dependencies():
+    """alhazen-core was absorbed. If it comes back, it needs a real
+    `dependencies` entry and a cross-marketplace allowance, not a find glob."""
+    plugin = _json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
+    assert not plugin.get("dependencies"), plugin.get("dependencies")
+    assert "requires" not in plugin, "`requires` is not a real manifest field"
+    assert "alhazen" not in PREFLIGHT.read_text(), "preflight still hunts for alhazen-core"
+
+
+def test_the_marketplace_lists_the_campaign_too():
+    """A campaign plugin has to be installable, and it must resolve inside this
+    same marketplace or its dependency on the engine needs a cross-marketplace
+    allowance."""
+    mk = _json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
+    names = {p["name"] for p in mk["plugins"]}
+    assert {"mythras-gm", "purewater"} <= names, names
+    pw = next(p for p in mk["plugins"] if p["name"] == "purewater")
+    assert pw["source"]["source"] == "github", "campaign should come from its own repo"
+    assert pw["source"].get("ref"), "pin the campaign to a tag so installs are reproducible"
 
 
 def test_versions_are_in_step():

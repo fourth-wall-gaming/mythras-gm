@@ -5,7 +5,7 @@ Full command reference for the Mythras GM skill. See SKILL.md for quick start.
 ```bash
 CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
 PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
+uv run -q --project "$PRJ" python "$CLI" <command> [args]
 ```
 
 ## Session Startup (ALWAYS do this first)

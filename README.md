@@ -131,38 +131,55 @@ keep as many parallel novelizations as you like.
 ## Install as Claude Code Plugin
 
 The fastest way to play. Requires [Claude Code](https://claude.ai/code)
-v1.0.33+, Docker, and [uv](https://docs.astral.sh/uv/).
+v1.0.33+, [Docker](https://docs.docker.com/get-started/get-docker/), and
+[uv](https://docs.astral.sh/uv/). Nothing else — the engine has no plugin
+dependencies.
 
-### Step 1: Install the alhazen-core infrastructure plugin
+### Want a game, not an engine?
 
-mythras-gm stores all game state in TypeDB. The `alhazen-core` plugin
-handles TypeDB startup and provides the base schema that mythras-gm extends.
+Install a campaign and it brings the engine with it:
 
 ```
-/plugin marketplace add sciknow-io/skillful-alhazen
-/plugin install alhazen-core@skillful-alhazen
-/alhazen-core:init
+/plugin marketplace add fourth-wall-gaming/mythras-gm
+/plugin install purewater@fourth-wall-gaming
+/mythras-gm:setup      # once, on a new machine: pulls TypeDB and loads the schema
+/purewater:start
 ```
 
-### Step 2: Install mythras-gm
+### Just the engine
 
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
 /plugin install mythras-gm@fourth-wall-gaming
+/mythras-gm:setup
 ```
 
-The plugin's SessionStart hook auto-loads the myth- namespace schema
-into TypeDB on every new session.
+`/mythras-gm:setup` is the slow path and is needed once: it pulls the TypeDB
+image, starts the container, creates the database, defines the `myth-` schema and
+loads the rules graph. After that, every session start checks all of it in a
+second or two and says so.
 
-### Step 3: Load a campaign
-
-Campaigns are published as standalone GitHub repos. Clone one and import it:
+If anything is wrong, one command tells you what:
 
 ```bash
-git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
+GM="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
+uv run -q --project "$GM" python "$GM/mythras_gm.py" doctor
 ```
 
-Then tell Claude: *"Import the Veilwrack campaign from ~/veilwrack-campaign"*
+**If the database is unreachable the CLI now says so on stdout and exits 1.** It
+used to raise, and every documented invocation piped stderr to `/dev/null`, so a
+dead database looked like an empty one and a whole session could be played with
+nothing persisting. That is why no example here discards stderr.
+
+### Published campaigns
+
+| campaign | install |
+|---|---|
+| **And Then the Dragons Came: Purewater** — a canal city, a Baron with a concealed champion, three days to the Tourney | `/plugin install purewater@fourth-wall-gaming` |
+
+Campaigns are plugins. They declare a dependency on this engine, ship their own
+start command, and import themselves into TypeDB on first run.
+
 
 Behind the scenes, Claude runs:
 

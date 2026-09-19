@@ -14,14 +14,28 @@
 #
 # The named volume is the one the hand-made container was already using, so
 # bringing this up adopts the existing data rather than starting empty.
+#
+# That adoption is what `name:` on the volume is for, and it is load-bearing in
+# BOTH directions. It was `external: true`, which adopts an existing volume and
+# hard-fails on any machine that hasn't got one -- so a clean install could
+# never start at all. But simply deleting `external` is worse than it looks:
+# compose would then prefix the volume with the project name, create a new empty
+# `<project>_mythras-typedb-data`, and silently orphan the live save. `name:`
+# pins the real name, so compose adopts it where it exists and creates it where
+# it doesn't.
+#
+# Port and project name are parameterised so a throwaway test server can be run
+# alongside the real one without going anywhere near it:
+#
+#   MYTHRAS_PORT=1731 docker compose -p mythras-test up -d
 
 services:
   typedb:
     image: typedb/typedb:3.8.0
-    container_name: mythras-typedb
+    container_name: ${MYTHRAS_CONTAINER:-mythras-typedb}
     restart: unless-stopped
     ports:
-      - "1730:1729"
+      - "${MYTHRAS_PORT:-1730}:1729"
     volumes:
       - mythras-typedb-data:/var/lib/typedb/data
     healthcheck:
@@ -33,4 +47,4 @@ services:
 
 volumes:
   mythras-typedb-data:
-    external: true
+    name: ${MYTHRAS_VOLUME:-mythras-typedb-data}
