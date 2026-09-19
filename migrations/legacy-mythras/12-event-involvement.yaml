@@ -1,0 +1,16 @@
+name: event_involvement
+description: Who took part in each journal event
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (event: $e, participant: $p) isa myth-event-involvement;
+    $e has id $eid;
+    $p isa! $pt, has id $pid;
+  fetch { "id": $eid, "eid": $eid, "pid": $pid, "pt": $pt };
+target_insert: |
+  match
+    $e isa myth-game-event, has id $eid;
+    $p isa !pt, has id $pid;
+  insert (event: $e, participant: $p) isa myth-event-involvement;

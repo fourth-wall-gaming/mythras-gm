@@ -1,0 +1,50 @@
+# The Mythras game server.
+#
+# This product keeps its own TypeDB, separate from the Alhazen stack on 1729,
+# because the campaign data is the save file for a game and has no business
+# sharing a lifecycle with a research notebook.
+#
+#   docker compose up -d          start it
+#   docker compose ps             check it
+#
+# The container already existed on this machine but was created by hand with
+# restart: no and no compose file, so it did not survive a reboot and there was
+# no documented way to bring it back. That is how a live campaign ended up
+# orphaned on the Alhazen server. Hence: restart unless-stopped, and this file.
+#
+# The named volume is the one the hand-made container was already using, so
+# bringing this up adopts the existing data rather than starting empty.
+#
+# That adoption is what `name:` on the volume is for, and it is load-bearing in
+# BOTH directions. It was `external: true`, which adopts an existing volume and
+# hard-fails on any machine that hasn't got one -- so a clean install could
+# never start at all. But simply deleting `external` is worse than it looks:
+# compose would then prefix the volume with the project name, create a new empty
+# `<project>_mythras-typedb-data`, and silently orphan the live save. `name:`
+# pins the real name, so compose adopts it where it exists and creates it where
+# it doesn't.
+#
+# Port and project name are parameterised so a throwaway test server can be run
+# alongside the real one without going anywhere near it:
+#
+#   MYTHRAS_PORT=1731 docker compose -p mythras-test up -d
+
+services:
+  typedb:
+    image: typedb/typedb:3.8.0
+    container_name: ${MYTHRAS_CONTAINER:-mythras-typedb}
+    restart: unless-stopped
+    ports:
+      - "${MYTHRAS_PORT:-1730}:1729"
+    volumes:
+      - mythras-typedb-data:/var/lib/typedb/data
+    healthcheck:
+      test: ["CMD-SHELL", "typedb server status || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  mythras-typedb-data:
+    name: ${MYTHRAS_VOLUME:-mythras-typedb-data}

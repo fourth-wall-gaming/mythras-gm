@@ -7,8 +7,12 @@ topic: "spells"
 kind: "reference-list"
 summary: "The SRD spell list with each spell's traits and effect."
 facets: {"phase": ["casting"], "kind": ["reference-list"], "magic-system": ["magic", "windworking"]}
-links: ["magic/casting", "magic/spell-traits"]
+links: ["magic/casting", "magic/spell-traits", "magic/which-book", "magic/cfi/spell-list"]
 ---
+
+> The **Mythras Imperative** twenty-four. Purewater casts from
+> `magic/cfi/spell-list` instead; where a name appears on both lists it is
+> not the same spell. See `magic/which-book`.
 
 - **Alarm** (special duration)
 - **Avert** (Instant, Ranged)

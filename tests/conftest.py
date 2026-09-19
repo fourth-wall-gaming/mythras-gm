@@ -17,11 +17,13 @@ looked. A test suite must not be able to touch real data by default.
 import os
 import sys
 
-TEST_DB = "alh_mythras_pytest"
+TEST_DB = "mythras_pytest"
 
 # Databases the suite must never write to, whatever the environment says.
-LIVE_DATABASES = {"alh_mythras", "alh_core", "alh_deep_research", "alh_personal",
-                  "alh_biorodeo", "dismech", "alhazen_notebook"}
+# `mythras` on port 1730 is this game's own server and holds the real
+# campaigns; the alh_* names are the Alhazen stack this skill used to share.
+LIVE_DATABASES = {"mythras", "alh_mythras", "alh_core", "alh_deep_research",
+                  "alh_personal", "alh_biorodeo", "dismech", "alhazen_notebook"}
 
 _inherited = os.environ.get("TYPEDB_DATABASE")
 if _inherited in LIVE_DATABASES:
@@ -31,6 +33,7 @@ if _inherited in LIVE_DATABASES:
 # Force, do not default: the dangerous case is precisely a developer with the
 # live database exported in their shell.
 os.environ["TYPEDB_DATABASE"] = TEST_DB
+os.environ.setdefault("TYPEDB_PORT", "1730")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "mythras-gm"))
 
@@ -44,7 +47,7 @@ def _driver():
         return None
     try:
         return TypeDB.driver(
-            f"{os.getenv('TYPEDB_HOST', 'localhost')}:{os.getenv('TYPEDB_PORT', '1729')}",
+            f"{os.getenv('TYPEDB_HOST', 'localhost')}:{os.getenv('TYPEDB_PORT', '1730')}",
             Credentials(os.getenv("TYPEDB_USERNAME", "admin"),
                         os.getenv("TYPEDB_PASSWORD", "password")),
             DriverOptions(is_tls_enabled=False))
@@ -75,7 +78,7 @@ def throwaway_database():
         schema_path = os.path.join(os.path.dirname(__file__), "..", "skills",
                                    "mythras-gm", "schema.tql")
         base_path = os.path.join(os.path.dirname(__file__), "..", "skills",
-                                 "mythras-gm", "base-schema.tql")
+                                 "mythras-gm", "schema-base.tql")
         with d.transaction(TEST_DB, TransactionType.SCHEMA) as tx:
             for p in (base_path, schema_path):
                 if os.path.exists(p):

@@ -1,0 +1,15 @@
+name: template_instance
+description: Which creature template each spawned character came from
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (template: $t, instance: $i) isa myth-template-instance;
+    $t has id $tid; $i has id $iid;
+  fetch { "id": $iid, "tid": $tid, "iid": $iid };
+target_insert: |
+  match
+    $t isa myth-creature-template, has id $tid;
+    $i isa myth-character, has id $iid;
+  insert (template: $t, instance: $i) isa myth-template-instance;

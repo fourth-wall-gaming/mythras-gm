@@ -1,0 +1,18 @@
+name: encounter
+description: Encounters
+kind: entity
+depends_on: [campaign]
+source_match: |
+  match $x isa myth-encounter, has id $i, has name $n, has created-at $ts;
+  fetch { "id": $i, "name": $n, "ts": $ts, "description": $x.description,
+          "status": $x.myth-encounter-status, "round": $x.myth-round,
+          "combatants": $x.myth-combatants-json };
+target_insert: |
+  insert $x isa myth-encounter,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has myth-encounter-status ?status,
+    has myth-round ?round,
+    has myth-combatants-json ?combatants;

@@ -1,0 +1,18 @@
+name: lore
+description: Lore entries
+kind: entity
+depends_on: [campaign]
+source_match: |
+  match $x isa myth-lore, has id $i, has name $n, has created-at $ts;
+  fetch { "id": $i, "name": $n, "ts": $ts,
+          "description": $x.description, "content": $x.content,
+          "category": $x.myth-lore-category, "visibility": $x.myth-lore-visibility };
+target_insert: |
+  insert $x isa myth-lore,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has content ?content,
+    has myth-lore-category ?category,
+    has myth-lore-visibility ?visibility;

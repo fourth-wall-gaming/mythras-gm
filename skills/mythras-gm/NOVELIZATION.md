@@ -9,7 +9,7 @@ you write here goes back into TypeDB.
 ```bash
 NOV="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/novelist.py"
 PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run --project "$PRJ" python "$NOV" <command> [args] 2>/dev/null
+uv run -q --project "$PRJ" python "$NOV" <command> [args]
 ```
 
 Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
@@ -27,12 +27,24 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    card to `<manuscript>/style.md` and set `style:` in `book.yaml` -- the
    style must be reproducible in a later session.
 
-3. **Outline.** Basic rule: **one session = one chapter.** Each chapter
-   covers a full play session's events in order; narrative beats within the
-   session become scene breaks, not separate chapters. One line per chapter:
-   working title + session number + which journal events it covers (cite
-   event ids from the source.md comments). Present it to the user and wait
-   for approval before drafting.
+3. **Outline.** **Chapters are driven by story beats, not by sessions.** Cut
+   the book where the *story* turns — a day closing, a plan being made, a
+   thing being found out, somebody deciding something they cannot undo — and
+   ignore where play happened to stop for the night. A session boundary is an
+   accident of somebody's evening and has no meaning to a reader.
+
+   In practice a chapter is usually one movement of the story: a stretch that
+   has one question in it and answers it. Beats inside that movement become
+   scene breaks. A session that ran long becomes several chapters; three thin
+   sessions that were all one manoeuvre become one.
+
+   Watch the shape rather than the clock: if a chapter is running past roughly
+   5,000 words it is carrying more than one turn and wants splitting, and if
+   two adjacent chapters are answering the same question they want merging.
+
+   One line per chapter: working title + which journal events it covers (cite
+   event ids from the source.md comments). Present the outline to the user and
+   wait for approval before drafting.
 
 4. **Draft.** One chapter at a time to `chapters/NN-<slug>.md`, starting each
    file with `# Chapter N — Title`. Scene breaks within a chapter are a line
@@ -46,7 +58,41 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    **not** a `# heading`, so it does not register as a chapter (keeps chapter
    numbering and figure placement intact). Player-visible lore only.
 
-5. **Canon rules.** Journal events are plot truth -- never contradict them.
+5. **Write it the way it was played.** This is the first rule, not a footnote.
+
+   **The dialogue in the novel must be the dialogue from the table.** Find the
+   session transcript and use it. The player's own lines are the least
+   negotiable thing in the book — they chose those words, in character, under
+   pressure, and they are the reason the scene went the way it did. Put them on
+   the page as close to verbatim as prose will carry, and put the NPCs' answers
+   there the same way.
+
+   `source.md` is **not** enough for this and will quietly betray you. Journal
+   events are summaries written after the fact; they carry what happened and
+   almost none of what was said. A chapter drafted off a summary will be
+   fluent, plausible, and wrong — you will invent a confrontation where there
+   was a friendly conversation, put four men on a bridge where there were two,
+   and lose every real line in the scene. That has happened, to this book, in
+   this repo.
+
+   So before drafting any chapter, go and read the actual play for it. The
+   transcript lives in the campaign's `session-logs/`, or in the harness's own
+   `.jsonl` for the session. Pull the scene, read the whole exchange, and keep:
+   - **every line the player spoke**, and their phrasing, including the
+     profanity and the hesitations and the bad jokes;
+   - **the NPC lines that landed** — the ones that got a reaction;
+   - **the names** that came up at the table, even for walk-ons, and
+     **the numbers** exactly as they were said;
+   - **who was actually present**, and how many of them.
+
+   You may cut, compress, reorder within a scene, and write the connective
+   tissue — that is the job. You may not replace a line that was said with a
+   better one you thought of afterwards.
+
+   **Where the dice did something dramatic, translate it, never report it.** A
+   failed roll is not "she failed"; it is what failing looked like in that room.
+
+6. **Canon rules.** Journal events are plot truth -- never contradict them.
    Characters, locations, factions, and player-visible lore give texture.
    You may invent connective tissue: interiority, transitions, minor sensory
    detail, unnamed bystanders. Invention flows one way only: embellishments
@@ -55,7 +101,7 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
    must never leak into the prose. Leave `[TODO: ...]` markers for anything
    you need the user to decide; `build` refuses to run until they're resolved.
 
-6. **Illustrate (optional).** Add engraving-style plates (or any look) to the
+7. **Illustrate (optional).** Add engraving-style plates (or any look) to the
    book. Like prose styles, art styles are reproducible cards in
    `styles/art/`. The CLI is plumbing -- you write the prompts.
    1. **Pin an art style.** Copy `styles/art/<name>.md` to
@@ -88,11 +134,11 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
       count so you can pick `after_scene`. The build injects only the plates
       that exist, so it is safe to run before every image is made.
 
-7. **Build.** `build --manuscript <dir>`. Report the PDF path. Commit the
+8. **Build.** `build --manuscript <dir>`. Report the PDF path. Commit the
    manuscript directory (including the PDF and `illustrations/`) to the
    campaign repo if it's one.
 
-8. **Continue later.** When the campaign has advanced past `high_water_mark`
+9. **Continue later.** When the campaign has advanced past `high_water_mark`
    in `book.yaml`, re-run `extract` (it refreshes `source.md` and the mark
    without touching `chapters/`), outline the new material, and draft only
    the new chapters.

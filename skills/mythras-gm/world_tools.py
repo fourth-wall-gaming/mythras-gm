@@ -171,6 +171,35 @@ def filter_log(events, involving=None, known_to=None, visibility=None,
 KNOWLEDGE_DEPTHS = ("glimpsed", "knows", "can-prove")
 KNOWLEDGE_ROUTES = ("witnessed", "told", "shown", "inferred", "bought", "rumour")
 
+# The living world reads certainty and source, not depth and route. Both
+# vocabularies live on the same myth-knows edge and both are written on every
+# set-knowledge, so a GM-facing annotation is never invisible to require-fact,
+# forecast, tick or check-consistency.
+#
+# The mapping is lossy in one direction on purpose. `wrong` has no depth: being
+# mistaken is not a degree of knowing, it is recorded in the note, which is
+# where a false reading belongs. Everything else lines up:
+#   glimpsed  -> suspects    seen but not understood
+#   knows     -> believes    held as true, not demonstrable
+#   can-prove -> knows       can put it in front of someone
+DEPTH_TO_CERTAINTY = {"glimpsed": "suspects", "knows": "believes",
+                      "can-prove": "knows"}
+# `shown` and `bought` both end in the knower having been handed it by someone
+# else, which is `told` as far as the engine is concerned; `rumour` keeps the
+# American spelling the fact graph has always used.
+ROUTE_TO_SOURCE = {"witnessed": "witnessed", "told": "told", "shown": "told",
+                   "inferred": "deduced", "bought": "told", "rumour": "rumor"}
+
+
+def as_certainty(depth):
+    """The engine-facing certainty implied by a GM-facing depth, or None."""
+    return DEPTH_TO_CERTAINTY.get(depth)
+
+
+def as_source(route):
+    """The engine-facing source implied by a GM-facing route, or None."""
+    return ROUTE_TO_SOURCE.get(route)
+
 
 def validate_knowledge(k):
     """Warnings about one knowledge edge. Never raises, never blocks a write."""

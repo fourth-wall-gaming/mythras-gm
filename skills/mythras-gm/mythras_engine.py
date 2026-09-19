@@ -366,3 +366,274 @@ def apply_damage(locations: list[dict], location_name: str, damage: int,
 
 FATIGUE_LEVELS = ["Fresh", "Winded", "Tired", "Wearied", "Exhausted",
                   "Debilitated", "Incapacitated", "Semi-Conscious", "Comatose", "Dead"]
+
+
+# ---------------------------------------------------------------------------
+# Living world: time keys, agenda clocks, beat scheduling
+# ---------------------------------------------------------------------------
+#
+# The world runs on an ordinal clock so "has this come due yet?" is a integer
+# comparison rather than a judgement call. A time key is "<day>/<watch>", where
+# the day is signed and usually counts down to a fixed event ("d-3" = three days
+# before the tourney, "d0" = the day itself) and the watch is one of four.
+
+WATCHES = ["dawn", "day", "dusk", "night"]
+
+# Day 0 sits at this ordinal so days before it stay non-negative.
+_DAY_ZERO = 16
+
+_TIME_KEY = re.compile(r"^\s*d\s*(-?\d+)\s*/\s*([a-z]+)\s*$", re.I)
+
+
+def parse_time_key(key: str) -> int:
+    """'d-3/night' -> ordinal index. Raises ValueError on a malformed key."""
+    m = _TIME_KEY.match(key or "")
+    if not m:
+        raise ValueError(
+            f"Bad time key: {key!r} (expected '<day>/<watch>', e.g. 'd-3/night')")
+    day = int(m.group(1))
+    watch = m.group(2).lower()
+    if watch not in WATCHES:
+        raise ValueError(f"Bad watch: {watch!r} (expected one of {WATCHES})")
+    index = (day + _DAY_ZERO) * len(WATCHES) + WATCHES.index(watch)
+    if index < 0:
+        raise ValueError(f"Time key too early to represent: {key!r}")
+    return index
+
+
+def format_time_key(index: int) -> str:
+    """Inverse of parse_time_key: 61 -> 'd-3/night'."""
+    if index < 0:
+        raise ValueError(f"Negative time index: {index}")
+    day, watch = divmod(int(index), len(WATCHES))
+    return f"d{day - _DAY_ZERO}/{WATCHES[watch]}"
+
+
+def advance_clock(filled: int, size: int, by: int = 1) -> tuple[int, bool]:
+    """Fill clock segments, saturating at size.
+
+    Returns (new_filled, completed) where completed is True only when this
+    call is what brought the clock to full -- so a caller can fire the
+    consequence exactly once.
+    """
+    size = max(0, int(size))
+    was = max(0, min(int(filled), size))
+    now = max(0, min(was + int(by), size))
+    return now, (now >= size > 0 and was < size)
+
+
+_CLOCK_TRIGGER = re.compile(r"^\s*clock\s*>=\s*(\d+)\s*$", re.I)
+
+
+def beat_is_due(beat: dict, now_index: int, clock_filled: int | None = None) -> bool:
+    """Has this beat's trigger condition been met?
+
+    A 'time' trigger (the default) fires once the world clock reaches the
+    beat's own time index. A 'clock>=N' trigger fires on the progress of the
+    agenda that owns it, regardless of the calendar.
+    """
+    if (beat.get("status") or "pending") != "pending":
+        return False
+    trigger = (beat.get("trigger") or "time").strip()
+    m = _CLOCK_TRIGGER.match(trigger)
+    if m:
+        return clock_filled is not None and clock_filled >= int(m.group(1))
+    idx = beat.get("time_index")
+    return idx is not None and now_index >= idx
+
+
+def due_beats(beats: list[dict], now_index: int,
+              clocks: dict | None = None) -> list[dict]:
+    """Every pending beat whose trigger has been met, most urgent first.
+
+    Ordered by the priority of the agenda behind it (descending), then by
+    scheduled time, so that when several things come due at once the GM
+    resolves the one that matters most to the story first.
+    """
+    clocks = clocks or {}
+    due = [b for b in beats
+           if beat_is_due(b, now_index, clocks.get(b.get("agenda")))]
+    return sorted(due,
+                  key=lambda b: (-(b.get("priority") or 3),
+                                 b.get("time_index") if b.get("time_index") is not None else 1 << 30,
+                                 b.get("title") or ""))
+
+
+def beat_staging(beat: dict, pc_location_ids, pc_ids) -> str:
+    """'onscreen' if the PCs can witness this beat, else 'offscreen'.
+
+    A beat is onscreen when it happens where a PC is, or when a PC is in its
+    cast. This is decided from recorded presence rather than GM preference:
+    the same beat plays as a scene or resolves off-camera depending only on
+    where the party actually went.
+    """
+    places = set(pc_location_ids or ())
+    people = set(pc_ids or ())
+    if beat.get("place") and beat["place"] in places:
+        return "onscreen"
+    if people.intersection(beat.get("cast") or ()):
+        return "onscreen"
+    return "offscreen"
+
+
+# ---------------------------------------------------------------------------
+# Epistemics: facts, knowledge, and reconciliation
+# ---------------------------------------------------------------------------
+#
+# Ground truth lives in the fact graph; a character's knowledge is a projection
+# of it. These functions are the reconciliation rules -- pure, so the awkward
+# cases are testable without a database.
+
+def character_view(facts, edges, knower_id):
+    """The facts one character can legitimately act on, newest first.
+
+    A projection, never a stored blob: there is exactly one copy of the truth
+    and this is a filtered read of it. `edges` are {knower, fact, certainty,
+    source, since} records.
+    """
+    by_id = {f["id"]: f for f in facts}
+    view = []
+    for e in edges:
+        if e.get("knower") != knower_id:
+            continue
+        f = by_id.get(e.get("fact"))
+        if not f:
+            continue
+        view.append({**f, "certainty": e.get("certainty") or "knows",
+                     "source": e.get("source"), "since": e.get("since")})
+    return sorted(view, key=lambda f: (f.get("since") if f.get("since") is not None else -1),
+                  reverse=True)
+
+
+def knowledge_violations(facts, edges):
+    """Every way the knowledge graph currently contradicts the fact graph.
+
+    This is the check that would have caught character sheets asserting events
+    that had not happened yet.
+    """
+    by_id = {f["id"]: f for f in facts}
+    problems = []
+    for e in edges:
+        f = by_id.get(e.get("fact"))
+        if f is None:
+            problems.append({"kind": "dangling-knowledge", "knower": e.get("knower"),
+                             "fact": e.get("fact"),
+                             "detail": "knowledge edge points at a fact that does not exist"})
+            continue
+        status = f.get("status") or "established"
+        if status == "not-yet-true":
+            problems.append({"kind": "knows-unestablished", "knower": e.get("knower"),
+                             "fact": f["id"], "statement": f.get("statement"),
+                             "detail": "knows something that has not happened yet"})
+            continue
+        since, when = e.get("since"), f.get("time_index")
+        if since is not None and when is not None and since < when:
+            problems.append({"kind": "knew-too-early", "knower": e.get("knower"),
+                             "fact": f["id"], "statement": f.get("statement"),
+                             "detail": f"learned at {since} but only became true at {when}"})
+    return problems
+
+
+def agendas_to_activate(agendas, requirements, edges):
+    """Dormant agendas whose holder now knows everything the agenda needs.
+
+    This is what turns "activates the moment the Baron sees that face" from a
+    prose note into something the world clock can evaluate.
+    """
+    known = {}
+    for e in edges:
+        known.setdefault(e.get("knower"), set()).add(e.get("fact"))
+    needed = {}
+    for r in requirements:
+        needed.setdefault(r.get("agenda"), set()).add(r.get("fact"))
+    ready = []
+    for a in agendas:
+        if a.get("status") != "dormant":
+            continue
+        req = needed.get(a["id"])
+        if not req:
+            continue
+        if req.issubset(known.get(a.get("holder"), set())):
+            ready.append(a)
+    return sorted(ready, key=lambda a: (-(a.get("priority") or 3), a.get("title") or ""))
+
+
+# ---------------------------------------------------------------------------
+# Consequence: rewriting intentions and futures when events land
+# ---------------------------------------------------------------------------
+#
+# An established fact can change what people are trying to do. When an agenda
+# dies, the beats it was going to produce must die with it, and the futures
+# those beats were going to make true must be retired -- otherwise the graph
+# keeps believing in a night that can no longer happen.
+
+CONSEQUENCE_EFFECTS = ("thwart", "abandon", "complete", "activate", "stall", "advance")
+
+# An agenda in one of these states is no longer being pursued by anybody.
+DEAD_AGENDA_STATUSES = ("thwarted", "abandoned", "achieved")
+
+
+def apply_consequences(established_fact_ids, consequences, agendas):
+    """The agenda changes implied by facts that have just become true.
+
+    Returns a list of {agenda, effect, from_status, to_status, clock_from,
+    clock_to}. Pure: the caller performs the writes.
+    """
+    established = set(established_fact_ids or ())
+    by_id = {a["id"]: a for a in agendas}
+    changes = []
+    for c in consequences:
+        if c.get("fact") not in established:
+            continue
+        a = by_id.get(c.get("agenda"))
+        if not a:
+            continue
+        status = a.get("status")
+        if status in DEAD_AGENDA_STATUSES:
+            continue                      # already settled; do not disturb it
+        effect = c.get("effect")
+        clock = a.get("clock") or {}
+        filled, size = clock.get("filled") or 0, clock.get("size") or 0
+        change = {"agenda": a["id"], "title": a.get("title"), "effect": effect,
+                  "from_status": status, "to_status": status,
+                  "clock_from": filled, "clock_to": filled, "fact": c["fact"]}
+        if effect == "thwart":
+            change["to_status"] = "thwarted"
+        elif effect == "abandon":
+            change["to_status"] = "abandoned"
+        elif effect == "complete":
+            change["to_status"] = "achieved"
+        elif effect == "activate":
+            change["to_status"] = "active"
+        elif effect in ("stall", "advance"):
+            amount = c.get("amount") or 1
+            delta = -amount if effect == "stall" else amount
+            change["clock_to"] = max(0, min(filled + delta, size)) if size else 0
+        else:
+            continue
+        # reflect the change so several consequences on one agenda compose
+        a["status"] = change["to_status"]
+        a.setdefault("clock", {})["filled"] = change["clock_to"]
+        changes.append(change)
+    return changes
+
+
+def beats_to_cancel(agendas, beats):
+    """Pending beats produced by an agenda nobody is pursuing any more."""
+    dead = {a["id"] for a in agendas if a.get("status") in DEAD_AGENDA_STATUSES}
+    return [b for b in beats
+            if (b.get("status") or "pending") == "pending" and b.get("agenda") in dead]
+
+
+def orphaned_futures(facts, beats):
+    """not-yet-true facts that no live beat will ever establish.
+
+    Only facts owned by a beat are considered: a fact with no origin is the
+    GM's to establish by hand, and one owned by a journal event has already
+    happened.
+    """
+    beat_ids = {b["id"] for b in beats}
+    live = {b["id"] for b in beats if (b.get("status") or "pending") == "pending"}
+    return [f for f in facts
+            if (f.get("status") == "not-yet-true"
+                and f.get("from") in beat_ids and f.get("from") not in live)]

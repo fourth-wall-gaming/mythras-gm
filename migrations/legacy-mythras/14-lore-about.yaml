@@ -1,0 +1,16 @@
+name: lore_about
+description: What each lore entry is about
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (lore: $l, subject: $s) isa myth-lore-about;
+    $l has id $lid;
+    $s isa! $st, has id $sid;
+  fetch { "id": $lid, "lid": $lid, "sid": $sid, "st": $st };
+target_insert: |
+  match
+    $l isa myth-lore, has id $lid;
+    $s isa !st, has id $sid;
+  insert (lore: $l, subject: $s) isa myth-lore-about;

@@ -1,0 +1,26 @@
+name: campaign_membership
+description: What belongs to which campaign — the spine of the whole graph
+kind: relation
+idempotent: false
+depends_on: [campaign, character, location, faction, lore, encounter, creature_template, game_event_plain, game_event_offscreen]
+notes: |
+  Relations carry no id of their own, so idempotency is off: running this into
+  a target that already has them produces duplicates. Re-running the whole
+  migration into a fresh database is the supported path.
+
+  The element side is polymorphic — a campaign holds characters, locations,
+  factions, lore, events, encounters and templates — so the source fetches
+  each element's concrete type with isa! and the insert matches at that type.
+  An unbound type variable infers alh-domain-thing, which the element role
+  will not accept.
+source_match: |
+  match
+    (campaign: $c, element: $e) isa myth-campaign-membership;
+    $c has id $cid;
+    $e isa! $et, has id $eid;
+  fetch { "id": $eid, "cid": $cid, "eid": $eid, "et": $et };
+target_insert: |
+  match
+    $c isa myth-campaign, has id $cid;
+    $e isa !et, has id $eid;
+  insert (campaign: $c, element: $e) isa myth-campaign-membership;

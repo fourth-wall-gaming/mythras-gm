@@ -263,8 +263,16 @@ def test_schema_declares_new_attributes_additively():
     s = _schema()
     for attr in ("myth-event-visibility", "myth-canon-status", "myth-superseded-by"):
         assert f"attribute {attr}, value string;" in s, f"{attr} not declared"
-    # Additive define only: annotations or redefine would force a migration.
-    assert "redefine" not in s and "@values" not in s and "@card" not in s
+    # Additive define only: a redefine, or an annotation narrowing an existing
+    # type, would force a migration of the live database. @card on a role of a
+    # relation declared in this same file is not that -- myth-knows uses it to
+    # make `fact` and `subject` both optional, which is how one edge carries
+    # both knowledge shapes -- so allow it there and nowhere else.
+    assert "redefine" not in s and "@values" not in s
+    for line in s.split("\n"):
+        if "@card" in line:
+            assert line.strip().startswith(("relates fact", "relates subject")), \
+                f"unexpected @card annotation: {line.strip()}"
 
 
 def test_canon_status_owned_by_every_canon_bearing_entity():
@@ -381,10 +389,101 @@ def test_set_knowledge_replaces_rather_than_accumulates():
 
 
 def test_schema_declares_the_knowledge_graph():
+    """There is ONE knowledge relation, and it carries both vocabularies.
+
+    This model arrived as a second relation, `myth-knowledge`, alongside the
+    living world's `myth-knows`. Two relations meant a character could know a
+    thing twice, in two vocabularies, with no way to reconcile them -- so they
+    were merged onto myth-knows, which now relates a knower to EITHER a fact
+    (engine-facing, what agendas gate on) or a subject (GM-facing annotation).
+    """
     s = _schema()
-    assert "relation myth-knowledge," in s
+    assert "relation myth-knowledge," not in s, \
+        "myth-knowledge came back; it belongs on myth-knows"
+    assert "relation myth-knows," in s
     for attr in ("myth-knowledge-depth", "myth-knowledge-route",
                  "myth-knowledge-note", "myth-attitude"):
         assert f"attribute {attr}, value string;" in s
+        assert f"    owns {attr}," in s, f"{attr} is declared but not owned by myth-knows"
+    # both roles, both optional, so an edge plays exactly one of them
+    assert "relates fact @card(0..1)," in s
+    assert "relates subject @card(0..1);" in s
     # the knower is always a named character; subjects are broad
-    assert s.count("plays myth-knowledge:subject") >= 5
+    assert s.count("plays myth-knows:subject") >= 5
+
+
+# --- the merged knowledge edge ------------------------------------------
+#
+# These guard the resolution of a real fork: `myth-knowledge` (knower ->
+# subject, depth/route/note/attitude) grew on main while `myth-knows` (knower ->
+# fact, certainty/source/since) grew on the living-world branch. Two relations
+# meant a character could know a thing twice, in two vocabularies, with nothing
+# able to reconcile them. They are one relation now, and these tests are what
+# stop them splitting again.
+
+def test_one_knowledge_relation_only():
+    s = _schema()
+    assert s.count("relation myth-knows,") == 1
+    assert "relation myth-knowledge," not in s
+
+
+def test_myth_knows_owns_both_vocabularies():
+    s = _schema()
+    block = s.split("relation myth-knows,")[1].split(";")[0]
+    for attr in ("myth-knowledge-certainty", "myth-knowledge-source",
+                 "myth-knowledge-since", "myth-knowledge-depth",
+                 "myth-knowledge-route", "myth-knowledge-note",
+                 "myth-attitude", "myth-session-number"):
+        assert f"owns {attr}," in block, f"myth-knows does not own {attr}"
+
+
+def test_both_roles_are_optional():
+    """An edge plays `fact` or `subject`, never both and never neither-allowed.
+
+    Without @card(0..1) TypeDB requires every declared role, so a fact-shaped
+    edge would refuse to insert for want of a subject.
+    """
+    s = _schema()
+    block = s.split("relation myth-knows,")[1].split(";")[0]
+    assert "relates fact @card(0..1)" in block
+    assert "relates subject @card(0..1)" in block
+
+
+def test_depth_and_route_map_onto_the_engine_vocabulary():
+    """set-knowledge must write certainty/source too, or a GM-facing edge is
+    invisible to require-fact, forecast, tick and check-consistency."""
+    import world_tools as wt
+    assert set(wt.DEPTH_TO_CERTAINTY) == set(wt.KNOWLEDGE_DEPTHS)
+    assert set(wt.ROUTE_TO_SOURCE) == set(wt.KNOWLEDGE_ROUTES)
+    # every mapped value must be one the fact graph actually accepts
+    assert set(wt.DEPTH_TO_CERTAINTY.values()) <= {"knows", "believes",
+                                                   "suspects", "wrong"}
+    assert set(wt.ROUTE_TO_SOURCE.values()) <= {"witnessed", "told",
+                                                "deduced", "rumor"}
+    assert wt.as_certainty("can-prove") == "knows"
+    assert wt.as_source("rumour") == "rumor"
+    assert wt.as_certainty(None) is None and wt.as_source("nonsense") is None
+
+
+def test_set_knowledge_writes_both_halves():
+    source = _gm_source() if "_gm_source" in globals() else open(
+        os.path.join(os.path.dirname(__file__), "..", "skills", "mythras-gm",
+                     "mythras_gm.py"), encoding="utf-8").read()
+    body = source.split("def cmd_set_knowledge(")[1].split("\ndef ")[0]
+    assert "wt.as_certainty(" in body and "wt.as_source(" in body, \
+        "set-knowledge writes only the GM vocabulary; the living world cannot read it"
+    assert "isa myth-knows" in body and "myth-knowledge (" not in body
+
+
+def test_every_character_view_sees_both_shapes():
+    """A character holding only a subject-shaped edge must not read as knowing
+    nothing. All three read paths were checked; two of them used to."""
+    source = open(os.path.join(os.path.dirname(__file__), "..", "skills",
+                               "mythras-gm", "mythras_gm.py"),
+                  encoding="utf-8").read()
+    for fn, key in (("cmd_character_view", '"reads"'),
+                    ("cmd_brief", '"believes"'),
+                    ("cmd_get_character", '"knows"')):
+        body = source.split(f"def {fn}(")[1].split("\ndef ")[0]
+        assert "_subject_knowledge_edges(" in body, f"{fn} cannot see subject edges"
+        assert key in body, f"{fn} does not report them"

@@ -1,0 +1,16 @@
+name: faction_membership
+description: Who belongs to which faction
+kind: relation
+idempotent: false
+depends_on: [campaign_membership]
+source_match: |
+  match
+    (faction: $f, member: $m) isa myth-faction-membership;
+    $f has id $fid;
+    $m isa! $mt, has id $mid;
+  fetch { "id": $fid, "fid": $fid, "mid": $mid, "mt": $mt };
+target_insert: |
+  match
+    $f isa myth-faction, has id $fid;
+    $m isa !mt, has id $mid;
+  insert (faction: $f, member: $m) isa myth-faction-membership;

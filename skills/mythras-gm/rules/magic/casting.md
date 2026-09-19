@@ -7,8 +7,13 @@ topic: "casting"
 kind: "procedure"
 summary: "One action + a Magic skill roll; MP cost and outcome by success level; all spells Magnitude 1."
 facets: {"phase": ["casting"], "kind": ["procedure"], "action": ["cast"], "magic-system": ["magic", "windworking"], "stat": ["magic-points"]}
-links: ["magic/spell-traits", "magic/spell-list"]
+links: ["magic/spell-traits", "magic/spell-list", "magic/which-book"]
 ---
+
+> **Mythras Imperative magic. Purewater does not run on this** — see
+> `magic/which-book`. Classic Fantasy Imperative governs there, and its
+> casting rules are under `magic/cfi/`. This page is the Veilwrack chassis
+> and the baseline the CFI rules sit on top of.
 
 **Skill:** Magic (POW+CHA), a Professional skill. No skill, no magic. **Pool:** Magic Points = POW. Recovery: Healing Rate per hour of full rest.
 

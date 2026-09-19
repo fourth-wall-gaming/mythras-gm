@@ -133,7 +133,7 @@ def test_merge_helper_is_used_by_mythras_gm():
 
 def test_update_campaign_is_registered_and_wired():
     source = _gm_source()
-    assert 'sub.add_parser("update-campaign")' in source, \
+    assert 'sub.add_parser("update-campaign"' in source, \
         "update-campaign subcommand is not registered"
     assert "def cmd_update_campaign(" in source, "cmd_update_campaign is missing"
 

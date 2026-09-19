@@ -29,35 +29,67 @@ continue campaign, mythras, gamesmaster, novelize campaign, write novel
 ```bash
 CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
 PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
+uv run -q --project "$PRJ" python "$CLI" <command> [args]
 ```
 
-**Database and campaign defaults.** `TYPEDB_DATABASE` defaults to **`alh_mythras`**,
-which is this skill's database under the per-repo split -- you no longer need to
-prefix every call. `--campaign` may be omitted: it resolves from
-`$MYTHRAS_CAMPAIGN`, or from the only campaign in the database if there is exactly
-one. With several and no hint the CLI **refuses and lists them** rather than
-guessing. Set `MYTHRAS_CAMPAIGN` once at the start of a session and drop the flag.
+## Before you narrate one line
+
+**Read `TABLE.md`, then `styles/gamesmaster.md`, then the campaign's
+`setting/the-story.md`.** Every session, first thing, before the recap. **And
+again after every compaction** -- a summary keeps what happened and loses what it
+was for.
+
+None of the three is lazy-loaded and none is optional. `TABLE.md` is how the
+table is run, the style card is how it sounds, and **the story file is what the
+whole thing is moving toward**. About 3k tokens once, against a 13k
+`get-context` -- you can afford it.
+
+A session that starts without the first two will be in the wrong voice, and you
+will not notice, because the wrong voice feels like competence. A session that
+starts without the third will be in the wrong *story*, and you will not notice
+either, because a scene that goes well feels like the plan.
+
+**Database and campaign defaults.** `TYPEDB_DATABASE` defaults to **`mythras`**
+on port **1730** -- this game's own server, not the Alhazen stack's -- so you no
+longer need to prefix every call. `--campaign` may be omitted: it resolves from
+`$MYTHRAS_CAMPAIGN`, or from the only campaign in the database if there is
+exactly one. With several and no hint the CLI **refuses and lists them** rather
+than guessing. Set `MYTHRAS_CAMPAIGN` once at the start of a session and drop
+the flag.
 
 **Two write behaviours worth knowing**, both learned the hard way:
-`update-character --skills/--passions` **merge** into the stored document (pass
-`--replace-json` for the old destructive behaviour), and any command that links to
-a campaign now **fails loudly** if that campaign is not in the current database
+`update-character --skills/--passions/--attributes/--extras` **merge** into the
+stored document (pass `--replace-json`, or `--extras-replace` for the extras bag
+alone, for the old destructive behaviour), and any command that links to a
+campaign **fails loudly** if that campaign is not in the current database
 instead of silently creating an unreachable orphan.
 
 ## Quick Start
 
+0. **Read `TABLE.md`, `styles/gamesmaster.md` and `setting/the-story.md`.**
+   See above. Re-read the story file after any compaction.
 1. `list-campaigns` -- find the campaign (or `create-campaign`; published
    campaigns load with `import-campaign --path <clone> --new-ids`)
 2. `get-context --campaign <id> --compact` -- load scene, PC **combat cards**
    (live state only), NPC names, factions, last 5 events. **This is your save
    file.** Use `--compact` for play; drop it only when you need full sheets.
-3. **Do NOT preload the rules.** The CLI adjudicates every roll deterministically
+2a. **`brief --id <beat-id>` before you narrate toward any beat.** `forecast`
+   and `tick` give titles and one-liners -- enough to know something is coming,
+   nowhere near enough to run it. The gap between the two is where a GM invents
+   a mechanism the file already had (`TABLE.md` section 0b). Places and people
+   are briefed the same way and for the same reason.
+3. **`tick --campaign <id> --to "<time key>"` -- the world moves.** Before each
+   new scene (and never narrate a day forward without it), advance the world
+   clock. It returns every NPC/faction beat that has come due, flagged
+   `onscreen` (the PCs are there to witness or interrupt it) or `offscreen`
+   (it happens anyway, and becomes something they may discover later).
+   `list-agendas --compact` shows who wants what and how close they are.
+4. **Do NOT preload the rules.** The CLI adjudicates every roll deterministically
    (`roll-skill`, `roll-opposed`, `resolve-attack`...), so you rarely need the
    prose at all. When a situation needs a rule the engine doesn't fully encode,
    fetch only the relevant pieces from the rules graph (see below) -- never read
    `rules/*.md` wholesale into context.
-4. Recap the situation in 2-4 sentences, then play.
+5. Recap the situation in 2-4 sentences, then play.
 
 ## Context discipline (load lazily -- keep the window small)
 
@@ -75,23 +107,180 @@ Every token you load is re-sent on every turn. Load the minimum:
     skim once if needed. Prefer `query-rules` over loading this; add `--facets`
     only if you actually need the tag lists (heavier), or `--category <domain>`
     to narrow it.
-  - `query-rules --facet dim=value [--facet ...] [--linked]` -- the live fetch.
-    Dims: `phase action effect weapon trigger body severity condition
-    magic-system stat kind`. A rule matching more facets ranks first; `--linked`
-    appends one hop of related pieces.
+  - `query-rules --facet dim=value [--facet ...] [--match any|all] [--linked]`
+    -- the live fetch. Dims: `phase action effect weapon trigger body severity
+    condition magic-system stat kind`. **Matching is `any` by default**, ranked
+    by how many facets a rule hits; `--match all` requires every one.
+    `--linked` appends one hop of related pieces. A misspelt dim or value is an
+    error naming the valid ones -- `effect=bypass-armour` used to return an
+    empty success, which reads exactly like a settled question.
+  - `list-facets [--dim <d>]` -- the vocabulary, when you are not sure of a
+    spelling.
   - `get-rule --id <domain>/<slug> [--linked]` -- one specific piece.
   - e.g. impaling wingspear into a flying foe's wing:
     `query-rules --facet effect=impale --facet condition=flying --facet body=avian --linked`
-  - For Classic Fantasy Imperative campaigns, rules are loaded from `rules-cfi/`
-    and filtered with `--system classic-fantasy`. See USAGE.md.
-- **`get-log --campaign <id> --limit N`** when you need more history than the
-  recent events in context (default 15).
-- For a heavy one-off lookup, dispatch a subagent so the big result never lands
-  in play context.
+  - For Classic Fantasy Imperative campaigns the CFI pieces live in the same
+    `rules/` tree and are selected with `--system classic-fantasy`. See USAGE.md.
+- **`get-log --campaign <id> --limit N [--session N] [--full]`** when you need
+  more history than the recent events in context (default 15). **`--full` adds
+  the event title and the narrative** -- the verbatim dialogue written with
+  `log-event --narrative`, which nothing used to select and which was therefore
+  unreachable through the CLI.
+- **For a heavy one-off lookup, dispatch a subagent so the big result never
+  lands in play context.** Three exist, all read-only, all with bounded output:
+  - **`rules-lookup`** -- one ruling out of the faceted graph. Returns
+    RULING / BECAUSE / SOURCE, or `NOT FOUND` with what it tried.
+  - **`setting-lookup`** -- what is already canon about a place, faction or
+    custom, before you invent a second version of it at the table. Returns
+    ANSWER / CANON, or `NOT ESTABLISHED` with what an invention would have to
+    stay consistent with.
+  - **`recall`** -- what actually happened, with the verbatim lines, out of the
+    journal. Returns FOUND / VERBATIM / WHO KNOWS / SOURCE, or
+    `NOT IN THE JOURNAL`.
 
-**Before executing commands, read USAGE.md for the complete reference
-(GM operating rules, character creation, combat cheat sheet, worldbuilding,
-campaign publishing).**
+  Each of them says so when it finds nothing, rather than returning an empty
+  success -- which is the failure that made them worth having.
+
+## The world moves (agendas, clocks, beats)
+
+NPCs are not scenery waiting to be visited. Every significant NPC and faction
+holds an **agenda** -- a goal with a progress clock -- and each agenda schedules
+**beats**, the concrete things it produces if nobody interferes.
+
+- **Run `tick` between scenes.** The party spending a day at the docks is a day
+  the Baron also spent. What came due while they were elsewhere is not a
+  narrative choice; it is what the clocks say.
+- **Staging is decided by presence, not preference.** A due beat is `onscreen`
+  only when a PC is at its location or in its cast. Play those. Resolve the
+  `offscreen` ones with `fire-beat --outcome narrated --log` so they enter the
+  journal as facts the PCs can later learn -- rumor, evidence, a body.
+- **Advance clocks when the fiction earns it,** not on a timer:
+  `advance-agenda --id <a> --by N --note "..."`. Thwart an agenda outright with
+  `set-agenda-status --status thwarted`.
+- **Rewrite freely.** When play makes a planned beat stale or boring, bend it:
+  `revise-beat` changes when, where, who, and what. A plan that survives contact
+  with the players unchanged was not a plan, it was a rail. The clocks exist to
+  keep the world honest, not to force a story.
+- **PC action should change the board.** If the party burns the Baron's supply
+  barge, that is an `advance-agenda` on someone's clock and probably a new
+  agenda for whoever lost money. Add agendas mid-play with `add-agenda`.
+
+## What each character knows
+
+Situational truth lives in ONE place -- the fact graph -- and a character's
+knowledge is a **projection** of it, never a separate store. Two views cannot
+disagree when there is only one source.
+
+- **`character-view --id <pc> --compact` before you speak for anyone.** It
+  returns exactly what that character can act on. This is the mechanism behind
+  the "character knowledge is per-character" rule: use it instead of trusting
+  your memory of who was in the room.
+- **Facts exist before they are true.** A beat owns its facts as
+  `not-yet-true`; firing the beat is what establishes them, at a world-clock
+  index. `learn` refuses to attach knowledge to something that has not
+  happened -- that guard is deliberate, do not `--force` past it in play.
+- **A false fact is still a fact.** Rumour and mistaken identity drive these
+  stories: record the lie with `--truth false` and let people `believe` it.
+  Someone acting on a falsehood is the good stuff.
+- **`learn --knower X --fact F --source witnessed|told|deduced|rumor`** every
+  time a character learns something on screen. If you narrate a PC finding out,
+  the edge gets written in the same beat -- otherwise the next session's GM
+  (you, with no memory) will hand them knowledge they never earned.
+- **`check-consistency`** after any messy sequence. It catches knowledge of
+  unestablished facts, learning-before-it-was-true, and facts overdue on the
+  clock.
+- **Prose describes character; facts carry situation.** Never write "what has
+  happened" into a character's narrative -- it cannot be reconciled against
+  anything.
+
+**When an event changes what someone wants, say so in data.**
+`add-consequence --fact F --agenda A --effect thwart|abandon|stall|advance`
+fires the moment F is established, and the cascade then cancels the beats that
+dead agenda was going to produce and retires the futures they promised. Run
+`cascade --campaign C` after anything messy. `fire-beat` settles its own facts:
+`played`/`narrated` establishes them (pass `--witnesses` so the people who were
+there actually know), `preempted`/`cancelled` retires them.
+
+Agendas can be **gated on knowledge**: `require-fact` makes a dormant agenda
+wake up during `tick` the moment its holder learns the trigger fact. That is
+how "the Baron acts once he sees that face" becomes something the world clock
+evaluates rather than something you remember.
+
+## You are writing fantasy, not assistant prose
+
+The full voice spec is in `styles/gamesmaster.md` and the conduct rules are in
+`TABLE.md`. This much is repeated here because this file is always in context:
+
+**Interiority.** The PC's head is the player's -- never a thought, a feeling, a
+conclusion or a decision. Another character's feelings are **never interpreted,
+only shown** (posture, hands, breath, what they stopped doing); the meaning is
+what an Insight roll buys, and putting it in a companion's mouth is the same
+theft wearing a costume. **The world** may be characterised and loved out loud --
+that is where the warmth goes.
+
+**Banned constructions.** These are LLM tics, not style, and they make every NPC
+sound like the same person. In narration and dialogue alike:
+
+- *arithmetic* / *the calculus of it* / *the math of it* as metaphor
+- *furniture* / *wallpaper* / *scenery* as metaphor
+- **"That's not X. It's Y."** -- the antithesis correction. Zero per scene.
+- the raised finger; *tilts her head*; *something shifts in his face*; *lets the
+  silence do the work*
+- *it cost her something to say it* -- narrating an emotional price is a read
+- the enumerated preamble: *"Two things."*, *"Two questions and then you can
+  have mine."* -- counting what is coming before delivering it. The noun
+  varies (things, questions, reasons, points, ways); the habit does not.
+- the withheld ending: a sentence broken off mid-clause -- *"and past that
+  point I --"* -- used as punctuation
+- *nobody has ever asked me that before*; *I'm going to be difficult*
+- off-camera commentary: *meanwhile*, *somewhere in the city*, any future tense
+- assistant register: `###` headers, `---` rules, bulleted recaps, emoji
+
+**Not banned** -- these are house style from `gully-burns.md`: `A beat.` as a
+bare paragraph, the aphoristic aside, the hard closing button, epithets, triads,
+the comic undercut.
+
+**Shape of a turn.** One paragraph of description (<=60 words) plus up to two
+lines of dialogue, then stop. NPCs get two sentences and forty words. Answer the
+question asked and no more. **Always end the turn by handing the floor back** --
+play it out until there is a decision in front of the player, then make it
+unmistakable that it is their move. Length follows where the decision falls:
+snappy dialogue stays snappy, a new place gets the paragraphs it needs. What is
+banned is the *menu* -- never list or rank the PC's options.
+
+**But the budget caps filler, not substance.** Every turn must hand the player
+something they did not have: a fact, an object, a consequence, a change in the
+room, or a refusal *with its reason*. A turn made of posture and business alone
+is an empty turn. **Vague is not showing** -- if you cannot name the physical
+thing, find it; never write around it. **Asked twice, the cap is off**: the
+player has bought the speech, so give it whole. Most NPCs, most of the time,
+**answer** -- check their WANTS before you reach for their GUARDS.
+
+**Show it, do not explain it.** Any fact a scene must convey is placed as a
+findable object first -- a ledger, a scar, a wet bootprint. If the only route to
+a fact is being told, the scene is not ready.
+
+**Where to cut: risk and vulnerability.** Before narrating any arrival, journey
+or errand, ask whether something could genuinely go wrong here AND whether the
+character has something to lose right now -- an empty purse, no standing, a
+spent reserve, a face somebody might know, someone watching who can count. Both
+present: play it, with dice. Neither: cut, and land the cut with where they are,
+when it is, and what is already in front of them, in one sentence. Ask for the
+destination, not the route; never charge for the same journey twice; no
+greetings and no goodbyes. The judgement is yours -- do not hand it to the
+player and do not hand it to a word count. Length belongs where risk and
+vulnerability are highest, and nowhere else (`TABLE.md` section 2a).
+
+**`brief --id <npc>` before an NPC speaks.** It returns a character study --
+LOOKS, CORE, NATURE, WOUND, WANTS, PRESSURE, KEY -- describing *who somebody
+is*, never what they do. **None of it is ever narrated.** Your job is to invent,
+fresh and out of what is actually in this room, the behaviour that a person like
+that produces here. If you catch yourself performing a written gesture, you are
+reciting, not playing.
+
+**Before executing commands, read USAGE.md for the complete command reference
+(character creation, combat cheat sheet, worldbuilding, campaign publishing).
+Conduct rules are in `TABLE.md`.**
 
 **Playing NPCs.** Every recurring NPC carries a *character score* in
 `myth-extras-json` -- want/ought, driver vs stated reason, relational status, a
@@ -108,7 +297,7 @@ Events carry a camera position (`--visibility`) and their participants
 character could actually know — run it before handing a PC a fact. Canon that
 stops being true is retired, not deleted (`retire-canon`).
 
-**What they believe.** The journal is the store of facts; `myth-knowledge`
+**What they believe.** The journal is the store of what happened; `myth-knows`
 records what a character was told, shown or inferred, and above all **what they
 think it meant** -- which may be flatly wrong, and usually is what drives them
 (`set-knowledge`, `get-knowledge`). A debt is not a ledger entry: it is a belief

@@ -1,0 +1,66 @@
+define
+
+# =============================================================================
+# Base ontology -- the supertypes schema.tql inherits from
+# =============================================================================
+#
+# WHY THIS FILE EXISTS
+#
+# schema.tql declares its entities as `sub alh-collection`, `sub alh-note`,
+# `sub alh-domain-thing` and `sub alh-identifiable-entity`, and defines none of
+# them. They used to arrive from the separate `alhazen-core` plugin, which meant
+# this game could not stand up its own database: the session-start hook had to
+# locate another marketplace's Python file with a `find` glob over the plugin
+# cache, and when that glob missed -- which it does, on at least one machine --
+# the schema silently never loaded and every query came back empty.
+#
+# Four entities and five attributes is an absurd price to pay for a
+# cross-marketplace dependency, so they live here now and mythras-gm has no
+# plugin dependencies at all.
+#
+# WHAT THIS IS NOT
+#
+# This is deliberately NOT a copy of alhazen-core's ontology, and it does not
+# have the same shape. In a full Alhazen database `alh-note` descends from
+# `alh-information-content-entity`, `content` sits on the subtypes rather than
+# the root, and the root owns another seven attributes this game never touches.
+# Reproducing that faithfully would mean vendoring most of a research ontology
+# to run a dice game.
+#
+# So this is the minimum base that is SUFFICIENT: enough for schema.tql to
+# define cleanly and for every query the CLI makes to resolve. Nothing more.
+#
+# WHICH MEANS IT MUST ONLY BE APPLIED WHERE IT IS ABSENT.
+#
+# A `define` that disagrees with an existing type is an error, and some
+# databases -- including this developer's own, which holds real campaigns --
+# already carry the full alhazen ontology from when that plugin was a
+# dependency. `load-schema` therefore probes for `alh-identifiable-entity` and
+# applies this file only when it is not there. On a fresh database that is
+# always. On an Alhazen-backed one it is never, and the richer definitions win.
+#
+# THE INVARIANT
+#
+# Every `alh-` type named in schema.tql must be defined here, and `id` must keep
+# @key -- that one is load-bearing, because it is what makes importing the same
+# published campaign twice fail loudly instead of silently forking the save.
+#
+# If you add an `alh-` supertype to schema.tql, add it here too. That drift is
+# guarded by tests/test_packaging.py.
+
+attribute id, value string;
+attribute name, value string;
+attribute description, value string;
+attribute content, value string;
+attribute created-at, value datetime;
+
+entity alh-identifiable-entity @abstract,
+    owns id @key,
+    owns name,
+    owns description,
+    owns content,
+    owns created-at;
+
+entity alh-domain-thing sub alh-identifiable-entity;   # a thing in the world
+entity alh-collection   sub alh-identifiable-entity;   # a container of things
+entity alh-note         sub alh-identifiable-entity;   # rich text, via `content`

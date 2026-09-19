@@ -1,0 +1,44 @@
+name: character
+description: Characters, with every sheet blob carried across intact
+kind: entity
+depends_on: [campaign]
+notes: |
+  myth-canon-status and myth-superseded-by are dropped: 0 rows carry either.
+  myth-actor-notes does not exist in the legacy schema; these characters
+  simply have none, which brief --id reports honestly.
+source_match: |
+  match $x isa myth-character, has id $i, has name $n, has created-at $ts;
+  fetch {
+    "id": $i, "name": $n, "ts": $ts,
+    "description": $x.description, "content": $x.content,
+    "char_type": $x.myth-char-type, "status": $x.myth-status,
+    "chars": $x.myth-characteristics-json, "attrs": $x.myth-attributes-json,
+    "skills": $x.myth-skills-json, "styles": $x.myth-combat-styles-json,
+    "equipment": $x.myth-equipment-json, "hits": $x.myth-hit-locations-json,
+    "passions": $x.myth-passions-json, "spells": $x.myth-spells-json,
+    "extras": $x.myth-extras-json, "fatigue": $x.myth-fatigue,
+    "luck": $x.myth-luck-current, "magic": $x.myth-magic-current,
+    "xp": $x.myth-experience-rolls
+  };
+target_insert: |
+  insert $x isa myth-character,
+    has id $id,
+    has name $name,
+    has created-at $ts,
+    has description ?description,
+    has content ?content,
+    has myth-char-type ?char_type,
+    has myth-status ?status,
+    has myth-characteristics-json ?chars,
+    has myth-attributes-json ?attrs,
+    has myth-skills-json ?skills,
+    has myth-combat-styles-json ?styles,
+    has myth-equipment-json ?equipment,
+    has myth-hit-locations-json ?hits,
+    has myth-passions-json ?passions,
+    has myth-spells-json ?spells,
+    has myth-extras-json ?extras,
+    has myth-fatigue ?fatigue,
+    has myth-luck-current ?luck,
+    has myth-magic-current ?magic,
+    has myth-experience-rolls ?xp;

@@ -5,7 +5,7 @@ Full command reference for the Mythras GM skill. See SKILL.md for quick start.
 ```bash
 CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
 PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
+uv run -q --project "$PRJ" python "$CLI" <command> [args]
 ```
 
 ## Session Startup (ALWAYS do this first)
@@ -27,14 +27,45 @@ uv run --project "$PRJ" python "$CLI" <command> [args] 2>/dev/null
    doesn't fully encode, fetch only the relevant pieces from the rules graph:
    - `list-rules` — the lean index (id/title/domain/topic/kind) for orientation;
      add `--facets` for the tag lists (heavier) or `--category <domain>` to narrow.
-   - `query-rules --facet dim=value [--facet ...] [--linked]` — the live fetch,
-     ranked by how many of the situation's facets a rule matches.
+   - `query-rules --facet dim=value [--facet ...] [--match any|all] [--linked]`
+     — the live fetch. **`any` (the default) returns rules matching at least
+     one facet, ranked by how many they hit; `all` returns only rules carrying
+     every facet asked for.** An unknown dimension or value is an error that
+     names the valid ones, rather than an empty result that reads like "no
+     such rule".
+   - `sync-arc --file <arc.md> [--dry-run]` — reconcile the campaign's beats
+     to an arc document. **The document is the source of truth and the beats
+     are a projection of it**: an arc is a story, has to be rewritable in one
+     pass, and holding it as twenty separate rows means the connective tissue
+     lives nowhere. Entries are created or updated, entries you delete are
+     cancelled (never deleted — something may point at them), and anything
+     already `played` or `narrated` is left alone, because the past is not the
+     arc's to rewrite. Resolved ids are written back into the file so the next
+     sync matches on identity rather than on a title somebody has reworded.
+   - `brief --id <npc|place>` — how to play a person, or a place. For a
+     location it returns the **staging notes**: what it does to a scene, as
+     opposed to where it is. Read it before describing somewhere for the first
+     time, the same way you read an NPC before they speak.
+   - `list-locations [--campaign <id>]` — the gazetteer index, and which places
+     have staging notes. A place without them is an encyclopedia entry: it says
+     where, not how to play there, and the command reports the debt so it gets
+     filled.
+   - `update-location --id <id> --staging-notes "<card>"` — write the card.
+     **SENSE** (noise and smell before sight) · **SHAPE** (ways in and out, what
+     the space does to a fight or a conversation) · **LIVES** (who is always
+     here) · **HANDS** (what is to hand) · **COSTS** (what being here takes) ·
+     **TURNS** (what this place becomes under pressure) · **KEY** (the one image
+     that is only this place).
+   - `list-facets [--dim <d>]` — the facet vocabulary, so a query can be
+     composed without guessing at spellings.
    - `get-rule --id <domain>/<slug> [--linked]` — one specific piece.
-   (See **Rules Graph** below for the facet vocabulary.)
-4. Setting knowledge lives in the campaign's **lore entries** — browse with
+4. **`tick --campaign <id> --to "<time key>"`** before each new scene — advance
+   the world clock and see what the NPCs did while the party was elsewhere.
+   (See **Living World** below.)
+5. Setting knowledge lives in the campaign's **lore entries** — browse with
    `list-lore`, read with `get-lore`; never show the player entries with
    visibility `gm`.
-5. Recap the situation to the player in 2-4 sentences, then play.
+6. Recap the situation to the player in 2-4 sentences, then play.
 
 ## Rules Graph (faceted, load-on-demand)
 
@@ -70,108 +101,13 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 
 ## GM Operating Rules
 
-- **Narrate first, roll second.** Only call for rolls when failure is
-  interesting. Routine competence is an Automatic success.
-- **Play step by step.** One step of the story at a time: narrate the
-  current step, hand control back to the player, and wait. Never montage
-  through multiple scenes, locations, or plan-stages in one breath — even
-  when a plan is agreed, each stage of it is played, not summarized.
-  Mechanics rolls happen within a step only when that step needs them.
-- **Use the CLI for all dice.** Never invent roll results. The player should
-  be able to audit every outcome from the JSON.
-- **Difficulty grades are your main dial:** veryeasy/easy/standard/hard/
-  formidable/herculean. State the grade out loud before rolling.
-- **Narrate every roll as it happens — fiction first, dice second.**
-  Beat-by-beat, in this order: (1) describe the situation in the fiction —
-  what the character perceives or attempts and why it's uncertain — and
-  STOP; (2) let the player respond (how they approach it, augments, luck)
-  unless the check is purely reactive; (3) state the check and difficulty
-  grade; (4) run the roll; (5) immediately render the outcome in the
-  fiction before resolving the next roll. Never describe a situation and
-  roll for it in the same breath — the dice must not beat the player to
-  the scene. Never open a beat with "give me a Perception check", and
-  never run a chain of rolls silently and summarize afterwards. Prefix
-  each CLI mechanics call with an `echo` describing the action so the
-  resolution is auditable in the terminal output.
-- **Read roll quality the Mythras way.** High-but-under-skill is the
-  STRONGEST success: opposed rolls are won by the higher roll that still
-  succeeds, and ties on success level break to the higher die. Never
-  narrate a 47-under-50 as "barely made it" or "not pretty" — that roll
-  beats a 03 in any contest. Low rolls are only better for the critical
-  threshold (≤1/10 of skill), nothing else.
-- **Defense is the player's choice — always ask.** When a PC is attacked,
-  stop and ask whether they parry, evade, or take it (and with what), before
-  calling `resolve-attack`. Never assume `--defense none` or pick a reaction
-  for them; spending a Reactive AP is a player decision like any other.
-- **Persist relentlessly.** After every meaningful scene: `log-event`. When
-  the party moves: `set-scene` (and `move-character` for map-relevant moves).
-  Damage, healing, fatigue, luck spends: apply immediately via CLI so the DB
-  is always the truth.
-- **Journal every story beat, not just mechanics.** ANY beat or interaction
-  gets a `log-event` — conversations (what was actually said: quote the key
-  lines in `--narrative`), negotiations, revelations, refusals, gifts,
-  threats, partings. Use `--type scene` for interactions and `--type
-  decision` for choices. If it happened on screen, it goes in the journal;
-  a roll-free scene is still an event.
-- **Write events like a news report.** Who did what, where, to whom, and
-  why. Lead with the action in `--summary`; name every participant in
-  `--involves`; fix the location and motive in the text. Mechanics go after
-  the story, not instead of it. The journal is the source of record for
-  recaps and novelization — anything you don't log never happened.
-- **Log the game fully — text is cheap.** Capture the whole interaction, not
-  a one-line gist: the discussion and the back-and-forth, the decisions and
-  the reasoning behind them, and the PROVENANCE of things — where a weapon,
-  writ, ally, or piece of intel came from and why it was chosen. (If a PC is
-  handed a falchion, the record says who gave it, what for, and what was said
-  over it.) A terse summary loses the texture that the novelization and a
-  future session's GM both depend on; an over-full event costs nothing, a
-  detail never written down is gone. This is fullness of FACTUAL capture, not
-  embellishment — still only what actually happened, dialogue quoted verbatim.
-- **Record only what happened in the game — no embellishment.** The journal
-  is a factual record of play, not prose. Quote only lines actually spoken
-  at the table; never invent dialogue, sensory detail, or interiority. Log
-  the whole of what happened — fully — but only what happened; embellishment
-  belongs in the novelization layer and must never be written back into the
-  journal or lore.
-- **Dialogue is the priority content of a narrative.** Record what was
-  actually said — quote the key lines verbatim (NPC and PC both) in
-  `--narrative`. Spoken words outrank scenery: extra description is
-  unimportant, but a line said at the table is a fact of play and should
-  survive in the record.
-- **Session boundaries:** open with `log-event --type session-start`, close
-  with `--type session-end` plus a summary narrative, bump
-  the campaign session number, and award 1-3 experience rolls.
-- **Player agency is sacred.** Describe situations, not solutions. NPCs have
-  their own goals (see faction narratives in the DB — `get-character`,
-  faction `content` fields).
-- **Character knowledge is per-character, not per-campaign.** The journal
-  and rosters are the GM's memory, not the PC's. Before giving a PC a fact,
-  check WHO learned it in the fiction: events another PC played through, or
-  lore the character has no path to, must not surface in their head.
-  **Run `get-log --known-to <char-id>`.** If it warns about unattributed
-  events the answer is incomplete — backfill with `update-event --involves`
-  rather than guessing. An empty result is missing data, not proof of ignorance.
-- **The camera has a position.** Every `log-event` carries `--visibility`:
-  `played` (on screen, the default), `reported` (the party was told),
-  `offscreen` (happened elsewhere — GM-side only; players learn of it through
-  consequences, never cutaways), `meta` (bookkeeping about the game, not an
-  event in it). Mark your own correction notes `meta`, or they pollute both
-  knowledge scoping and the recent-events window.
-- **Close the loop on off-camera action.** At session end, for each NPC with a
-  `doing`: either `set-doing --did "..."` because it moved, or leave it because
-  it did not. No `doing` should sit unexamined for more than two sessions.
-  GM-side, at a session boundary, invisible at the table.
-- **Canon that stops being true is retired, not deleted.** `retire-canon --id X
-  --status superseded --by Y`. Retired records keep their audit trail but stop
-  being read as live. When a crew retires, mark the PCs `retired` *and* retire
-  any lore that was only ever true for them.
-- **Read the NPC before the scene.** `get-character --brief <id>` gives score,
-  what they are currently up to, lore written about them, and the last five
-  events they were actually in — without the stat block.
-  See [`WORLD-STATE.md`](WORLD-STATE.md) for the full model.
-- **Secrets stay secret.** GM-side material (gm-secrets.md, faction
-  narratives, template descriptions) informs your narration but is revealed
-  only through play.
+**These have moved to [`TABLE.md`](TABLE.md)**, together with the voice spec, the
+turn-shape rules and the mechanics-formatting convention. Conduct used to be
+split across this file, the repo's `CLAUDE.md` and a stale agent spec, and the
+three had drifted into disagreement.
+
+`TABLE.md` is conduct. This file is the command reference. Read `TABLE.md` before
+you narrate anything.
 
 ## Mechanical Cheat Sheet
 
@@ -187,6 +123,11 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 | Fight status | `get-encounter` (live HP per location, AP, initiative order) |
 | Out-of-combat damage (falls, fire) | `apply-damage --id X --location Chest --damage 6 --ignore-armor` |
 | Spawn a monster | `spawn --template <tmpl-id> --name "Stillwight A" --campaign C` |
+| Advance world time | `tick --campaign C --to "d-2/dawn"` |
+| Who wants what | `list-agendas --campaign C --compact` |
+| What happens next | `list-beats --campaign C --pending` |
+| Resolve a due beat | `fire-beat --id B --outcome played\|narrated --campaign C --log` |
+| Bend a stale beat | `revise-beat --id B --when "d-1/dusk" --at <loc>` |
 | Browse worldbuilding | `list-lore --campaign C [--category magic-system] [--visibility player]` |
 | Read a lore entry | `get-lore --id <lore-id>` (full rich text + linked entities) |
 | Record new canon | `add-lore --campaign C --title T --category culture --narrative "..."` |
@@ -195,14 +136,29 @@ returns the impale piece, the avian hit-location/aerial pieces, and (via
 | Publish a campaign (DB → files) | `export-campaign --campaign C --output dir/` |
 | Load a published campaign | `import-campaign --path dir/ [--name N] [--new-ids]` |
 
-`resolve-attack` handles the whole differential roll: attack vs parry/evade,
-special-effect count, damage + damage modifier, hit location, parry size
-reduction, armor, wound level, and AP spend. **You** choose and narrate the
-special effects (fetch them on demand with
-`query-rules --facet phase=attack --facet trigger=differential` or
-`get-rule --id combat/special-effects --linked`) — apply their mechanical
-consequences with follow-up CLI calls (e.g. Trip → opposed roll; Bleed →
-fatigue tracking via `update-character --fatigue`).
+**Attacks come in two shapes.**
+
+`attack-roll` + `resolve-effects` is the pair to use whenever a PC is involved,
+because the rules put the choice of special effects in the winner's hands and
+they must be chosen *before* damage is rolled:
+
+| | |
+|---|---|
+| `attack-roll --encounter E --attacker A --defender B [--weapon W] [--style S] --defense parry\|evade\|none [--parry-weapon X] [--prone]` | Rolls the exchange. **No damage, no hit locations written.** Freezes the dice on the encounter and returns `available_effects`, already filtered by side, critical/fumble requirements and weapon traits. |
+| `resolve-effects --encounter E [--effect <id> ...] [--location Head]` | Validates the selection against the frozen roll, applies the effects in rules order, then rolls damage and settles the wound. Clears the frozen record. |
+
+Effect ids are the same strings as the `effect=` facets in the rules graph, so
+`query-rules --facet effect=impale` always finds the piece. An unknown id is
+**rejected with a suggestion** rather than silently ignored — `bypass-armour`
+tells you it meant `bypass-armor`.
+
+Contested effects (Trip, Disarm, Bleed, Stun Location, Grip, Blind Opponent)
+return as `followups` carrying the opposed roll to make. They are never resolved
+silently: the loser's choice of resisting skill is a player decision.
+
+`resolve-attack` still does the whole thing in one call — differential, damage,
+hit location, parry reduction, armour, wound and AP — and chooses no effects.
+Use it for NPC-versus-NPC, where nobody is being asked anything.
 
 Wound levels from the CLI: `minor` (narrate pain), `serious` (1d3 turns no
 attacking; opposed Endurance vs the attack roll or limb useless /
@@ -237,6 +193,202 @@ Walk the player through it conversationally, then persist once:
    Non-weapon gear may stay as plain strings.
 5. `create-character --campaign <id> --name ... --narrative "<backstory>"`.
 
+## Living World (agendas, clocks, beats)
+
+The simulation layer: what the world is doing while the PCs are somewhere else.
+It exists so the story is driven by what NPCs *want* rather than by a fixed
+sequence of scenes, and so player action visibly changes the board.
+
+### The model
+
+- **Agenda** — a goal held by a character or faction, with a progress clock.
+  *"Santo means to bind a demon into a courtesan and prove himself to his
+  father."* `clock 0/6`, `priority 5`.
+- **Beat** — the next concrete thing that agenda produces if nobody interferes,
+  scheduled against world time (`--when "d-3/night"`) or a clock threshold
+  (`--trigger "clock>=4"`). A beat carries a place and a cast.
+- **Front** — there is no separate entity; a **faction** is the front. Give the
+  faction the agendas and the NPCs inside it their own, sometimes conflicting.
+
+### The world clock
+
+Time keys are `d<day>/<watch>` — day signed and usually counting down to a fixed
+event (`d-3` is three days before, `d0` the day itself), watch one of
+`dawn | day | dusk | night`. They sort chronologically, which is all `tick`
+needs. `tick` refuses to move backwards unless you pass `--rewind`.
+
+### The loop
+
+```bash
+# 1. What is in motion?
+list-agendas --campaign C --compact
+
+# 2. Move time; find out what came due and whether the PCs can see it
+tick --campaign C --to "d-3/night" --set-date "The night before the tourney"
+
+# 3. Beats flagged onscreen -> play them as scenes, then
+fire-beat --id B --outcome played --campaign C --log \
+          --summary "..." --narrative "..." --advance 2
+
+# 4. Beats flagged offscreen -> they happen anyway; record them as
+#    discoverable facts, not as things the PCs witnessed
+fire-beat --id B --outcome narrated --campaign C --log --type gm-note \
+          --summary "Nus was killed and his body displayed at the Reach"
+
+# 5. When play earns it, move a clock
+advance-agenda --id A --by 2 --campaign C --note "The Baron doubled the guard"
+```
+
+**Staging is not a GM choice.** A due beat comes back `onscreen` only when a PC
+is at its location or named in its cast (read from `myth-presence`), otherwise
+`offscreen`. Move the party and the same beat changes character: the attack the
+PCs interrupt is the attack they hear about the next morning.
+
+**Outcomes:** `played` (PCs were there), `narrated` (happened off-camera),
+`preempted` (PCs stopped it before it fired), `rewritten` (superseded — pair
+with `revise-beat`), `cancelled` (no longer possible).
+
+### Adapting as you go
+
+The clocks are there to keep the world honest, not to hold the story on rails.
+When play makes a plan stale, change the plan:
+
+- `revise-beat --id B --when ... --at ... --cast ... --onscreen-if ...` — move
+  it, restage it, recast it.
+- `add-agenda` mid-session when PC action creates a new interest (someone robbed
+  now wants restitution; an ally made now has a stake).
+- `set-agenda-status --status thwarted` when the players genuinely beat it, and
+  let the holder react with a new agenda rather than quietly re-running the old.
+
+The test of a good beat is that it would happen without the PCs. If it only
+makes sense when they are watching, it is a scene, not a beat.
+
+## Facts and Knowledge (who knows what)
+
+The state model. **Ground truth lives in exactly one place; everything else is
+a query into it.** There is no per-character state store -- a character's
+knowledge is a filtered read of the campaign's fact graph, which is what makes
+it reconcilable by construction.
+
+### The model
+
+- **`myth-fact`** -- one proposition ("Santo carved Emmeralda at the Sylph's
+  Embrace"). It has a **status** (`not-yet-true` -> `established` ->
+  `superseded`), a **truth** (`true | false | partial`), and the world-clock
+  index at which it became true. Facts are owned by the beat that produces
+  them, so the campaign ships with its future already enumerated but not yet
+  real.
+- **`myth-knows`** -- the edge from a character or faction to a fact, carrying
+  **certainty** (`knows | believes | suspects | wrong`), **source**
+  (`witnessed | told | deduced | rumor`) and **since** (when they learned it).
+
+Status and truth are independent on purpose. `truth: false` is how you model
+the rumour that drives a manhunt -- a proposition that is not true, that people
+nonetheless act on.
+
+### The loop
+
+```bash
+# what can this character legitimately act on right now?
+character-view --campaign C --id <pc> --compact
+
+# a beat fires -> its facts become real -> the people present learn them
+establish-fact --id F --when "d-3/night"
+learn --knower <pc> --fact F --certainty knows --source witnessed --at "d-3/night"
+
+# who could betray this?
+who-knows --campaign C --fact F
+
+# reconcile everything against everything
+check-consistency --campaign C
+```
+
+`check-consistency` reports:
+
+| Problem | Meaning |
+|---|---|
+| `knows-unestablished` | someone knows a thing that has not happened yet |
+| `knew-too-early` | learned before the fact became true |
+| `dangling-knowledge` | edge points at a fact that no longer exists |
+| `overdue-fact` | scheduled in the past but never established |
+
+### Knowledge-gated agendas
+
+```bash
+require-fact --agenda <a> --fact <f>
+```
+
+A **dormant** agenda whose holder knows all its required facts is activated
+automatically by `tick`, which reports it in `activated_agendas`. This is how
+"the Baron acts the moment he learns he has another son" stops being a note in
+a file and becomes a computed consequence of what the players let him see.
+
+### What is a fact, and what is not
+
+**If two characters could act differently depending on whether they know it,
+it is a fact. Otherwise it is colour.** A campaign this size wants roughly
+20-40 facts, not 500. Weather is not a fact. Who owns the knife is.
+
+Character prose describes **character** -- temperament, skill, history. It must
+never assert situation: a sheet that says "he attempted the ritual and fled"
+cannot be reconciled against a clock, and will be wrong the moment play
+diverges.
+
+## Consequence (when events rewrite intentions)
+
+Facts change what people want. When an agenda dies, the beats it was going to
+produce must die with it, and the futures those beats promised must be retired
+-- otherwise the graph keeps believing in a night that can no longer happen.
+
+```bash
+add-consequence --fact <f> --agenda <a> --effect abandon
+add-consequence --fact <f> --agenda <a> --effect stall --amount 2
+```
+
+Effects: `thwart` `abandon` `complete` `activate` (status) and `stall`
+`advance` (clock). Consequences fire at the **moment a fact is established**,
+because `stall`/`advance` are not idempotent.
+
+Note this is the opposite gate from `require-fact`:
+
+| | gated on | example |
+|---|---|---|
+| `require-fact` | the holder **knowing** | Blau wants revenge once he *learns* Santo is dead |
+| `add-consequence` | the fact being **true** | Santo's own agenda ends whether anyone knows or not |
+
+### The cascade
+
+`establish-fact --campaign C`, `fire-beat --campaign C` and every `tick` run it;
+`cascade --campaign C` runs it alone.
+
+```
+fact established
+  -> consequences change agendas          thwart / abandon / stall / advance
+  -> knowledge-gated agendas activate
+  -> dead agendas cancel their pending beats        <- futures rewritten
+  -> facts no live beat can establish are superseded
+```
+
+Everything but the consequence step is convergent, so it is safe to re-run.
+
+**`fire-beat` now settles its own facts.** `--outcome played|narrated`
+establishes the beat's not-yet-true facts at the current world clock;
+`preempted|cancelled|rewritten` supersedes them. Pass `--witnesses id,id` and
+those characters learn what they saw. `--no-facts` opts out.
+
+**`supersede-fact --id F --by G`** retires a fact and records what replaced it,
+so a corrected belief keeps its history -- the people who learned the old one
+still believe it, which is the point.
+
+Two more checks in `check-consistency`: `orphaned-future` (a not-yet-true fact
+no live beat will ever establish) and `beat-on-dead-agenda`.
+
+### Intentions are discoverable
+
+A fact can take an **agenda** as its subject, so *"Hanzo means to win the
+Tourney with a possessed champion"* is itself a fact people can learn, believe,
+or be wrong about. That is most of what the party actually plays for. Use
+`--truth partial` for a belief that is right but incomplete.
 ## Running a Classic Fantasy Imperative Campaign
 
 Classic Fantasy Imperative (CFI) is a second rule system supported alongside
@@ -253,17 +405,29 @@ plumbing is complete; this section covers the GM-facing workflow.
    ```
 2. Load the CFI rules graph (idempotent; safe to re-run):
    ```bash
-   load-rules --system classic-fantasy --dir rules-cfi
+   load-rules --system classic-fantasy
    ```
-   This ingests the 348 CFI pieces (classes, spells, magic procedures,
-   character creation steps, alignment, oaths, racial tables, etc.) tagged
-   with `system: classic-fantasy` so they never pollute standard Mythras
-   queries.
+   There is **one** rules tree. `rules/` holds both systems and `load-rules`
+   selects between them, so the CFI pieces never pollute standard Mythras
+   queries. A piece is CFI if its frontmatter says `system: classic-fantasy`,
+   or -- as everything on disk does today -- if its id carries a `cfi/` segment
+   or its `source` names the Classic Fantasy Imperative SRD. That is 160 spell
+   and casting pieces; `load-rules` with no `--system` loads the 111 Mythras
+   pieces.
+
+   **What is NOT in the graph.** The CFI import was scoped by the licence
+   decision recorded in `vendor/README.md`: **CFI is the base for spells,
+   Mythras Powers for everything else.** So there are no CFI classes, races,
+   alignment, oaths, rank tables or creature stat blocks as rule pieces. Run a
+   CFI campaign on Mythras character rules plus the CFI spell library, or
+   import the missing chapters from `vendor/cfi-srd` first -- with the same
+   `licence: orc` and `source:` frontmatter every existing CFI piece carries.
+   ORC requires the attribution; a piece without it must not ship.
 3. During play, query CFI rules with `--system classic-fantasy`:
    ```bash
    query-rules --system classic-fantasy --facet kind=class
    list-rules   --system classic-fantasy --category magic
-   get-rule     --id cfi/class/cleric
+   get-rule     --id magic/cfi/spell-fireball
    ```
 
 ### CFI Character Creation

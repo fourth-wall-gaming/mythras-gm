@@ -61,6 +61,56 @@ factions, a five-act campaign arc, and a bestiary — published in full at
 [fourth-wall-gaming/veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign)
 and loadable into TypeDB with one command.
 
+## The living world
+
+NPCs are not scenery waiting to be visited. Every significant character and
+faction holds an **agenda** -- a goal with a progress clock -- and each agenda
+schedules **beats**: the concrete things it produces if nobody interferes,
+placed in world time and given a location and a cast.
+
+```bash
+tick --campaign <id> --to "d-3/night"
+```
+
+`tick` advances the world clock and reports every beat that has come due,
+flagged **onscreen** (a PC is at its location or in its cast -- play it) or
+**offscreen** (it happens anyway, and becomes a fact they may later discover).
+Staging is read from recorded presence, not chosen: move the party, and the
+attack they would have interrupted becomes the one they hear about at dawn.
+
+Clocks advance when the fiction earns it (`advance-agenda`), agendas can be
+`thwarted` outright, new ones appear when player action creates new interests,
+and `revise-beat` bends any plan that play has made stale. The structure keeps
+the world moving consistently between sessions; it is not a rail.
+
+## What each character knows
+
+The world engine says what is happening; the fact graph says who is aware of it.
+
+Situational truth lives in exactly one place -- a graph of **facts**, each one a
+proposition with a status (`not-yet-true` -> `established`), a truth value, and
+the moment it became true. What a character knows is a **projection** of that
+graph through `myth-knows` edges carrying certainty, source and when they
+learned it. There is no per-character state store, so two views cannot drift
+apart.
+
+```bash
+character-view --campaign C --id <pc> --compact   # what they can act on
+who-knows --campaign C --fact F                   # who could betray this
+check-consistency --campaign C                    # reconcile it all
+```
+
+Because status and truth are independent, a **believed falsehood is a
+first-class object** -- the rumour that sends a city hunting the wrong man is
+data, not GM improvisation. And agendas can be gated on knowledge: a dormant
+agenda whose holder learns its trigger fact is activated by `tick` itself, so
+"the Baron acts the moment he sees that face" is computed rather than
+remembered.
+
+`check-consistency` catches a character knowing something that has not happened
+yet, or learning it before it was true -- the class of error that otherwise
+hides in prose until it contradicts play.
+
 ## Novelization
 
 Turn a campaign's journal into a typeset PDF novel. Claude reads the event
@@ -81,38 +131,55 @@ keep as many parallel novelizations as you like.
 ## Install as Claude Code Plugin
 
 The fastest way to play. Requires [Claude Code](https://claude.ai/code)
-v1.0.33+, Docker, and [uv](https://docs.astral.sh/uv/).
+v1.0.33+, [Docker](https://docs.docker.com/get-started/get-docker/), and
+[uv](https://docs.astral.sh/uv/). Nothing else — the engine has no plugin
+dependencies.
 
-### Step 1: Install the alhazen-core infrastructure plugin
+### Want a game, not an engine?
 
-mythras-gm stores all game state in TypeDB. The `alhazen-core` plugin
-handles TypeDB startup and provides the base schema that mythras-gm extends.
+Install a campaign and it brings the engine with it:
 
 ```
-/plugin marketplace add sciknow-io/skillful-alhazen
-/plugin install alhazen-core@skillful-alhazen
-/alhazen-core:init
+/plugin marketplace add fourth-wall-gaming/mythras-gm
+/plugin install purewater@fourth-wall-gaming
+/mythras-gm:setup      # once, on a new machine: pulls TypeDB and loads the schema
+/purewater:start
 ```
 
-### Step 2: Install mythras-gm
+### Just the engine
 
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
 /plugin install mythras-gm@fourth-wall-gaming
+/mythras-gm:setup
 ```
 
-The plugin's SessionStart hook auto-loads the myth- namespace schema
-into TypeDB on every new session.
+`/mythras-gm:setup` is the slow path and is needed once: it pulls the TypeDB
+image, starts the container, creates the database, defines the `myth-` schema and
+loads the rules graph. After that, every session start checks all of it in a
+second or two and says so.
 
-### Step 3: Load a campaign
-
-Campaigns are published as standalone GitHub repos. Clone one and import it:
+If anything is wrong, one command tells you what:
 
 ```bash
-git clone https://github.com/fourth-wall-gaming/veilwrack-campaign
+GM="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
+uv run -q --project "$GM" python "$GM/mythras_gm.py" doctor
 ```
 
-Then tell Claude: *"Import the Veilwrack campaign from ~/veilwrack-campaign"*
+**If the database is unreachable the CLI now says so on stdout and exits 1.** It
+used to raise, and every documented invocation piped stderr to `/dev/null`, so a
+dead database looked like an empty one and a whole session could be played with
+nothing persisting. That is why no example here discards stderr.
+
+### Published campaigns
+
+| campaign | install |
+|---|---|
+| **And Then the Dragons Came: Purewater** — a canal city, a Baron with a concealed champion, three days to the Tourney | `/plugin install purewater@fourth-wall-gaming` |
+
+Campaigns are plugins. They declare a dependency on this engine, ship their own
+start command, and import themselves into TypeDB on first run.
+
 
 Behind the scenes, Claude runs:
 
@@ -152,14 +219,14 @@ base schema loaded.
 
 ```bash
 # environment (defaults shown)
-export TYPEDB_HOST=localhost TYPEDB_PORT=1729 TYPEDB_DATABASE=alhazen_notebook
+export TYPEDB_HOST=localhost TYPEDB_PORT=1730 TYPEDB_DATABASE=mythras
 
 # 1. load the myth- namespace schema
 python - <<'PY'
 from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
 driver = TypeDB.driver("localhost:1729", Credentials("admin","password"),
                        DriverOptions(is_tls_enabled=False))
-with driver.transaction("alhazen_notebook", TransactionType.SCHEMA) as tx:
+with driver.transaction("mythras", TransactionType.SCHEMA) as tx:
     tx.query(open("skills/mythras-gm/schema.tql").read()).resolve()
     tx.commit()
 PY

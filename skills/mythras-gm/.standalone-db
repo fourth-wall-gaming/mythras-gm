@@ -1,0 +1,5 @@
+# This skill runs its own TypeDB -- container mythras-typedb, port 1730,
+# database `mythras` -- provisioned by its own SessionStart hook and
+# defined in docker-compose.yml at the repo root. Not part of the Alhazen
+# stack on 1729; skipped by skillful-alhazen's `make db-init`.
+mythras
