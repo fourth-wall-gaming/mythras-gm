@@ -18,6 +18,15 @@
         "ref": "v1.1.0"
       },
       "description": "And Then the Dragons Came: Purewater. A canal city, a Baron with a concealed champion, three days to the Tourney. Installs the mythras-gm engine automatically."
+    },
+    {
+      "name": "veilwrack",
+      "source": {
+        "source": "github",
+        "repo": "fourth-wall-gaming/veilwrack-campaign",
+        "ref": "v1.1.0"
+      },
+      "description": "The Veilwrack: The Stilling. An original sky-realm campaign. Winged Alar on the floating bone-spires of dead sky-leviathans, and the wind itself is dying. Installs the mythras-gm engine automatically."
     }
   ],
   "description": "Tabletop RPG tooling and campaigns for Claude Code."
