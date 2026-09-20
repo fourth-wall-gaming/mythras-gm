@@ -1,5 +1,7 @@
-# This skill runs its own TypeDB -- container mythras-typedb, port 1730,
-# database `mythras` -- provisioned by its own SessionStart hook and
-# defined in docker-compose.yml at the repo root. Not part of the Alhazen
-# stack on 1729; skipped by skillful-alhazen's `make db-init`.
+# This skill runs its own TypeDB -- port 1730, database `mythras` --
+# provisioned by its own SessionStart hook. By default that is a native
+# TypeDB process this CLI manages itself (no Docker, no JVM); `docker-
+# compose.yml` at the repo root is an opt-in alternative via `init-db
+# --docker`. Not part of the Alhazen stack on 1729; skipped by
+# skillful-alhazen's `make db-init`.
 mythras

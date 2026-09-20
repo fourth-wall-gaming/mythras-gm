@@ -1,4 +1,9 @@
-# The Mythras game server.
+# The Mythras game server -- the DOCKER-MANAGED path.
+#
+# This is now optional. init-db defaults to a native TypeDB process it
+# manages itself (no Docker, no JVM -- TypeDB 3.x is a self-contained Rust
+# binary), and only reaches for this file when `init-db --docker` is passed.
+# Kept for anyone who already runs this way; nothing here changes their setup.
 #
 # This product keeps its own TypeDB, separate from the Alhazen stack on 1729,
 # because the campaign data is the save file for a game and has no business

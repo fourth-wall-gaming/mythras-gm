@@ -131,18 +131,24 @@ keep as many parallel novelizations as you like.
 ## Install as Claude Code Plugin
 
 The fastest way to play. Requires [Claude Code](https://claude.ai/code)
-v1.0.33+, [Docker](https://docs.docker.com/get-started/get-docker/), and
-[uv](https://docs.astral.sh/uv/). Nothing else — the engine has no plugin
-dependencies.
+v1.0.33+ and [uv](https://docs.astral.sh/uv/). Nothing else -- the engine has
+no plugin dependencies, and **no Docker.** TypeDB 3.x is a native binary with
+no JVM, so `init-db` downloads a ~25MB self-contained server for your platform
+on first run and manages it directly. Already have TypeDB running some other
+way -- including via `docker-compose.yml`, still here for anyone who prefers
+it? Pass `--docker`, or nothing changes: `init-db` checks for something already
+listening before it manages anything at all.
 
 ### Want a game, not an engine?
 
-Install a campaign and it brings the engine with it:
+Install a campaign and it brings the engine with it. The session-start hook
+does the rest -- downloads the native server on first run, creates the
+database, defines the schema, loads the rules graph -- so there is no separate
+setup step:
 
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
 /plugin install purewater@fourth-wall-gaming
-/mythras-gm:setup      # once, on a new machine: pulls TypeDB and loads the schema
 /purewater:start
 ```
 
@@ -151,13 +157,12 @@ Install a campaign and it brings the engine with it:
 ```
 /plugin marketplace add fourth-wall-gaming/mythras-gm
 /plugin install mythras-gm@fourth-wall-gaming
-/mythras-gm:setup
 ```
 
-`/mythras-gm:setup` is the slow path and is needed once: it pulls the TypeDB
-image, starts the container, creates the database, defines the `myth-` schema and
-loads the rules graph. After that, every session start checks all of it in a
-second or two and says so.
+Start a session and the hook reports `mythras-gm ready`. `/mythras-gm:setup`
+still exists for the rare case the hook could not manage it automatically --
+no network for the first-run download, or a platform with no native build --
+and for `--docker`, if you would rather run the old docker-compose.yml path.
 
 If anything is wrong, one command tells you what:
 

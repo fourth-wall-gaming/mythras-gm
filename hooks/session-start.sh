@@ -13,14 +13,18 @@
 # Two rules here, both deliberate:
 #
 #   1. It NEVER exits non-zero. A user who has this plugin enabled and opens
-#      Claude in an unrelated directory with Docker switched off should not have
-#      their session blocked for a game they are not playing. On SessionStart,
-#      hook stdout reaches the model, so an unambiguous refusal message gets the
-#      behaviour we want without seizing the session.
+#      Claude in an unrelated directory, with no TypeDB reachable, should not
+#      have their session blocked for a game they are not playing. On
+#      SessionStart, hook stdout reaches the model, so an unambiguous refusal
+#      message gets the behaviour we want without seizing the session.
 #
-#   2. It NEVER pulls a container image. A several-hundred-megabyte download
-#      inside a session-start hook is indistinguishable from a hang. The slow
-#      path is /mythras-gm:setup, and init-db says so when it is needed.
+#   2. It NEVER pulls a Docker image, only reachable via the --docker flag at
+#      all. TypeDB 3.x is a native binary with no JVM, so init-db's DEFAULT
+#      path -- no Docker required -- downloads a ~25MB self-contained server on
+#      first run, small enough to belong here. A several-hundred-megabyte
+#      Docker image pull is not: that stays behind the Docker opt-in's own
+#      pull flag, which only /mythras-gm:setup passes, and init-db says so
+#      when it is needed.
 
 set -uo pipefail
 unset VIRTUAL_ENV

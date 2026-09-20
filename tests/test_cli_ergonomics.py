@@ -444,3 +444,103 @@ def test_arc_without_front_matter_is_rejected(tmp_path, capsys):
     with pytest.raises(SystemExit):
         gm._read_arc(str(doc))
     assert "front matter" in capsys.readouterr().out
+
+
+# --- native TypeDB, no Docker required ------------------------------------
+#
+# TypeDB 3.x is a native Rust binary with no JVM. Docker was never load-
+# bearing -- it was just the easiest way to supervise a long-running process
+# when this was written -- so this is now the default path, and Docker is an
+# explicit opt-in (--docker) for anyone who already has that workflow.
+
+def test_native_platform_covers_the_common_dev_machines():
+    for system, machine, expected in [
+        ("Darwin", "arm64", "mac-arm64"),
+        ("Darwin", "x86_64", "mac-x86_64"),
+        ("Linux", "x86_64", "linux-x86_64"),
+        ("Linux", "aarch64", "linux-arm64"),
+        ("Windows", "AMD64", "windows-x86_64"),
+    ]:
+        import platform as _platform
+        import unittest.mock as mock
+        with mock.patch.object(_platform, "system", return_value=system), \
+             mock.patch.object(_platform, "machine", return_value=machine):
+            assert gm._native_platform() == expected, (system, machine)
+
+
+def test_native_platform_returns_none_for_the_unsupported():
+    import platform as _platform
+    import unittest.mock as mock
+    with mock.patch.object(_platform, "system", return_value="Plan9"), \
+         mock.patch.object(_platform, "machine", return_value="risc-v"):
+        assert gm._native_platform() is None
+
+
+def test_download_url_matches_the_real_typedb_cdn_layout():
+    """Pinned against the actual repo.typedb.com layout, verified by hand:
+    typedb-all-<platform>/versions/<version>/typedb-all-<platform>-<version>.<ext>"""
+    src = open(gm.__file__).read()
+    assert "repo.typedb.com/public/public-release/raw/names/" in src
+    assert 'f"typedb-all-{plat}/versions/{version}/' in src
+
+
+def test_download_sends_a_user_agent():
+    """The CDN 403s a bare request with no User-Agent at all -- any UA value
+    satisfies it, confirmed against the real endpoint. A regression here fails
+    silently as a 403, not as an obviously-wrong error."""
+    src = open(gm.__file__).read()
+    body = src.split("def _download_native(")[1].split("\ndef ")[0]
+    assert "User-Agent" in body
+
+
+def test_zip_extraction_restores_the_executable_bit():
+    """zipfile.extractall does not restore the executable bit (tarfile does),
+    confirmed by an actual extraction that left the binary at mode 644 and
+    Popen refusing it with EACCES. Only zip platforms (mac, windows) need the
+    explicit chmod; this asserts the fix is still there."""
+    src = open(gm.__file__).read()
+    body = src.split("def _download_native(")[1].split("\ndef ")[0]
+    assert "os.chmod(" in body
+
+
+def test_native_server_is_detached_so_it_outlives_this_process():
+    src = open(gm.__file__).read()
+    body = src.split("def _start_native_server(")[1].split("\ndef ")[0]
+    assert "start_new_session" in body or "DETACHED_PROCESS" in body
+
+
+def test_pid_file_identifies_only_a_process_we_started():
+    """_native_running must not treat an unrelated process that happens to
+    reuse an old PID as our server."""
+    src = open(gm.__file__).read()
+    body = src.split("def _native_running(")[1].split("\ndef ")[0]
+    assert "NATIVE_PID_FILE" in body
+
+
+def test_init_db_checks_for_an_existing_server_before_managing_anything():
+    """If something is already listening -- an existing Docker setup included
+    -- init-db must not attempt a native download or touch docker at all."""
+    body = gm.cmd_init_db.__doc__ or ""
+    src = open(gm.__file__).read()
+    fn_body = src.split("def cmd_init_db(args):")[1].split("\ndef ")[0]
+    already_up_idx = fn_body.index("already_up = _wait_for_port")
+    docker_branch_idx = fn_body.index("elif args.docker:")
+    native_branch_idx = fn_body.index("ok, msg = _start_native_server()")
+    assert already_up_idx < docker_branch_idx < native_branch_idx
+
+
+def test_docker_is_now_opt_in_not_default():
+    src = open(gm.__file__).read()
+    fn_body = src.split("def cmd_init_db(args):")[1].split("\ndef ")[0]
+    assert "elif args.docker:" in fn_body
+    assert 'not args.no_docker and not _wait_for_port' not in fn_body, \
+        "docker is still the implicit default path"
+
+
+def test_stop_db_only_kills_a_server_this_cli_started():
+    """No effect on --docker or on someone else's TypeDB -- it reads the pid
+    file this CLI itself wrote, and refuses to guess otherwise."""
+    src = open(gm.__file__).read()
+    body = src.split("def _stop_native_server(")[1].split("\ndef ")[0]
+    assert "NATIVE_PID_FILE" in body
+    assert 'sub.add_parser("stop-db"' in src

@@ -4148,7 +4148,205 @@ def _rule_links(driver, rule_id):
 
 COMPOSE_FILE = os.path.join(_PROJECT_ROOT, "docker-compose.yml")
 ENGINE_POINTER = os.path.expanduser("~/.claude/mythras-gm/engine-root")
-TYPEDB_IMAGE = "typedb/typedb:3.8.0"
+TYPEDB_IMAGE = "typedb/typedb:3.8.0"   # docker path, kept for people who already run it
+
+# --- native TypeDB, no Docker -----------------------------------------------
+#
+# TypeDB 3.x is a Rust rewrite: the server is a single native binary with no
+# JVM and no runtime dependency beyond the OS's own libraries (confirmed by
+# inspecting the mac-arm64 build: it links only system frameworks). Docker was
+# never load-bearing here -- it was just the easiest way to supervise a long-
+# running process when this was written. That made every player who wanted to
+# try the game need Docker Desktop installed and running first, which is a
+# heavier ask than the game itself.
+#
+# So this is now the DEFAULT path: download the ~25MB self-contained build for
+# this platform once, and run it as a detached background process with a PID
+# file, the same way `restart: unless-stopped` kept the container alive across
+# sessions. `--docker` opts back into the old compose-managed path for anyone
+# who already has it set up -- and if something is already listening on
+# TYPEDB_HOST:TYPEDB_PORT, neither path runs at all, so an existing Docker
+# install (this developer's own live database included) is untouched.
+TYPEDB_VERSION = "3.8.0"               # kept in step with TYPEDB_IMAGE's tag
+NATIVE_HOME = os.path.expanduser("~/.claude/mythras-gm/typedb")
+NATIVE_PID_FILE = os.path.join(NATIVE_HOME, "typedb.pid")
+NATIVE_LOG_FILE = os.path.join(NATIVE_HOME, "server.log")
+NATIVE_DATA_DIR = os.path.join(NATIVE_HOME, "data")
+
+
+def _native_platform():
+    """The `typedb-all-<platform>` suffix for this machine, or None if there is
+    no native build for it (in which case --docker is the only path)."""
+    import platform
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    arch = ("arm64" if machine in ("arm64", "aarch64") else
+           "x86_64" if machine in ("x86_64", "amd64") else None)
+    if arch is None:
+        return None
+    if system == "darwin":
+        return f"mac-{arch}"
+    if system == "linux":
+        return f"linux-{arch}"
+    if system == "windows" and arch == "x86_64":
+        return "windows-x86_64"
+    return None
+
+
+def _native_dist_dir(version):
+    plat = _native_platform()
+    return os.path.join(NATIVE_HOME, f"typedb-all-{plat}-{version}") if plat else None
+
+
+def _native_server_bin(version):
+    """Path to the already-downloaded server binary, or None if it is not
+    there yet (either never fetched, or an unsupported platform)."""
+    import platform
+    d = _native_dist_dir(version)
+    if not d:
+        return None
+    exe = "typedb_server_bin.exe" if platform.system() == "Windows" else "typedb_server_bin"
+    p = os.path.join(d, "server", exe)
+    return p if os.path.isfile(p) else None
+
+
+def _download_native(version, timeout=90):
+    """Fetch and unpack the self-contained server build for this platform.
+
+    Streamed with an explicit socket timeout, so a dead network fails within
+    `timeout` seconds rather than hanging the session -- the same worry that
+    kept the old Docker image pull out of the session-start hook, except this
+    download is ~25MB rather than several hundred, so it is fast enough to
+    belong in the ordinary path instead of a separate slow command.
+    """
+    import platform as _plat
+    import urllib.request
+    plat = _native_platform()
+    if not plat:
+        return False, (f"no native TypeDB build for {_plat.system()}/{_plat.machine()}; "
+                       f"pass --docker to use docker-compose.yml instead")
+    os.makedirs(NATIVE_HOME, exist_ok=True)
+    ext = "tar.gz" if plat.startswith("linux") else "zip"
+    url = (f"https://repo.typedb.com/public/public-release/raw/names/"
+           f"typedb-all-{plat}/versions/{version}/typedb-all-{plat}-{version}.{ext}")
+    archive = os.path.join(NATIVE_HOME, f"download.{ext}")
+    # The CDN 403s a bare urllib request (no User-Agent at all); any UA at
+    # all satisfies it, confirmed against a plain "curl/8.0" string.
+    req = urllib.request.Request(url, headers={"User-Agent": "mythras-gm/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp, \
+                open(archive, "wb") as fh:
+            while True:
+                chunk = resp.read(1 << 16)
+                if not chunk:
+                    break
+                fh.write(chunk)
+    except Exception as e:
+        return False, f"could not download TypeDB from {url}: {e}"
+    try:
+        if ext == "zip":
+            import zipfile
+            with zipfile.ZipFile(archive) as z:
+                z.extractall(NATIVE_HOME)
+        else:
+            import tarfile
+            with tarfile.open(archive) as t:
+                t.extractall(NATIVE_HOME)
+    except Exception as e:
+        return False, f"downloaded but could not unpack {archive}: {e}"
+    finally:
+        try:
+            os.remove(archive)
+        except OSError:
+            pass
+    # zipfile.extractall does not restore the executable bit (tarfile does,
+    # which is why this only bites mac/windows, whose archives are zips) --
+    # confirmed against a real extraction, which left the binary at mode 644
+    # and Popen refusing it with EACCES.
+    binp = _native_server_bin(version)
+    if binp and not os.access(binp, os.X_OK):
+        os.chmod(binp, 0o755)
+    return (binp is not None), url
+
+
+def _native_pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+
+def _native_running():
+    """Is the server WE started still alive? Read from the PID file we wrote,
+    not from scanning for the binary name -- a stale PID reused by an
+    unrelated process must read as not-ours."""
+    if not os.path.isfile(NATIVE_PID_FILE):
+        return False
+    try:
+        pid = int(open(NATIVE_PID_FILE).read().strip())
+    except (ValueError, OSError):
+        return False
+    return _native_pid_alive(pid)
+
+
+def _start_native_server():
+    """Launch the native server as a detached background process, downloading
+    it first if this is the first run on this machine. `start_new_session`
+    detaches it from this process group so it outlives this CLI invocation and
+    this Claude session, the way the Docker container did."""
+    import subprocess
+    if _native_running():
+        return True, "already running"
+    binp = _native_server_bin(TYPEDB_VERSION)
+    if not binp:
+        ok, msg = _download_native(TYPEDB_VERSION)
+        if not ok:
+            return False, msg
+        binp = _native_server_bin(TYPEDB_VERSION)
+        if not binp:
+            return False, "downloaded but the server binary was not where expected"
+    os.makedirs(NATIVE_DATA_DIR, exist_ok=True)
+    log_dir = os.path.join(NATIVE_HOME, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    kwargs = {}
+    if hasattr(subprocess, "DETACHED_PROCESS"):   # Windows: no start_new_session
+        kwargs["creationflags"] = (subprocess.CREATE_NEW_PROCESS_GROUP
+                                   | subprocess.DETACHED_PROCESS)
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        with open(NATIVE_LOG_FILE, "a") as logf:
+            proc = subprocess.Popen(
+                [binp,
+                 "--server.address", f"0.0.0.0:{TYPEDB_PORT}",
+                 "--server.http.enabled", "false",
+                 "--diagnostics.monitoring.enabled", "false",
+                 "--storage.data-directory", NATIVE_DATA_DIR,
+                 "--logging.directory", log_dir],
+                stdout=logf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                **kwargs)
+    except Exception as e:
+        return False, f"could not launch the native TypeDB server: {e}"
+    with open(NATIVE_PID_FILE, "w") as f:
+        f.write(str(proc.pid))
+    return True, f"started (pid {proc.pid})"
+
+
+def _stop_native_server():
+    if not os.path.isfile(NATIVE_PID_FILE):
+        return False, "not running (no pid file)"
+    try:
+        pid = int(open(NATIVE_PID_FILE).read().strip())
+    except (ValueError, OSError):
+        return False, "pid file is unreadable"
+    if not _native_pid_alive(pid):
+        os.remove(NATIVE_PID_FILE)
+        return False, "not running (stale pid file removed)"
+    import signal
+    os.kill(pid, signal.SIGTERM)
+    os.remove(NATIVE_PID_FILE)
+    return True, f"stopped (was pid {pid})"
 
 
 def _sh(*cmd, timeout=30):
@@ -4232,11 +4430,20 @@ def _wait_for_server(seconds=60):
 def cmd_init_db(args):
     """Bring the whole install up, idempotently, and report every step.
 
-    This is the one thing the session-start hook calls. It is deliberately the
-    *fast* path: it will start a container that already has its image, but it
-    will never pull one, because a 400MB pull inside a SessionStart hook is
-    indistinguishable from a hang. `--pull` opts into the slow path and is what
-    /mythras-gm:setup uses.
+    This is the one thing the session-start hook calls. By DEFAULT it manages
+    a native TypeDB server: no Docker, no JVM, nothing to install by hand.
+    TypeDB 3.x is a Rust binary with no runtime dependency, so a first run
+    downloads a ~25MB self-contained build for this platform and launches it
+    detached; every run after that just confirms it is still there. That is
+    fast enough to belong in the ordinary path -- unlike the old several-
+    hundred-megabyte Docker image pull, which is why THAT still needs --pull
+    and a separate slow command, but this does not.
+
+    --docker opts back into the old docker-compose.yml-managed path, for
+    anyone who already has that workflow (this developer's own live database
+    included -- and it is never touched, because if anything is already
+    listening on TYPEDB_HOST:TYPEDB_PORT neither path runs at all). --no-docker
+    manages nothing and assumes a TypeDB you already run will be there.
     """
     import shutil
 
@@ -4252,11 +4459,18 @@ def cmd_init_db(args):
              "steps": steps, "remedy": message})
         sys.exit(code)
 
-    # --- the container, unless we were told not to bother ------------------
-    if not args.no_docker and not _wait_for_port(seconds=1):
+    # --- a server, unless something is already listening --------------------
+    already_up = _wait_for_port(seconds=1)
+    if already_up:
+        note("server process", True, "already listening")
+    elif args.no_docker:
+        note("server process", False,
+             "none managed (--no-docker); expecting an external TypeDB")
+    elif args.docker:
         if not shutil.which("docker"):
             bail(3, "Docker is not installed, so there is nowhere to run the "
-                    "save file. Install Docker Desktop, or point TYPEDB_HOST/"
+                    "save file. Install Docker Desktop, drop --docker to use "
+                    "the built-in native server instead, or point TYPEDB_HOST/"
                     "TYPEDB_PORT at a TypeDB you already run.")
         ok, msg = _sh("docker", "info", "--format", "{{.ServerVersion}}")
         if not note("docker running", ok, msg):
@@ -4269,7 +4483,8 @@ def cmd_init_db(args):
         if not have_image and not args.pull:
             bail(4, f"first run needs the {TYPEDB_IMAGE} image, which is a "
                     f"several-hundred-megabyte download. Run "
-                    f"/mythras-gm:setup once and it will fetch it.")
+                    f"/mythras-gm:setup once and it will fetch it, or drop "
+                    f"--docker to use the built-in native server instead.")
         note("image present", True, TYPEDB_IMAGE if have_image else "will pull")
 
         # A container of this name may already exist without compose knowing
@@ -4296,20 +4511,20 @@ def cmd_init_db(args):
                               timeout=900 if args.pull else 120)
             if not note("container up", ok, msg):
                 bail(5, f"could not start the TypeDB container: {msg}")
-
-        ready, why = _wait_for_server()
-        if not note("server ready", ready,
-                    f"{TYPEDB_HOST}:{TYPEDB_PORT}" if ready else why[:120]):
-            bail(5, f"the container started but TypeDB is still not serving on "
-                    f"{TYPEDB_HOST}:{TYPEDB_PORT} after a minute: {why[:160]}")
     else:
-        live, why = _wait_for_server(seconds=5)
-        note("server ready", live, f"{TYPEDB_HOST}:{TYPEDB_PORT}"
-             if live else (why[:120] or "nothing there"))
-        if not live:
-            bail(3, f"nothing is listening on {TYPEDB_HOST}:{TYPEDB_PORT}. "
-                    f"Drop --no-docker to let this start the container, or "
-                    f"point TYPEDB_HOST/TYPEDB_PORT at a TypeDB you run.")
+        # The default path. No Docker, no separate slow command: download (if
+        # needed) and launch a detached native process.
+        ok, msg = _start_native_server()
+        if not note("server process", ok, msg):
+            bail(3, f"could not start the native TypeDB server: {msg}. Pass "
+                    f"--docker to use docker-compose.yml instead, or point "
+                    f"TYPEDB_HOST/TYPEDB_PORT at a TypeDB you already run.")
+
+    ready, why = _wait_for_server(seconds=5 if already_up else 60)
+    if not note("server ready", ready,
+               f"{TYPEDB_HOST}:{TYPEDB_PORT}" if ready else why[:160]):
+        bail(5, f"nothing is answering on {TYPEDB_HOST}:{TYPEDB_PORT} after "
+                f"waiting: {why[:160]}")
 
     # --- the database ------------------------------------------------------
     try:
@@ -4363,6 +4578,14 @@ def cmd_init_db(args):
     out({"success": True, "database": name,
          "host": f"{TYPEDB_HOST}:{TYPEDB_PORT}", "steps": steps,
          "verdict": "Ready."})
+
+
+def cmd_stop_db(args):
+    """Stop the native server this CLI started. No effect on a --docker setup
+    or on a TypeDB somebody else runs -- there is no PID file for those, and
+    this refuses to guess at killing a process it did not start."""
+    ok, msg = _stop_native_server()
+    out({"success": ok, "detail": msg})
 
 
 BASE_SCHEMA = os.path.join(_SKILL_DIR, "schema-base.tql")
@@ -4453,9 +4676,21 @@ def cmd_doctor(args):
             return False, str(e)
 
     # --- the machine -------------------------------------------------------
+    # Two ways a server can be running: the default native process this CLI
+    # manages itself, or Docker for anyone who opted into --docker. Report
+    # both without treating either as required -- what matters lower down is
+    # whether something answers on TYPEDB_HOST:TYPEDB_PORT, not how it got
+    # there.
+    binp = _native_server_bin(TYPEDB_VERSION)
+    step("native TypeDB downloaded", bool(binp),
+         binp or f"not yet -- init-db will fetch it ({_native_platform() or 'unsupported platform'})")
+    if _native_running():
+        pid = open(NATIVE_PID_FILE).read().strip()
+        step("native server process", True, f"pid {pid}")
+
     have_docker = shutil.which("docker") is not None
     step("docker installed", have_docker,
-         "install Docker Desktop" if not have_docker else "")
+         "" if have_docker else "not installed -- fine unless you pass --docker")
     if have_docker:
         ok, msg = sh("docker", "info", "--format", "{{.ServerVersion}}")
         step("docker running", ok, msg if not ok else f"server {msg}")
@@ -5868,12 +6103,20 @@ def build_parser():
 
     # --- Provisioning (no campaign; safe to run on session start) ---
     s = sub.add_parser("init-db",
-                       help="Bring the install up: container, database, schema, rules (idempotent)")
+                       help="Bring the install up: server, database, schema, rules (idempotent)")
     s.add_argument("--database", help="database name (default: $TYPEDB_DATABASE)")
+    s.add_argument("--docker", action="store_true",
+                   help="manage docker-compose.yml instead of the built-in native server")
     s.add_argument("--pull", action="store_true",
-                   help="allow a first-run image pull (slow; used by /mythras-gm:setup, never by the hook)")
+                   help="with --docker: allow a first-run image pull (slow; used by "
+                        "/mythras-gm:setup, never by the hook). No effect otherwise -- "
+                        "the native server's ~25MB download always runs inline.")
     s.add_argument("--no-docker", action="store_true",
-                   help="assume TypeDB is already running somewhere and skip container management")
+                   help="manage nothing; assume a TypeDB you already run will be listening "
+                        "(despite the name, this also skips the native server -- it predates it)")
+
+    s = sub.add_parser("stop-db",
+                       help="Stop the native TypeDB server this CLI started (no effect on --docker)")
 
     s = sub.add_parser("load-schema",
                        help="Define the myth- schema into the database (idempotent)")
