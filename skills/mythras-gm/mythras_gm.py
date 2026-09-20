@@ -4168,7 +4168,16 @@ TYPEDB_IMAGE = "typedb/typedb:3.8.0"   # docker path, kept for people who alread
 # TYPEDB_HOST:TYPEDB_PORT, neither path runs at all, so an existing Docker
 # install (this developer's own live database included) is untouched.
 TYPEDB_VERSION = "3.8.0"               # kept in step with TYPEDB_IMAGE's tag
-NATIVE_HOME = os.path.expanduser("~/.claude/mythras-gm/typedb")
+# Where the server, its PID file, its log AND its data live. All four move
+# together, deliberately: a data directory that survives next to a binary that
+# does not is just a different way to lose the save.
+#
+# The default is under ~/.claude, which is fine on a laptop and wrong in a
+# Claude Code cloud container, where the home directory does not survive an
+# idle restart. MYTHRAS_TYPEDB_HOME points all of it somewhere that does --
+# a directory inside the repo checkout, typically -- and a campaign repo's
+# SessionStart hook is the natural place to export it.
+NATIVE_HOME = os.getenv("MYTHRAS_TYPEDB_HOME") or os.path.expanduser("~/.claude/mythras-gm/typedb")
 NATIVE_PID_FILE = os.path.join(NATIVE_HOME, "typedb.pid")
 NATIVE_LOG_FILE = os.path.join(NATIVE_HOME, "server.log")
 NATIVE_DATA_DIR = os.path.join(NATIVE_HOME, "data")
@@ -4210,39 +4219,75 @@ def _native_server_bin(version):
     return p if os.path.isfile(p) else None
 
 
-def _download_native(version, timeout=90):
-    """Fetch and unpack the self-contained server build for this platform.
+TYPEDB_DIST_CDN = "https://repo.typedb.com/public/public-release/raw/names"
 
-    Streamed with an explicit socket timeout, so a dead network fails within
-    `timeout` seconds rather than hanging the session -- the same worry that
-    kept the old Docker image pull out of the session-start hook, except this
-    download is ~25MB rather than several hundred, so it is fast enough to
-    belong in the ordinary path instead of a separate slow command.
+
+def _native_dist_url(plat, version, ext):
+    """Where the server archive comes from.
+
+    The default is TypeDB's own CDN, whose layout nests the archive under
+    typedb-all-<platform>/versions/<version>/. TYPEDB_DIST_BASE names any
+    directory URL that holds the archive FLAT, by filename -- a GitHub release
+    page, an internal mirror -- for environments whose egress policy refuses
+    repo.typedb.com. (Claude Code cloud containers do; GitHub release assets
+    are reachable from them, verified end to end.)
     """
-    import platform as _plat
+    filename = f"typedb-all-{plat}-{version}.{ext}"
+    base = os.getenv("TYPEDB_DIST_BASE")
+    if base:
+        return f"{base.rstrip('/')}/{filename}"
+    return f"{TYPEDB_DIST_CDN}/typedb-all-{plat}/versions/{version}/{filename}"
+
+
+def _sha256_of(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _fetch_native_archive(url, dest, timeout):
+    """Stream `url` to `dest`. Returns (ok, message)."""
+    import urllib.error
+    import urllib.parse
     import urllib.request
-    plat = _native_platform()
-    if not plat:
-        return False, (f"no native TypeDB build for {_plat.system()}/{_plat.machine()}; "
-                       f"pass --docker to use docker-compose.yml instead")
-    os.makedirs(NATIVE_HOME, exist_ok=True)
-    ext = "tar.gz" if plat.startswith("linux") else "zip"
-    url = (f"https://repo.typedb.com/public/public-release/raw/names/"
-           f"typedb-all-{plat}/versions/{version}/typedb-all-{plat}-{version}.{ext}")
-    archive = os.path.join(NATIVE_HOME, f"download.{ext}")
     # The CDN 403s a bare urllib request (no User-Agent at all); any UA at
     # all satisfies it, confirmed against a plain "curl/8.0" string.
     req = urllib.request.Request(url, headers={"User-Agent": "mythras-gm/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp, \
-                open(archive, "wb") as fh:
+                open(dest, "wb") as fh:
             while True:
                 chunk = resp.read(1 << 16)
                 if not chunk:
                     break
                 fh.write(chunk)
+        return True, url
     except Exception as e:
-        return False, f"could not download TypeDB from {url}: {e}"
+        host = urllib.parse.urlsplit(url).hostname or url
+        text = str(e)
+        # An egress proxy refusing the CONNECT surfaces as a 403/407 on the
+        # tunnel, not on the resource. That is a policy, not a bug, and no
+        # change here gets past it -- but a whole session was once spent
+        # finding that out, so say so, name the host, and name the way around.
+        code = getattr(e, "code", None)
+        refused = code in (403, 407) or "Tunnel connection failed" in text \
+            or "403" in text or "407" in text
+        if refused:
+            return False, (
+                f"the egress proxy refused the download from {host} ({text}). "
+                f"This is a network policy, not something init-db can fix: "
+                f"either allowlist {host}, or set TYPEDB_DIST_BASE to a mirror "
+                f"that IS reachable (a GitHub release holding the same archive), "
+                f"or set TYPEDB_DIST_ARCHIVE to a copy of the archive already on "
+                f"disk. Pin TYPEDB_DIST_SHA256 if you use a mirror.")
+        return False, f"could not download TypeDB from {url}: {text}"
+
+
+def _unpack_native_archive(archive, ext, version):
+    """Unpack into NATIVE_HOME and make sure the binary is runnable."""
     try:
         if ext == "zip":
             import zipfile
@@ -4253,12 +4298,7 @@ def _download_native(version, timeout=90):
             with tarfile.open(archive) as t:
                 t.extractall(NATIVE_HOME)
     except Exception as e:
-        return False, f"downloaded but could not unpack {archive}: {e}"
-    finally:
-        try:
-            os.remove(archive)
-        except OSError:
-            pass
+        return False, f"could not unpack {archive}: {e}"
     # zipfile.extractall does not restore the executable bit (tarfile does,
     # which is why this only bites mac/windows, whose archives are zips) --
     # confirmed against a real extraction, which left the binary at mode 644
@@ -4266,7 +4306,70 @@ def _download_native(version, timeout=90):
     binp = _native_server_bin(version)
     if binp and not os.access(binp, os.X_OK):
         os.chmod(binp, 0o755)
-    return (binp is not None), url
+    if binp is None:
+        return False, "unpacked, but the server binary was not where expected"
+    return True, binp
+
+
+def _download_native(version, timeout=90):
+    """Fetch and unpack the self-contained server build for this platform.
+
+    Streamed with an explicit socket timeout, so a dead network fails within
+    `timeout` seconds rather than hanging the session -- the same worry that
+    kept the old Docker image pull out of the session-start hook, except this
+    download is ~25MB rather than several hundred, so it is fast enough to
+    belong in the ordinary path instead of a separate slow command.
+
+    Three environment hooks, each independent, for containers that cannot
+    reach the vendor CDN or cannot reach anything at all:
+
+      TYPEDB_DIST_BASE     directory URL holding the archive flat by filename
+      TYPEDB_DIST_ARCHIVE  path to the archive already on disk; no network
+      TYPEDB_DIST_SHA256   pinned digest the archive must match before unpack
+
+    A user-supplied archive is theirs and is never deleted; one this function
+    downloaded is removed once unpacked.
+    """
+    import platform as _plat
+    plat = _native_platform()
+    if not plat:
+        return False, (f"no native TypeDB build for {_plat.system()}/{_plat.machine()}; "
+                       f"pass --docker to use docker-compose.yml instead")
+    os.makedirs(NATIVE_HOME, exist_ok=True)
+    ext = "tar.gz" if plat.startswith("linux") else "zip"
+
+    local = os.getenv("TYPEDB_DIST_ARCHIVE")
+    if local:
+        if not os.path.isfile(local):
+            return False, f"TYPEDB_DIST_ARCHIVE={local} is not a file"
+        archive, downloaded, source = local, False, local
+    else:
+        url = _native_dist_url(plat, version, ext)
+        archive = os.path.join(NATIVE_HOME, f"download.{ext}")
+        ok, msg = _fetch_native_archive(url, archive, timeout)
+        if not ok:
+            try:
+                os.remove(archive)
+            except OSError:
+                pass
+            return False, msg
+        downloaded, source = True, url
+
+    try:
+        pinned = os.getenv("TYPEDB_DIST_SHA256")
+        if pinned:
+            actual = _sha256_of(archive)
+            if actual.lower() != pinned.strip().lower():
+                return False, (f"sha256 mismatch for {source}: expected "
+                               f"{pinned.strip()}, got {actual}. Nothing was unpacked.")
+        ok, msg = _unpack_native_archive(archive, ext, version)
+        return ok, (source if ok else msg)
+    finally:
+        if downloaded:
+            try:
+                os.remove(archive)
+            except OSError:
+                pass
 
 
 def _native_pid_alive(pid):
@@ -4577,6 +4680,10 @@ def cmd_init_db(args):
 
     out({"success": True, "database": name,
          "host": f"{TYPEDB_HOST}:{TYPEDB_PORT}", "steps": steps,
+         # Where the save actually lives. In a disposable container this is
+         # the line to read: if it is under a home directory that gets wiped,
+         # so is the game.
+         "native_home": NATIVE_HOME if _native_running() else None,
          "verdict": "Ready."})
 
 
@@ -4681,6 +4788,20 @@ def cmd_doctor(args):
     # both without treating either as required -- what matters lower down is
     # whether something answers on TYPEDB_HOST:TYPEDB_PORT, not how it got
     # there.
+    # Where the engine and its data live is the first thing to know in a
+    # disposable container: if this is under a home directory that gets
+    # wiped, the save goes with it, and the answer is MYTHRAS_TYPEDB_HOME.
+    step("native TypeDB home", True,
+         NATIVE_HOME + (" (MYTHRAS_TYPEDB_HOME)" if os.getenv("MYTHRAS_TYPEDB_HOME")
+                        else " (default; set MYTHRAS_TYPEDB_HOME to move it)"))
+    step("native data directory", os.path.isdir(NATIVE_DATA_DIR),
+         NATIVE_DATA_DIR if os.path.isdir(NATIVE_DATA_DIR)
+         else f"{NATIVE_DATA_DIR} -- not there yet, or wiped since last run")
+    dist = {k: os.getenv(k) for k in ("TYPEDB_DIST_BASE", "TYPEDB_DIST_ARCHIVE",
+                                      "TYPEDB_DIST_SHA256") if os.getenv(k)}
+    if dist:
+        step("native download overrides", True,
+             ", ".join(f"{k}={v}" for k, v in dist.items()))
     binp = _native_server_bin(TYPEDB_VERSION)
     step("native TypeDB downloaded", bool(binp),
          binp or f"not yet -- init-db will fetch it ({_native_platform() or 'unsupported platform'})")
