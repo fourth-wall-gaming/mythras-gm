@@ -46,7 +46,8 @@ fi
 
 if OUT=$(uv run -q --project "$GM" python "$GM/mythras_gm.py" init-db 2>&1); then
   DB=$(printf '%s' "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("database","?"))' 2>/dev/null || echo "$TYPEDB_DATABASE")
-  echo "mythras-gm ready: database ${DB} on ${TYPEDB_PORT}. State persists; roll everything through the CLI."
+  HOME_LINE=$(printf '%s' "$OUT" | python3 -c 'import json,sys; h=json.load(sys.stdin).get("native_home"); print(f" Engine and data at {h}." if h else "")' 2>/dev/null || true)
+  echo "mythras-gm ready: database ${DB} on ${TYPEDB_PORT}.${HOME_LINE} State persists; roll everything through the CLI."
   exit 0
 fi
 

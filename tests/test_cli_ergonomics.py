@@ -476,12 +476,142 @@ def test_native_platform_returns_none_for_the_unsupported():
         assert gm._native_platform() is None
 
 
-def test_download_url_matches_the_real_typedb_cdn_layout():
+def test_download_url_matches_the_real_typedb_cdn_layout(monkeypatch):
     """Pinned against the actual repo.typedb.com layout, verified by hand:
     typedb-all-<platform>/versions/<version>/typedb-all-<platform>-<version>.<ext>"""
-    src = open(gm.__file__).read()
-    assert "repo.typedb.com/public/public-release/raw/names/" in src
-    assert 'f"typedb-all-{plat}/versions/{version}/' in src
+    monkeypatch.delenv("TYPEDB_DIST_BASE", raising=False)
+    assert gm._native_dist_url("linux-x86_64", "3.8.0", "tar.gz") == (
+        "https://repo.typedb.com/public/public-release/raw/names/"
+        "typedb-all-linux-x86_64/versions/3.8.0/typedb-all-linux-x86_64-3.8.0.tar.gz")
+
+
+# --- native TypeDB inside a locked-down or disposable container -------------
+#
+# Claude Code cloud sessions run in a container whose egress gateway refuses
+# CONNECT to repo.typedb.com, and whose home directory does not survive an idle
+# restart. Neither is a bug in this code, but this code has to be steerable
+# around both: where the server and its data live, and where the archive comes
+# from, are each one environment variable.
+
+def test_native_home_is_overridable_so_data_can_live_where_it_survives(tmp_path):
+    """~/.claude is wiped on a cloud container restart. MYTHRAS_TYPEDB_HOME
+    moves the binary, the PID file, the log AND the data directory together,
+    because a data directory that survives next to a binary that does not is
+    just a different way to lose the save."""
+    import os
+    import subprocess
+    r = subprocess.run(
+        [sys.executable, "-c",
+         "import mythras_gm as gm; import json; "
+         "print(json.dumps([gm.NATIVE_HOME, gm.NATIVE_DATA_DIR, gm.NATIVE_PID_FILE]))"],
+        capture_output=True, text=True, cwd=str(Path(gm.__file__).parent),
+        env={**os.environ, "MYTHRAS_TYPEDB_HOME": str(tmp_path / "engine")})
+    assert r.returncode == 0, r.stderr
+    home, data, pid = _json.loads(r.stdout)
+    assert home == str(tmp_path / "engine")
+    assert data.startswith(home) and pid.startswith(home)
+
+
+def test_dist_base_redirects_the_download_at_a_flat_mirror(monkeypatch):
+    """A GitHub release holds assets flat, by filename. TYPEDB_DIST_BASE names
+    the directory URL that holds the archive, and nothing else changes."""
+    monkeypatch.setenv("TYPEDB_DIST_BASE",
+                       "https://github.com/fourth-wall-gaming/mythras-gm/releases/download/typedb-3.8.0/")
+    assert gm._native_dist_url("linux-x86_64", "3.8.0", "tar.gz") == (
+        "https://github.com/fourth-wall-gaming/mythras-gm/releases/download/"
+        "typedb-3.8.0/typedb-all-linux-x86_64-3.8.0.tar.gz")
+
+
+def _fake_typedb_tarball(path, plat="linux-x86_64", version="3.8.0", payload=b"#!/bin/sh\n"):
+    """A tar.gz shaped like the real distribution: <dist>/server/typedb_server_bin."""
+    import io
+    import tarfile
+    with tarfile.open(path, "w:gz") as t:
+        info = tarfile.TarInfo(f"typedb-all-{plat}-{version}/server/typedb_server_bin")
+        info.size = len(payload)
+        info.mode = 0o755
+        t.addfile(info, io.BytesIO(payload))
+
+
+def test_dist_archive_skips_the_network_entirely(tmp_path, monkeypatch):
+    """The true escape hatch for any environment with no route out at all:
+    hand it an archive on disk and it never opens a socket."""
+    import platform as _platform
+    import urllib.request
+    import unittest.mock as mock
+    archive = tmp_path / "typedb.tar.gz"
+    _fake_typedb_tarball(archive)
+    monkeypatch.setattr(gm, "NATIVE_HOME", str(tmp_path / "engine"))
+    monkeypatch.setenv("TYPEDB_DIST_ARCHIVE", str(archive))
+    monkeypatch.delenv("TYPEDB_DIST_SHA256", raising=False)
+    with mock.patch.object(_platform, "system", return_value="Linux"), \
+         mock.patch.object(_platform, "machine", return_value="x86_64"), \
+         mock.patch.object(urllib.request, "urlopen",
+                           side_effect=AssertionError("network must not be touched")):
+        ok, where = gm._download_native("3.8.0")
+        assert ok, where
+        assert gm._native_server_bin("3.8.0") == str(
+            tmp_path / "engine" / "typedb-all-linux-x86_64-3.8.0" / "server" / "typedb_server_bin")
+    assert archive.exists(), "a user-supplied archive is theirs; do not delete it"
+
+
+def test_dist_sha256_rejects_an_archive_that_does_not_match(tmp_path, monkeypatch):
+    """Trusting whatever unpacks is fine from the vendor's own CDN and not fine
+    from a mirror. A pinned digest turns a tampered or truncated archive into
+    a refusal instead of a server binary."""
+    import platform as _platform
+    import unittest.mock as mock
+    archive = tmp_path / "typedb.tar.gz"
+    _fake_typedb_tarball(archive)
+    monkeypatch.setattr(gm, "NATIVE_HOME", str(tmp_path / "engine"))
+    monkeypatch.setenv("TYPEDB_DIST_ARCHIVE", str(archive))
+    monkeypatch.setenv("TYPEDB_DIST_SHA256", "0" * 64)
+    with mock.patch.object(_platform, "system", return_value="Linux"), \
+         mock.patch.object(_platform, "machine", return_value="x86_64"):
+        ok, msg = gm._download_native("3.8.0")
+        assert not ok
+        assert "sha256" in msg.lower()
+        assert gm._native_server_bin("3.8.0") is None, "nothing may be unpacked from a bad archive"
+
+
+def test_dist_sha256_accepts_the_matching_digest(tmp_path, monkeypatch):
+    import hashlib
+    import platform as _platform
+    import unittest.mock as mock
+    archive = tmp_path / "typedb.tar.gz"
+    _fake_typedb_tarball(archive)
+    monkeypatch.setattr(gm, "NATIVE_HOME", str(tmp_path / "engine"))
+    monkeypatch.setenv("TYPEDB_DIST_ARCHIVE", str(archive))
+    monkeypatch.setenv("TYPEDB_DIST_SHA256", hashlib.sha256(archive.read_bytes()).hexdigest())
+    import urllib.request
+    with mock.patch.object(_platform, "system", return_value="Linux"), \
+         mock.patch.object(_platform, "machine", return_value="x86_64"), \
+         mock.patch.object(urllib.request, "urlopen",
+                           side_effect=AssertionError("network must not be touched")):
+        ok, msg = gm._download_native("3.8.0")
+    assert ok, msg
+
+
+def test_download_refused_by_an_egress_proxy_names_the_host_and_the_way_around(tmp_path, monkeypatch):
+    """A whole session was spent diagnosing 'could not download ... 403'. When
+    the proxy refuses the CONNECT, say which host to allowlist and name the
+    two variables that route around it, so the next person spends a minute."""
+    import platform as _platform
+    import urllib.error
+    import urllib.request
+    import unittest.mock as mock
+    monkeypatch.setattr(gm, "NATIVE_HOME", str(tmp_path / "engine"))
+    monkeypatch.delenv("TYPEDB_DIST_ARCHIVE", raising=False)
+    monkeypatch.delenv("TYPEDB_DIST_BASE", raising=False)
+    refused = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
+    with mock.patch.object(_platform, "system", return_value="Linux"), \
+         mock.patch.object(_platform, "machine", return_value="x86_64"), \
+         mock.patch.object(urllib.request, "urlopen", side_effect=refused):
+        ok, msg = gm._download_native("3.8.0")
+    assert not ok
+    assert "repo.typedb.com" in msg
+    assert "egress" in msg.lower() or "proxy" in msg.lower()
+    assert "TYPEDB_DIST_BASE" in msg and "TYPEDB_DIST_ARCHIVE" in msg
 
 
 def test_download_sends_a_user_agent():
@@ -489,7 +619,7 @@ def test_download_sends_a_user_agent():
     satisfies it, confirmed against the real endpoint. A regression here fails
     silently as a 403, not as an obviously-wrong error."""
     src = open(gm.__file__).read()
-    body = src.split("def _download_native(")[1].split("\ndef ")[0]
+    body = src.split("def _fetch_native_archive(")[1].split("\ndef ")[0]
     assert "User-Agent" in body
 
 
@@ -499,7 +629,7 @@ def test_zip_extraction_restores_the_executable_bit():
     Popen refusing it with EACCES. Only zip platforms (mac, windows) need the
     explicit chmod; this asserts the fix is still there."""
     src = open(gm.__file__).read()
-    body = src.split("def _download_native(")[1].split("\ndef ")[0]
+    body = src.split("def _unpack_native_archive(")[1].split("\ndef ")[0]
     assert "os.chmod(" in body
 
 

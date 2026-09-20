@@ -171,6 +171,24 @@ GM="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
 uv run -q --project "$GM" python "$GM/mythras_gm.py" doctor
 ```
 
+### Locked-down or disposable containers
+
+Claude Code cloud sessions run in a container whose home directory does not
+survive an idle restart, and whose egress gateway refuses `repo.typedb.com`.
+Neither is something `init-db` can fix, so each is one environment variable:
+
+| Variable | What it does |
+|---|---|
+| `MYTHRAS_TYPEDB_HOME` | Where the server binary, PID file, log **and data directory** live. Default `~/.claude/mythras-gm/typedb`. Point it inside the repo checkout so the save survives whatever wipes `$HOME`. |
+| `TYPEDB_DIST_BASE` | Directory URL holding `typedb-all-<platform>-<version>.<ext>` flat by filename -- a GitHub release page is the natural mirror, and GitHub asset hosts are reachable where the vendor CDN is not. |
+| `TYPEDB_DIST_ARCHIVE` | Path to the archive already on disk. No network at all. Your file is never deleted. |
+| `TYPEDB_DIST_SHA256` | Pinned digest the archive must match before anything is unpacked. Set it whenever you use a mirror. |
+
+`doctor` reports all four. When the proxy refuses the download, `init-db`
+says so, names the host to allowlist, and names the two variables that route
+around it -- rather than the generic "could not download" that once cost a
+whole session to diagnose.
+
 **If the database is unreachable the CLI now says so on stdout and exits 1.** It
 used to raise, and every documented invocation piped stderr to `/dev/null`, so a
 dead database looked like an empty one and a whole session could be played with
