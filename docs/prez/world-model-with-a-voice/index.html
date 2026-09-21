@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Opus as a Tabletop GamesMaster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #0F1218;
+    --panel: #171C26;
+    --text: #EDE7DA;
+    --text-strong: #FFFAF0;
+    --muted: #A2A6AE;
+    --amber: #E0A458;
+    --teal: #63B8AC;
+    --line: rgba(237,231,218,.16);
+    --font: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  html { background: var(--ground); }
+  body {
+    margin: 0; background: var(--ground); color: var(--text);
+    font-family: var(--font); font-variation-settings: "opsz" 18;
+    font-size: clamp(17px, 1.55vw, 24px); line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  b, strong { font-weight: 700; color: var(--text-strong); }
+  a { color: var(--amber); text-decoration: none; border-bottom: 1px solid rgba(224,164,88,.35); }
+  a:hover, a:focus-visible { border-bottom-color: var(--amber); }
+  ::selection { background: var(--amber); color: var(--ground); }
+
+  /* ---------- deck ---------- */
+  .deck { display: block; }
+  .slide {
+    min-height: 100dvh; box-sizing: border-box; position: relative;
+    padding-block: 7vh 8vh; padding-inline: clamp(16px, 7vw, 120px);
+    display: flex; flex-direction: column; justify-content: center;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (min-width: 900px) {
+    .deck { height: 100dvh; overflow: hidden; }
+    .slide { display: none; height: 100dvh; border-bottom: 0; }
+    .slide.active { display: flex; }
+  }
+  .slide > .inner { max-width: 1100px; width: 100%; margin-inline: auto; position: relative; }
+
+  /* ---------- point slides: image + one sentence ---------- */
+  .point {
+    justify-content: flex-end;
+    background-color: var(--ground);
+    background-size: cover; background-position: center;
+    background-image: linear-gradient(180deg, rgba(15,18,24,.10) 0%, rgba(15,18,24,.25) 45%, rgba(15,18,24,.88) 100%),
+                      radial-gradient(120% 90% at 30% 20%, #2A3244 0%, #0F1218 70%);
+  }
+  .point.has-img { background-image: linear-gradient(180deg, rgba(15,18,24,.05) 0%, rgba(15,18,24,.20) 45%, rgba(15,18,24,.90) 100%), var(--img); }
+  .point .inner { max-width: 1240px; }
+  .point h1 {
+    margin: 0; font-weight: 600; font-variation-settings: "opsz" 144;
+    font-size: clamp(2.2em, 5.4vw, 4.6em); line-height: 1.02; letter-spacing: -.015em;
+    text-wrap: balance; max-width: 15em;
+    text-shadow: 0 2px 24px rgba(0,0,0,.55);
+  }
+  .point h1 em { font-style: italic; font-weight: 300; color: var(--amber); }
+  .point .sub { margin: .8em 0 0; font-size: clamp(1em, 1.6vw, 1.35em); font-weight: 300; color: var(--text); opacity: .85; max-width: 30em; text-shadow: 0 1px 12px rgba(0,0,0,.6); }
+  .point .imgname { position: absolute; top: 14px; right: 16px; font-family: var(--mono); font-size: 11px; color: var(--muted); opacity: .8; }
+  .point.has-img .imgname { display: none; }
+
+  /* ---------- detail slides: title + list ---------- */
+  .detail h2 {
+    margin: 0 0 .7em; font-weight: 400; font-variation-settings: "opsz" 96;
+    font-size: clamp(1.7em, 3vw, 2.5em); line-height: 1.1; letter-spacing: -.01em; text-wrap: balance;
+  }
+  .detail p { margin: 0 0 .7em; max-width: 36em; }
+  .detail p.big { font-size: 1.15em; font-weight: 300; max-width: 32em; }
+  .detail ul, .detail ol { margin: 0; padding-left: 1.15em; max-width: 38em; }
+  .detail li { margin-bottom: .55em; padding-left: .2em; }
+  .detail li::marker { color: var(--amber); }
+  .detail li b { font-weight: 700; }
+  .detail .muted { color: var(--muted); }
+  .detail .refs { font-size: .62em; color: var(--muted); line-height: 1.5; max-width: none; margin-top: 1.4em; border-top: 1px solid var(--line); padding-top: .8em; }
+  .detail .refs .au { color: var(--amber); }
+  .detail .refs a { border-bottom-color: transparent; }
+  .detail .refs a:hover, .detail .refs a:focus-visible { border-bottom-color: var(--amber); }
+  .detail .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: clamp(20px, 3.5vw, 56px); align-items: start; }
+  .detail .cols > * { min-width: 0; }
+  .detail .cols ul { max-width: none; }
+
+  /* transcript & quotes: same face, italic voice for the fiction */
+  .quote { margin: 0 0 1em; padding-left: 1em; border-left: 2px solid var(--amber); max-width: 34em; }
+  .quote p { margin-bottom: .5em; }
+  .quote .who { display: block; font-size: .78em; color: var(--muted); margin: .9em 0 .25em; }
+  .quote .who:first-child { margin-top: 0; }
+  .quote .who.player { color: var(--amber); }
+  .quote .roll { font-family: var(--mono); font-size: .74em; color: var(--amber); display: block; margin: .1em 0 .4em; }
+  .quote mark { background: rgba(224,164,88,.18); color: var(--text); padding: 0 .15em; border-bottom: 1px solid var(--amber); }
+  .quote.example { max-width: none; margin-top: 1em; font-size: .92em; }
+  .quote.example p { margin-bottom: .35em; }
+  .quote.big { border-left: 0; padding-left: 0; font-size: 1.25em; font-weight: 300; font-style: italic; line-height: 1.35; }
+  .quote.big cite { display: block; font-style: normal; font-size: .6em; color: var(--muted); margin-top: .8em; }
+
+  pre.code {
+    font-family: var(--mono); font-size: .72em; line-height: 1.55; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1em 1.2em;
+    overflow-x: auto; white-space: pre; margin: 0 0 1em;
+  }
+  pre.code .k { color: var(--teal); } pre.code .v { color: var(--amber); } pre.code .c { color: var(--muted); }
+
+  table.plain { border-collapse: collapse; width: 100%; font-size: .9em; }
+  table.plain th, table.plain td { text-align: left; vertical-align: top; padding: .55em .9em .55em 0; border-bottom: 1px solid var(--line); }
+  table.plain th { font-weight: 600; color: var(--muted); }
+  .tablewrap { overflow-x: auto; }
+
+  figure { margin: 0; }
+  figure svg { max-width: 100%; height: auto; display: block; color: var(--text); }
+  figcaption { font-size: .8em; color: var(--muted); margin-top: .8em; max-width: 40em; }
+  .svgwrap { overflow-x: auto; }
+
+  .disclaimer { border: 1px solid var(--amber); border-radius: 4px; padding: 1.4em 1.6em; max-width: 34em; }
+  .disclaimer h2 { font-size: 1.6em; margin-bottom: .5em; }
+  .disclaimer p { max-width: none; }
+
+  /* ---------- chrome (deck controls, not slide content) ---------- */
+  #progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: var(--amber); z-index: 20; transition: width .25s ease; }
+  #hud { position: fixed; bottom: 10px; right: 14px; z-index: 20; display: flex; gap: 14px; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--muted); opacity: .7; }
+  #hud.hidden, #progress.hidden { display: none; }
+  #hud button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; cursor: pointer; }
+  #hud button:hover, #hud button:focus-visible { border-color: var(--amber); color: var(--text); outline: none; }
+  #clock.over { color: var(--amber); }
+
+  #notes {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 30;
+    background: var(--panel); border-left: 1px solid var(--line);
+    padding-block: 20px 60px; padding-inline: 22px; box-sizing: border-box; overflow-y: auto;
+    font-size: 17px; line-height: 1.5; color: var(--text);
+    transform: translateX(100%); transition: transform .25s ease;
+  }
+  #notes.open { transform: none; }
+  #notes .budget { font-family: var(--mono); font-size: 12px; color: var(--amber); margin-bottom: 8px; }
+  #notes .budget .cum { color: var(--muted); margin-left: 1em; }
+  #notes h4 { font-weight: 600; font-size: 20px; margin: 0 0 10px; line-height: 1.2; }
+  #notes p { margin-bottom: .8em; }
+  #notes .help { font-family: var(--mono); font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 18px; }
+  .notes-src, .notes-inline { display: none; }
+  @media (max-width: 899px) {
+    #notes { display: none; }
+    .notes-inline { display: block; margin-top: 2em; border-top: 1px dashed var(--line); padding-top: 1em; font-size: .85em; color: var(--muted); }
+    .point .notes-inline { color: var(--text); }
+  }
+  @media (prefers-reduced-motion: reduce) { #progress, #notes { transition: none; } }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<main class="deck" id="deck">
+
+<!-- ===================================================== 1 · TITLE -->
+<section class="slide point" data-img="img/01-title.png" data-budget="0:15">
+  <div class="inner">
+    <h1>Claude Opus as a <br><em>Tabletop Roleplaying Gamesmaster</em><br>for the Mythras Imperative Rule Set</h1>
+    <p class="sub">Gully Burns · Altos Labs · September 2026</p>
+  </div>
+  <div class="notes-src">
+    <h4>Title</h4>
+    <p>One breath: this is a talk about what it takes to run a role-playing game inside a language model, and the answer turned out to be a world model — a typed, queryable one — with a storyteller's voice on top.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 2 · DISCLAIMER -->
+<section class="slide detail" data-budget="0:15">
+  <div class="inner">
+    <div class="disclaimer">
+      <h2>Disclaimer</h2>
+      <p>None of the work in this talk involved Altos Labs in any way. It was done on my own time, on my own hardware, with my own accounts. No Altos resources, data, code, or people were used, and nothing here represents Altos Labs' views, products, or plans.</p>
+      <p class="muted">It is a hobby project about running games, built by someone who wanted to play one.</p>
+    </div>
+  </div>
+  <div class="notes-src"><h4>Disclaimer</h4><p>Read it plainly. Do not joke over it. Then move on.</p></div>
+</section>
+
+<!-- ===================================================== 2b · about me -->
+<section class="slide detail" data-budget="0:30">
+  <div class="inner">
+    <h2>About me</h2>
+    <ul>
+      <li><b>By day</b>, I build knowledge systems for science — agents that read the literature and keep what they learn in a typed graph. <a href="https://github.com/GullyBurns/skillful-alhazen" target="_blank" rel="noopener">Skillful Alhazen</a> is the open-source version of that work, and the memory this talk is built on.</li>
+      <li><b>By night</b>, I run and write tabletop games. <a href="https://github.com/fourth-wall-gaming" target="_blank" rel="noopener">fourth-wall-gaming</a> publishes the Mythras engine and campaigns you will see here.</li>
+      <li><b>I have also written for Mythras in print:</b> <i>Dreams of Lost Children</i>, a scenario for <i>Destined</i>, The Design Mechanism's superhero game — so I come to this as a scenario author who wanted to know what a machine could do with one.</li>
+    </ul>
+  </div>
+  <div class="notes-src">
+    <h4>About me</h4>
+    <p>Thirty seconds. The two halves of the day are the two halves of the talk: the typed memory comes from the science work, the table craft comes from years of running games. Mention <i>Dreams of Lost Children</i> so the room knows the scenario-writing side is real and not a hobbyist's guess.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 3 · POINT: transportation -->
+<section class="slide point" data-img="img/03-new-medium.png" data-budget="0:15">
+  <div class="inner">
+    <h1>Stories <em>transport</em> us. A role-playing game transports us as a <em>participant</em>.</h1>
+    <p class="sub">A language model can now be the narrator.</p>
+  </div>
+  <div class="notes-src"><h4>Transportation</h4><p>One breath. Narrative transportation is the psychologists' name for what a good story does: the reader leaves the room. A tabletop game does the same thing with the reader inside the story as a participant, deciding what happens next. And a language model can now take the narrator's chair. The next slide is the academic footing for that claim.</p></div>
+</section>
+
+<!-- ===================================================== 3b · narrative transportation -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>'Narrative Transportation'</h2>
+    <ol>
+      <li><b>Stories change beliefs by transporting the reader</b> — attention, imagery and feeling converge on the story and the room drops away.</li>
+      <li><b>Narrative Transportation is a psychological measure of this phenomenon</b> - it is measured with a 15-item questionnaire. <span class="muted">Green &amp; Brock 2000</span></li>
+      <li><b>What raises it reads like a description of a role-playing game</b>: interactivity, user control, perceived contingency, perspective-taking, imagination, mental simulation, spatial presence. <span class="muted">Thomas &amp; Grigsby 2024, Table 2</span></li>
+      <li><b>The field has predicted this medium and not measured it</b> — co-created stories where "the consumer will be the character", via "story prompts provided to AI interfaces". No LLM study among the 95 reviewed. <span class="muted">Thomas &amp; Grigsby 2024, §5.3</span></li>
+      <li><b>What has been measured is prompt-only generation, and the evidence is thin.</b> AI short stories transported readers slightly less than student-written ones (d = 0.21); a plain ChatGPT dungeon master scored 2.67/5 on immersion from three expert judges, through a translator; a GM with a memory agent and world state beat a prompt-only GM on immersion (N = 12). <span class="muted">Appel et al. 2025; Triyason 2023; Jørgensen et al. 2025</span></li>
+    </ol>
+    <p class="refs"><a class="au" href="https://doi.org/10.1037/0022-3514.79.5.701" target="_blank" rel="noopener">Green &amp; Brock</a> (2000) <i>J. Personality &amp; Social Psychology</i> 79(5):701–721 · <a class="au" href="https://doi.org/10.1086/673383" target="_blank" rel="noopener">van Laer, de Ruyter, Visconti &amp; Wetzels</a> (2014) <i>J. Consumer Research</i> 40(5):797–817 · <a class="au" href="https://doi.org/10.1002/mar.22011" target="_blank" rel="noopener">Thomas &amp; Grigsby</a> (2024) <i>Psychology &amp; Marketing</i> 41:1805–1819 · <a class="au" href="https://doi.org/10.1057/s41599-025-06341-2" target="_blank" rel="noopener">Appel, Malecki, Messingschlager &amp; Winkler</a> (2025) "I, ChatGPT" <i>Humanities &amp; Social Sciences Communications</i> 12:1892 · <a class="au" href="https://doi.org/10.1145/3628454.3628457" target="_blank" rel="noopener">Triyason</a> (2023) "Exploring the Potential of ChatGPT as a Dungeon Master" <i>IAIT 2023</i>, doi:10.1145/3628454.3628457 · <a class="au" href="https://arxiv.org/abs/2502.19519" target="_blank" rel="noopener">Jørgensen, Tharmabalan, Aslan, Hansen &amp; Merritt</a> (2025) "Static vs. Agentic Game Master AI" arXiv:2502.19519</p>
+  </div>
+  <div class="notes-src">
+    <h4>The academic footing</h4>
+    <p>Four points, one breath each. Transportation is a validated construct with a scale. The things that raise it are the things a game does by construction. The literature predicted this medium in its own future-research section and has not measured it. And what has been measured is the prompt-only version, with small samples: a small effect against AI-written stories on GPT-3.5, a low immersion score for a bare ChatGPT DM that the author himself says the translation setup depressed, and one within-subjects study where adding a memory agent and world state lifted immersion. Do not oversell it — the honest point is that nobody has measured a GM with a real world model, which is what this talk is about.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 4 · Johnson -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>Steven Johnson Turned Storybooks into Games</h2>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Johnson, an author and editorial lead on Google's NotebookLM, noticed users using a million-token context window as a <b>RPG campaign notebook</b></li>
+          <li>Johnson wrote prompts that turn <em>any source document</em> into a playable simulation on Gemini 1.5 Pro.</li>
+          <li>Three experiments:
+            <ul>
+            <li><b>The Ghost Map</b> as a cholera-detective simulation in 1854 London</li>
+            <li><b>The Cuban Missile Crisis</b>, sourced from Wikipedia</li>
+            <li><b>One chapter of The Infernal Machine</b> as a published fingerprint-analysis mini-game</li>
+            </ul>
+            </li>
+        </ul>
+      </div>
+      <div>
+        <div class="quote big">"One interesting application that we noticed early on in the NotebookLM Discord was that long context was enabling role-playing-game enthusiasts to keep track of their games."<cite><a href="https://adjacentpossible.substack.com/p/in-the-context-of-long-context" target="_blank" rel="noopener">Steven Johnson, In the Context of Long Context — Adjacent Possible</a></cite></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Johnson</h4>
+    <p>This is the cleanest public account of the idea: give the model a source and a long enough memory and it will narrate a world you can act inside. His point that what you put in matters more than the model is the one I build on for the rest of the talk — the question becomes what, exactly, to put in. </p>
+  </div>
+</section>
+
+<!-- ===================================================== 6 · POINT: Mythras -->
+<section class="slide point" data-img="img/06-dice.png" data-budget="0:15">
+  <div class="inner">
+    <h1>Mythras: a complete, mature, realistic, and <em>risky</em> RPG system.</h1>
+  </div>
+  <div class="notes-src"><h4>Mythras</h4><p>Say the four adjectives and move on. The next slide is what they mean.</p></div>
+</section>
+
+<!-- ===================================================== 6b · what Mythras is -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>What Mythras is</h2>
+    <ul>
+      <li><b>Mature.</b> A system from The Design Mechanism (Nash and Whitaker), published as RuneQuest 6 in 2012 and as Mythras since 2016 — with a lineage that originates with the original RuneQuest of 1978.</li>
+      <li><b>Complete across genres.</b> One core engine runs fantasy, semi-historical worlds (<i>Mythic Babylon</i>, <i>Mythic Rome</i>, <i>Mythic Britain</i> in the Dark Ages, <i>Mythic Constantinople</i> in the fifteenth century) — Jack Vance's <i>Lyonesse</i>, Bryan Talbot's <i>Luther Arkwright</i>, superheroes (<i>Destined</i>), science fiction (<i>M-Space</i>), with community-contributed genres extending the universes of possible play.</li>
+      <li><b>Realistic.</b> Well-developed mechanisms: skills as percentages, opposed and differential rolls, action points, combat styles, hit locations with armor per location, special effects on a won exchange, fatigue, passions that push a roll, several frameworks for magic, superpowers, etc.</li>
+      <li><b>Risky.</b> Combat is dangerous. A single won exchange can cripple or kill outright. It is easy to die in Mythras.</li>
+    </ul>
+    <p class="muted"><a href="https://thedesignmechanism.com/" target="_blank" rel="noopener">The Design Mechanism</a> · <i>Mythras Imperative</i> and <i>Classic Fantasy Imperative</i> are free under the ORC licence.</p>
+  </div>
+  <div class="notes-src">
+    <h4>What Mythras is</h4>
+    <p>One line per adjective. Mature: this is the RuneQuest lineage, forty-odd years of d100 play, and the current rules are a decade old and stable. Complete: the same engine covers Babylon, Rome, Dark Ages Britain, fifteenth-century Constantinople, Vance's Lyonesse, superheroes, science fiction — which matters here because a world model that only works for one genre is a toy. Realistic: the mechanics are granular enough that the engine can adjudicate rather than the narrator. Risky: people die. That is not a bug; it is why the dice matter and why a GM who cannot arrange an outcome is a feature.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 8 · how things happen -->
+<section class="slide detail" data-budget="1:15">
+  <div class="inner">
+    <h2>How things happen in Mythras</h2>
+    <div class="cols">
+      <ul>
+        <li>Named 'skills' manage capabilities: combat, brawn, stealth, perception, influence, deceit, acrobatics, etc..</li>
+        <li>A simple action requires a d100 roll under your skill's score.</li>
+        <li>A contested action is two rolls. Both sides roll against their own skill and the higher roll that still succeeded wins.</li>
+      </ul>
+      <ul>
+        <li>Game mechanics exist to permit the Gamesmaster (GM) to adjudicate most siutations.</li>
+        <li><b>The point.</b> Every situation is resolved faithfully by the dice. It is a probabilistic model built from a small number of simple rules, whose outcomes compound — and nobody, the GM included, gets to choose them.</li>
+      </ul>
+    </div>
+    <div class="quote example">
+      <span class="who">A contest, adjudicated — Magda attempts to watch a stranger without being seen: Stealth vs. Perception</span>
+      <span class="roll">Magda (Stealth 68) rolls 39 → success &nbsp;&nbsp; vs &nbsp;&nbsp; the young man (Perception 45_ rolls 52 → failure</span>
+      <p>She wins outright. He walks under the overhang and never looks up.</p>
+      <span class="roll">…had he rolled 21 → success. Equal grades; her 39 is the higher successful roll.</span>
+      <p>She still wins, narrowly — he glances at the dark and sees nothing.</p>
+      <span class="roll">…had he rolled 45 → A success greater than Magda's roll.</span>
+      <p>He stops on the stair and looks straight at her.</p>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>How things happen</h4>
+    <p>Keep this at the level of a player, not an implementer. Seven characteristics; everything derives. One roll for a simple action, difficulty scales the target. Criticals are amazing, fumbles are catastrophic, and both happen to everyone. Two rolls for a contest, better grade wins — walk the example on the slide, all three branches. Combat is contests chained together, with the margin buying effects and the damage landing somewhere specific. Then the line: a probabilistic model from simple rules whose outcomes compound and that nobody chooses. That is what makes the next section — a world model — necessary rather than decorative.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 9 · POINT: simulation -->
+<section class="slide point" data-img="img/09-world-model.png" data-budget="0:15">
+  <div class="inner">
+    <h1>A Gamesmaster <em>manifests a world model</em> for players.</h1>
+  </div>
+  <div class="notes-src"><h4>The thesis</h4><p>If the model is not written down, the voice will invent one — a different one each time.</p></div>
+</section>
+
+<!-- ===================================================== 9b · three layers -->
+<section class="slide detail" data-budget="0:45">
+  <div class="inner">
+    <h2>The Mythras-GM Skill Models an RPG as Three Layers</h2>
+    <ol>
+      <li><b>Rules.</b> The Mythras Imperative and Classic Fantasy Imperative mechanics, as code and as a queryable graph: skill checks, opposed rolls, combat, magic, character generation. Outcomes are decided by dice, so play is intrinsically stochastic — the GM cannot arrange a result, and neither can the player.</li>
+      <li><b>A living world.</b> Every significant character and faction holds an agenda on a progress clock. Agendas produce beats — concrete things that will happen if nobody interferes — scheduled against a world clock and staged onscreen or offscreen by where the players actually are.</li>
+      <li><b>Epistemics.</b> Situational truth lives in one fact graph. Each character's knowledge is a projection of it through edges carrying certainty, source and time, so nobody can know what they were not there for, and a wrong belief is data rather than improvisation.</li>
+    </ol>
+    <p class="muted">Every action, encounter, conversation and item lives in a TypeDB Database behind an 88-command CLI. The game is driven from that state, not from the transcript.</p>
+  </div>
+  <div class="notes-src">
+    <h4>Three layers</h4>
+    <p>This is the map for the next ten minutes. Rules are the easy layer and mostly code. The living world and the epistemics are the two that needed an ontology, and each came from a failure at the table.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 10 · four questions -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>Four questions a gamesmaster cannot ask a transcript</h2>
+    <div class="tablewrap">
+    <table class="plain">
+      <tr><th>Question</th><th>The real failure it came from</th><th>What was missing</th></tr>
+      <tr><td><b>Is this still true?</b></td><td>GM truth from a rejected earlier draft of the campaign was read as live and played at the table.</td><td>Nothing marked dead canon dead. Now: <i>live · superseded · retracted</i>, retired rather than deleted.</td></tr>
+      <tr><td><b>Who was there?</b></td><td>A retired crew's history — their dragon patron, their scrap trade — was attributed to the active crew mid-scene.</td><td>Nothing said whose story an event belonged to. Now every event names its participants and where the camera was.</td></tr>
+      <tr><td><b>What do they think it meant?</b></td><td>Six NPCs reacted to the same event identically, for three sessions.</td><td>No per-character reading. Now knowledge is an edge carrying certainty, source and when.</td></tr>
+      <tr><td><b>What happens next?</b></td><td>"Eighteen mercenaries on the gate" could be described but never moved.</td><td>No NPC carried anything forward-looking. Now every significant character holds an agenda on a clock.</td></tr>
+    </table>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Four questions</h4>
+    <p>These four rows are the design document for the storage layer, and each was paid for with a real failure. The retired-crew one has a precise cause: the context loader filtered player characters to "active", so the old crew vanished from the save while their events stayed in the log with no visible owner. Orphaned history attaches itself to whoever is on screen.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 12 · Alhazen -->
+<section class="slide detail" data-budget="0:50">
+  <div class="inner">
+    <h2>Mythras-GM: an agent with an ontological notebook memory</h2>
+    <div class="cols">
+      <ul>
+        <li><b>Agent.</b> Claude Code, run interactively. You talk; the agent curates. It was built to read scientific papers, disease databases and job postings and build a structured understanding that persists across sessions.</li>
+        <li><b>TypeDB.</b> Ontological memory. The schema defines the concepts the agent reasons <i>about</i>; the data is what it has learned so far. Entities, relations and attributes are typed, and a query is a pattern over that type system.</li>
+        <li><b>Skills.</b> A skill is not a prompt. It contributes a schema namespace, a CLI for reading and writing that namespace, and the agent's instructions for the domain. Each one extends what the agent can do <i>and remember</i>.</li>
+        <li><b>Gaps.</b> When the agent tries to represent something the schema has no place for, that gap is the primary signal for evolving the graph. Gaps are filed and triaged like bugs.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Alhazen</h4>
+    <p>The gamesmaster is one skill in this operating system. Its namespace is <code>myth-</code>. Its concepts are on the next slide. The same discipline that keeps a literature notebook honest — everything typed, everything attributed — is what a game needed.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 13 · the ontology -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>The myth- namespace: a world that moves and is known</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 1000 380" role="img" aria-label="Agendas schedule beats; beats fire into journal events which make facts true; characters know facts via edges carrying certainty, source and since; established facts feed consequences back into agendas, and agendas may require a fact before they act.">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+          <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#63B8AC"/></marker>
+          <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#E0A458"/></marker>
+        </defs>
+        <g font-family="IBM Plex Mono, monospace" font-size="13" fill="currentColor">
+          <rect x="20" y="130" width="150" height="60" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="95" y="155" text-anchor="middle" font-weight="500">agenda</text>
+          <text x="95" y="175" text-anchor="middle" fill-opacity=".6" font-size="11">goal · clock 2/8</text>
+          <rect x="250" y="130" width="150" height="60" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="325" y="155" text-anchor="middle" font-weight="500">beat</text>
+          <text x="325" y="175" text-anchor="middle" fill-opacity=".6" font-size="11">when · place · cast</text>
+          <rect x="480" y="130" width="150" height="60" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="555" y="155" text-anchor="middle" font-weight="500">event</text>
+          <text x="555" y="175" text-anchor="middle" fill-opacity=".6" font-size="11">journal · visibility</text>
+          <rect x="710" y="130" width="170" height="60" rx="4" fill="#171C26" stroke="#63B8AC"/>
+          <text x="795" y="155" text-anchor="middle" font-weight="500" fill="#63B8AC">fact</text>
+          <text x="795" y="175" text-anchor="middle" fill-opacity=".6" font-size="11">status × truth · since</text>
+          <rect x="710" y="290" width="170" height="60" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="795" y="315" text-anchor="middle" font-weight="500">character</text>
+          <text x="795" y="335" text-anchor="middle" fill-opacity=".6" font-size="11">score · doing · presence</text>
+          <line x1="170" y1="160" x2="248" y2="160" stroke="currentColor" marker-end="url(#arr)"/>
+          <text x="209" y="150" text-anchor="middle" font-size="11">schedules</text>
+          <line x1="400" y1="160" x2="478" y2="160" stroke="currentColor" marker-end="url(#arr)"/>
+          <text x="439" y="150" text-anchor="middle" font-size="11">fires</text>
+          <line x1="630" y1="160" x2="708" y2="160" stroke="currentColor" marker-end="url(#arr)"/>
+          <text x="669" y="150" text-anchor="middle" font-size="11">makes true</text>
+          <line x1="795" y1="290" x2="795" y2="192" stroke="#63B8AC" stroke-width="1.5" marker-end="url(#arrT)"/>
+          <text x="808" y="228" font-size="12" fill="#63B8AC">knows</text>
+          <text x="808" y="246" font-size="11" fill-opacity=".75">certainty · source · since</text>
+          <path d="M795 130 V70 H95 V128" fill="none" stroke="#E0A458" stroke-width="1.5" marker-end="url(#arrA)"/>
+          <text x="445" y="62" text-anchor="middle" font-size="11" fill="#E0A458">consequence: an established fact advances, thwarts or activates an agenda</text>
+          <path d="M95 190 V320 H708" fill="none" stroke="currentColor" stroke-dasharray="4 4" stroke-opacity=".6" marker-end="url(#arr)"/>
+          <text x="400" y="312" text-anchor="middle" font-size="11" fill-opacity=".75">requires: a dormant agenda waits until its holder knows the fact</text>
+        </g>
+      </svg>
+      <figcaption>The living-world half of the schema (34 entity and relation types in all). Situational truth lives in one place, the fact graph; what a character knows is a projection through <i>knows</i> edges, so two views cannot drift apart.</figcaption>
+    </figure>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>The ontology</h4>
+    <p>Walk it left to right. An agenda is a goal held by a named person or faction, on a progress clock. It schedules beats: the concrete things it will produce if nobody interferes, placed in world time with a location and a cast. A beat that fires becomes a journal event, and events make facts true.</p>
+    <p>Then the two edges that make it a world model rather than a timeline: knows, from character to fact, carrying certainty, source and since; and the feedback arrows — a fact can advance, thwart or activate an agenda, and an agenda can require a fact, so "the Baron acts the moment he sees that face" is computed, not remembered.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 14 · facts -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>A believed falsehood is a first-class object</h2>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>A fact carries <b>status</b> (not-yet-true → established) and <b>truth</b> independently. A rumour, a lie and a sincere misreading are all data, not GM improvisation.</li>
+          <li>Perspective lives on the edge, not in the world. Two characters can hold the same event and read it incompatibly; neither reading changes the journal.</li>
+          <li>A debt is a belief plus a feeling. There is no ledger of obligations — the villain who feels slighted feels owed revenge, and that lives in the attitude on his edge.</li>
+          <li>Second-order knowledge needs no machinery. "Nobody knows he knows" is one edge with one knower.</li>
+          <li><b>check-consistency</b> catches a character knowing a thing before it was true — the error that otherwise hides in prose until it contradicts play.</li>
+        </ul>
+      </div>
+      <div>
+<pre class="code"><span class="c"># knowledge.json — one edge</span>
+<span class="k">fact</span>       myth-fact-11238ba848ee
+<span class="k">knower</span>     Cailan
+<span class="k">certainty</span>  <span class="v">believes</span>
+<span class="k">source</span>     <span class="v">deduced</span>
+<span class="k">since</span>      0</pre>
+        <div class="quote">
+          <span class="who">From the design notes — a wrong reading, sincerely held</span>
+          <p>The squad told Neask the plain truth: nobody knows what Vorgath is making, he is off his head, it will not work. Her edge on that scene reads: <i>"they know exactly, and have decided it is worth more than two coils of rope; the laughing is a good act."</i> Same event. Her reading is wrong, and it drives her next scene.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Status times truth</h4>
+    <p>The trick is separating two axes a transcript conflates: whether a proposition has happened yet, and whether it is true. Once those are independent, a false belief is not a hack — it is an edge with a wrong reading on it.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 15 · POINT: the world moves -->
+<section class="slide point" data-img="img/15-night-canal.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>The world moves whether or not you are <em>looking</em>.</h1>
+  </div>
+  <div class="notes-src"><h4>Living world</h4><p>This is the fix for "it freezes".</p></div>
+</section>
+
+<!-- ===================================================== 16 · architecture -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>The mechanics wall, as architecture</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 1000 300" role="img" aria-label="The player talks to Claude in prose. Claude, governed by the conduct files and style cards, calls a CLI of about ninety commands. The CLI calls the pure rules engine for dice and the native TypeDB server for world state. The novelist reads the journal out of TypeDB and typesets a PDF; nothing flows back.">
+        <defs><marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+        <g font-family="IBM Plex Mono, monospace" font-size="13" fill="currentColor">
+          <line x1="500" y1="20" x2="500" y2="290" stroke="#E0A458" stroke-dasharray="6 5" stroke-width="1.5"/>
+          <text x="500" y="14" text-anchor="middle" font-size="11" fill="#E0A458">the mechanics wall — no numbers cross it into the fiction</text>
+          <text x="40" y="45" font-size="11" fill-opacity=".6">FICTION</text>
+          <rect x="40" y="60" width="150" height="56" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="115" y="93" text-anchor="middle" font-weight="500">player</text>
+          <rect x="270" y="60" width="180" height="56" rx="4" fill="#171C26" stroke="#63B8AC"/>
+          <text x="360" y="85" text-anchor="middle" font-weight="500" fill="#63B8AC">Claude · the GM</text>
+          <text x="360" y="104" text-anchor="middle" font-size="11" fill-opacity=".7">TABLE.md · style cards</text>
+          <line x1="190" y1="80" x2="268" y2="80" stroke="currentColor" marker-end="url(#arr2)"/>
+          <line x1="268" y1="98" x2="190" y2="98" stroke="currentColor" marker-end="url(#arr2)"/>
+          <text x="229" y="72" text-anchor="middle" font-size="11">"withdraw"</text>
+          <text x="229" y="116" text-anchor="middle" font-size="11">prose</text>
+          <text x="550" y="45" font-size="11" fill-opacity=".6">ENGINE</text>
+          <rect x="550" y="60" width="170" height="56" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="635" y="85" text-anchor="middle" font-weight="500">mythras_gm.py</text>
+          <text x="635" y="104" text-anchor="middle" font-size="11" fill-opacity=".7">88 commands · JSON</text>
+          <line x1="450" y1="88" x2="548" y2="88" stroke="currentColor" marker-end="url(#arr2)"/>
+          <rect x="790" y="20" width="180" height="56" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="880" y="45" text-anchor="middle" font-weight="500">rules engine</text>
+          <text x="880" y="64" text-anchor="middle" font-size="11" fill-opacity=".7">pure · no I/O · tested</text>
+          <line x1="720" y1="78" x2="788" y2="52" stroke="currentColor" marker-end="url(#arr2)"/>
+          <text x="748" y="52" text-anchor="middle" font-size="11">dice</text>
+          <rect x="790" y="100" width="180" height="56" rx="4" fill="#171C26" stroke="#63B8AC"/>
+          <text x="880" y="125" text-anchor="middle" font-weight="500" fill="#63B8AC">TypeDB 3 (native)</text>
+          <text x="880" y="144" text-anchor="middle" font-size="11" fill-opacity=".7">34 types · 271 rule nodes</text>
+          <line x1="720" y1="98" x2="788" y2="124" stroke="currentColor" marker-end="url(#arr2)"/>
+          <text x="748" y="128" text-anchor="middle" font-size="11">state</text>
+          <rect x="550" y="200" width="170" height="56" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="635" y="225" text-anchor="middle" font-weight="500">campaign plugin</text>
+          <text x="635" y="244" text-anchor="middle" font-size="11" fill-opacity=".7">markdown + JSON, git</text>
+          <line x1="720" y1="228" x2="880" y2="228" stroke="currentColor" stroke-dasharray="4 4"/>
+          <line x1="880" y1="228" x2="880" y2="158" stroke="currentColor" stroke-dasharray="4 4" marker-end="url(#arr2)"/>
+          <text x="800" y="220" text-anchor="middle" font-size="11">import / export</text>
+          <rect x="270" y="200" width="180" height="56" rx="4" fill="#171C26" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="360" y="225" text-anchor="middle" font-weight="500">novelist</text>
+          <text x="360" y="244" text-anchor="middle" font-size="11" fill-opacity=".7">journal → pandoc + Typst</text>
+          <path d="M790 140 H760 V228 H452" fill="none" stroke="currentColor" stroke-opacity=".6" marker-end="url(#arr2)"/>
+          <text x="600" y="282" text-anchor="middle" font-size="11" fill-opacity=".8">reads the journal; nothing flows back</text>
+        </g>
+      </svg>
+      <figcaption>Claude runs the table in prose and does the bookkeeping through a JSON CLI. Dice come from a pure engine; state from a native TypeDB server the plugin downloads and manages itself. The rules themselves are in the graph too — 271 faceted rule nodes distilled from the SRD, so a rules lookup is a query, not a grep.</figcaption>
+    </figure>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Architecture</h4>
+    <p>The dashed line is the design principle made physical. Left of it, prose. Right of it, JSON. A campaign is a plugin: a folder of markdown and JSON in git that imports into the database with one command and exports back losslessly. The novelist reads the journal and never writes back.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 17 · tick -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>tick: staging is read from presence, not chosen</h2>
+    <div class="svgwrap">
+    <figure>
+      <svg viewBox="0 0 1000 250" role="img" aria-label="A world clock runs from day minus three at dawn past the Tourney. Beats sit on the clock at their scheduled moment. The party's recorded presence at the Pearl on the first night makes Santo's return onscreen; the purge of the canals and Vantt's dinner are offscreen, happen anyway, and become facts the party may later discover.">
+        <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+        <g font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor">
+          <line x1="60" y1="120" x2="975" y2="120" stroke="currentColor" stroke-opacity=".6" marker-end="url(#arr3)"/>
+          <g fill-opacity=".8">
+            <text x="60" y="145" text-anchor="middle">d-3/dawn</text>
+            <text x="260" y="145" text-anchor="middle">d-2</text>
+            <text x="460" y="145" text-anchor="middle">d-1</text>
+            <text x="660" y="145" text-anchor="middle">d0</text>
+            <text x="860" y="145" text-anchor="middle">d1</text>
+          </g>
+          <g stroke="currentColor" stroke-opacity=".6"><line x1="60" y1="114" x2="60" y2="126"/><line x1="260" y1="114" x2="260" y2="126"/><line x1="460" y1="114" x2="460" y2="126"/><line x1="660" y1="114" x2="660" y2="126"/><line x1="860" y1="114" x2="860" y2="126"/></g>
+          <rect x="150" y="60" width="110" height="18" rx="3" fill="#63B8AC" fill-opacity=".18" stroke="#63B8AC"/>
+          <text x="205" y="73" text-anchor="middle" font-size="11" fill="#63B8AC">PC presence: the Pearl</text>
+          <circle cx="210" cy="120" r="7" fill="#63B8AC"/>
+          <text x="210" y="98" text-anchor="middle" font-size="11" fill="#63B8AC">Santo comes back for her · d-3/night</text>
+          <text x="210" y="175" text-anchor="middle" font-size="11" fill="#63B8AC">onscreen — play it</text>
+          <circle cx="340" cy="120" r="7" fill="#E0A458"/>
+          <text x="340" y="200" text-anchor="middle" font-size="11" fill="#E0A458">The purge of the canals · d-2/day</text>
+          <text x="340" y="215" text-anchor="middle" font-size="11" fill="#E0A458">offscreen — happens anyway</text>
+          <circle cx="590" cy="120" r="7" fill="#E0A458"/>
+          <text x="590" y="98" text-anchor="middle" font-size="11" fill="#E0A458">Vantt jokes about his cellar · d-1/dusk</text>
+          <text x="590" y="175" text-anchor="middle" font-size="11" fill="#E0A458">offscreen → fact</text>
+          <circle cx="930" cy="120" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="900" y="98" text-anchor="middle" font-size="11" fill-opacity=".8">The champion takes the sand · d1/night</text>
+          <path d="M60 30 H640" stroke="currentColor" stroke-opacity=".5" marker-end="url(#arr3)"/>
+          <text x="80" y="22" font-size="11" fill-opacity=".8">tick --to "d-1/night"  →  reports every beat now due, staged by recorded presence</text>
+        </g>
+      </svg>
+    </figure>
+    </div>
+    <ul style="margin-top:1em">
+      <li>Between scenes the GM advances the world clock. Every beat now due is reported <b>onscreen</b> (a PC is at its location or in its cast — play it) or <b>offscreen</b> (it happens anyway and becomes a fact they may later discover).</li>
+      <li>Move the party and the attack they would have interrupted becomes the one they hear about at dawn. The GM cannot rail, because staging is derived, not picked.</li>
+      <li>Offscreen beats roll dice too. An NPC's plan can fail in a room nobody is in, and the world is different in the morning because of it. Players learn of it only through consequences — no cutaways.</li>
+      <li>Clocks advance when the fiction earns it; agendas can be thwarted; a stale beat is revised rather than held to. It is structure, not a rail.</li>
+    </ul>
+  </div>
+  <div class="notes-src"><h4>tick</h4><p>Read the figure, then the four bullets. The second bullet is the one the audience remembers.</p></div>
+</section>
+
+<!-- ===================================================== 18 · Purewater -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>And Then the Dragons Came: Purewater</h2>
+    <div class="cols">
+      <div>
+        <p>A canal city where the sacred waters of the Lake Lady meet the sea. Baron Hanzo di Teufel arrives with his Dragon Knights for the Tourney, his possessed champion concealed among them. Four strangers arrive the same week.</p>
+        <ul>
+          <li><b>42 characters</b>, four of them playable: Conall, Gardwen, Magda, Randall</li>
+          <li><b>15 agendas</b> on clocks, held by named people and factions</li>
+          <li><b>43 beats</b> scheduled against the world clock, all pending at the start</li>
+          <li><b>17 facts</b> and a knowledge file saying who knows each, how, and since when</li>
+          <li><b>22 locations</b>, <b>14 factions</b>, <b>25 lore entries</b></li>
+          <li>The repository is a scenario seed, not a save: world clock d-3/dawn, an empty journal. It installs as a plugin and brings the engine with it.</li>
+        </ul>
+      </div>
+<pre class="code"><span class="c"># beats/alderic-vantt-jokes-about-his-cellar.md</span>
+<span class="k">when</span>        d-1/dusk
+<span class="k">onscreen_if</span> Any PC present
+<span class="k">place</span>       the Vantt house
+<span class="k">cast</span>        Alderic Vantt, the Baron, Emmeralda
+<span class="c">---</span>
+He is the channel the Baron's money runs
+through, and he has not said out loud, even
+at home, how frightened he is.
+
+<span class="v">The tell is two self-deprecating jokes in a
+row.</span> That is the seam, and it is the only
+one he has.</pre>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Purewater</h4>
+    <p>A classic module rebuilt as a living world. The beat on the right is what authored content looks like now: a time, a place, a cast, a condition, and a paragraph telling the GM what is true about the man and where the seam is. The GM may not narrate toward a beat it has not opened — "reaching to invent a mechanism is the alarm."</p>
+  </div>
+</section>
+
+<!-- ===================================================== 19 · POINT: the table -->
+<section class="slide point" data-img="img/19-the-ford.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>Steer the <em>world</em>. Never the <em>character</em>.</h1>
+  </div>
+  <div class="notes-src"><h4>The line</h4><p>This resolves the apparent contradiction between "be a storyteller with an agenda" and "never railroad".</p></div>
+</section>
+
+<!-- ===================================================== 20 · table rules -->
+<section class="slide detail" data-budget="0:45">
+  <div class="inner">
+    <h2>How to run the table</h2>
+    <div class="cols">
+      <ol>
+        <li><b>Show it. Do not explain it.</b> A fact the player could find is worth ten a character tells them. Information lives in objects: a ledger, a scar, a missing chair, a wet bootprint.</li>
+        <li><b>The player's mind is not yours.</b> No thoughts, no conclusions, no decisions. Describe the world; the player supplies the mind.</li>
+        <li><b>Never hand out a read.</b> What an NPC feels is what an Insight roll buys. An NPC saying "she was afraid" is an unearned roll wearing a costume.</li>
+        <li><b>Stop where the decision is.</b> Play the turn until the player has something to decide, then hand over plainly. Never a menu of options, never a named skill.</li>
+      </ol>
+      <ul>
+        <li><b>Three doors, never one.</b> A scene the story needs should be reachable three ways. A beat that requires the party in one room at one hour is a badly built beat; fix the beat, not the players.</li>
+        <li><b>If they will not come to the scene, the scene comes to them.</b> Same content, different delivery.</li>
+        <li><b>A hook not taken comes back changed.</b> Louder, costlier, or out of a different mouth.</li>
+        <li><b>Missing something is never less game.</b> Whoever is not at the crime gets the crime scene at dawn.</li>
+        <li><b>Every attempt gets dice.</b> A failed roll narrows options; it never ends the scene.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>The table</h4>
+    <p>The conduct file is about a thousand lines and the engineering notes say it is the most important document in the repo. Left column: what the GM may never do to the character. Right column: what the GM should always be doing to the world.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 21 · the correction -->
+<section class="slide detail" data-budget="0:45">
+  <div class="inner">
+    <h2>Where the rules came from</h2>
+    <div class="cols">
+      <div class="quote">
+        <span class="who player">The player, mid-session, verbatim</span>
+        <p>Ok. Stop.</p>
+        <p>You're not playing this like a Mythras game. You're narrating.</p>
+        <p>You should be making rolls every time we try to do something. I don't immediately see that Emmerelda's scared. That takes an insight roll. I don't immediately lose him, I should have a chance of catching him.</p>
+        <p>The descriptive passages you're generating are too long and putting words into my mouth for the sake of the story.</p>
+        <p>This needs to be interactive. With a lot more open ended play</p>
+      </div>
+      <div>
+        <p><b>Banned constructions</b> — measured tics, not style preferences. Every rule is countable, because "be less verbose" has never once worked.</p>
+        <ul>
+          <li><i>"arithmetic"</i> — banned as a word, not just a metaphor</li>
+          <li><i>"That's not X. It's Y."</i> — the antithesis correction, zero per scene</li>
+          <li><i>"Two things."</i> — the enumerated preamble: 25 times in two sessions, in five characters' mouths. Changing the noun does not change the habit, so the rule bans the move.</li>
+          <li>The withheld ending — <i>"and past that point I —"</i> — once per campaign</li>
+          <li><i>"It cost her something to say it"</i> — that is a read</li>
+          <li>Any header, rule or bulleted recap inside table prose</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>The correction</h4>
+    <p>The actual message that produced the conduct file. Every complaint maps to a rule: rolls for every attempt, no free reads, failure narrows rather than ends, no interior for the player's character, short beats, open-ended. The banned list is the interesting engineering — a record of failures kept in the shape a model can obey.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 22 · live play -->
+<section class="slide detail" data-budget="1:00">
+  <div class="inner">
+    <h2>Play, after the correction</h2>
+    <div class="cols">
+      <div class="quote">
+        <span class="who player">Player</span>
+        <p>Sneak out to see and be stealthy about it.</p>
+        <span class="who">GM</span>
+        <span class="roll">Stealth, Standard (68) — 39 against 68 — success.</span>
+        <p>Ruhi lifts her head as you step over her. You get the door shut without the latch speaking, and go down as far as the turn above the second landing, where the overhang puts you in shadow and the hall lamp doesn't reach. […] Then Emmeralda goes up the near stair — twelve feet from where you're standing — and the young man follows her.</p>
+        <span class="who player">Player</span>
+        <p>Am I hidden?</p>
+        <span class="who">GM</span>
+        <p>Yes. But that was for <i>getting there</i>. They're about to pass within twelve feet of you, at which point staying put becomes a contested thing. The shadow is good. It is not a wall. You've got about three seconds to hold or withdraw.</p>
+        <span class="who player">Player</span>
+        <p>Withdraw — not my business</p>
+      </div>
+      <div class="quote">
+        <span class="who">GM — the offscreen roll</span>
+        <span class="roll">Santo — Lore (Demonology), Formidable (50 → 25). Rolled 19. Then he rolled 100 to get out.</span>
+        <p>There is no scream.</p>
+        <p>That's the first thing. What there is instead is a crash — something big going over, a table or a chest, and glass after it — and then a man's voice, high and completely undone, saying <i>no no no no</i> very fast, and then a door hitting a wall hard enough to shake the frame two floors up.</p>
+        <p>Running feet on the canal-side stair. A slip. A worse noise. […] And a splash in the canal below that is far too big to be a man getting neatly into a boat.</p>
+        <p>And under it all, from the room they went into: nothing at all.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes-src">
+    <h4>Live play</h4>
+    <p>Real transcript, same session, after the correction. Every attempt gets a roll, shown in one line and never mentioned in prose. "Am I hidden?" gets an honest answer about what the roll bought. The player withdraws and is not punished or nagged. Then the villain's plan runs offscreen, on dice — he succeeds at the thing he came for and fumbles the escape — and the player hears a house go wrong from three floors up. The splash under the window is now a fact they can go and find.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 23 · POINT: novelization -->
+<section class="slide point" data-img="img/23-the-book.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>Write it the way it was <em>played</em>.</h1>
+  </div>
+  <div class="notes-src"><h4>The rule</h4><p>Because the journal is structured, it can be read back out as a manuscript. But summaries are not dialogue.</p></div>
+</section>
+
+<!-- ===================================================== 24 · novelization detail -->
+<section class="slide detail" data-budget="0:45">
+  <div class="inner">
+    <h2>The journal becomes a book</h2>
+    <div class="cols">
+      <ul>
+        <li><b>Extract.</b> The journal and player-visible canon come out of TypeDB as a source document. Canon flows one way; nothing written here goes back.</li>
+        <li><b>Outline by story turns, not sessions.</b> A chapter is one movement — a stretch with one question in it. A session boundary is an accident of somebody's evening and means nothing to a reader.</li>
+        <li><b>Pin a style card.</b> Hemingway, Tolkien, Moorcock, or the house voice derived from the author's own draft — copied into the manuscript so the book is reproducible in a later session.</li>
+        <li><b>Draft from the transcript.</b> Journal events are summaries; they carry what happened and none of what was said. The first draft of chapter one invented a confrontation where the real scene was a friendly conversation, put four men on a bridge where there were two, and lost every real line. Now the player's own words go on the page as close to verbatim as prose will carry.</li>
+        <li><b>Typeset.</b> pandoc and Typst render the PDF.</li>
+      </ul>
+      <div class="quote">
+        <span class="who">Chapter 1 — The Woman on the Other Side of the Road</span>
+        <p>THE MEN CAME IN THE NIGHT WITH FIRE AND STEEL AND THEY DID IT WITH THE particular unhurried savagery that you only ever see from the world of men, and when they had finished they went away again, and Gardwen was eleven years old and alive in a wood with nine people to bury and no one to help her do it.</p>
+        <p>She counted them in the morning. That is the part she has never told anyone properly, because it does not sound like grief when you say it out loud, it sounds like bookkeeping.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes-src"><h4>Novelization</h4><p>The passage on the right is from the finished book — a real player character's backstory, as played.</p></div>
+</section>
+
+<!-- ===================================================== 25 · POINT: infinite -->
+<section class="slide point" data-img="img/25-infinite.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>Text is the cheapest <em>infinite</em> there is.</h1>
+  </div>
+  <div class="notes-src"><h4>Cost</h4><p>The economic argument.</p></div>
+</section>
+
+<!-- ===================================================== 26 · a campaign is a folder -->
+<section class="slide detail" data-budget="0:45">
+  <div class="inner">
+    <h2>A campaign is a folder</h2>
+    <div class="cols">
+      <ul>
+        <li>A scripted game authors every branch it will ever allow. A world model authors the <b>situation</b> — who wants what, on what clock — and the model generates whatever the player actually does.</li>
+        <li>Purewater is a few evenings of writing. It has been played four different ways, by four different characters, and each run diverged from the plan on the first day.</li>
+        <li>When play leaves the plan the answer is a rewrite, not a loading screen: revise the downstream beats, rewrite the act summaries, keep going. The catalog must describe the game being played, not the one that was planned.</li>
+        <li>No art pipeline, no level design, no dialogue trees. An 88-command CLI and a rules graph are the whole runtime.</li>
+        <li>Publishing is a git push. Anyone can load it with one command; export is lossless, so a played campaign can be published as a new seed.</li>
+      </ul>
+<pre class="code"><span class="c"># the whole install</span>
+/plugin marketplace add fourth-wall-gaming/mythras-gm
+/plugin install purewater@fourth-wall-gaming
+/purewater:start
+
+<span class="c"># the whole world</span>
+<span class="k">lore/</span>        25 entries, one file each
+<span class="k">characters/</span>  42 sheets + GM narratives
+<span class="k">locations/</span>   22      <span class="k">factions/</span>  14
+<span class="k">agendas/</span>     15      <span class="k">beats/</span>     43
+<span class="k">facts/</span>       17      <span class="k">knowledge.json</span></pre>
+    </div>
+  </div>
+  <div class="notes-src"><h4>A folder</h4><p>Branching narrative games are expensive because every branch is authored. Here the authored thing is the situation and the model fills in the branch the player takes.</p></div>
+</section>
+
+<!-- ===================================================== 27 · POINT: superhuman -->
+<section class="slide point" data-img="img/27-superhuman.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>Superhuman <em>gamesmastering</em>.</h1>
+  </div>
+  <div class="notes-src"><h4>Superhuman</h4><p>In the plain sense: bookkeeping no human GM has ever been able to do.</p></div>
+</section>
+
+<!-- ===================================================== 28 · what no human can do -->
+<section class="slide detail" data-budget="0:50">
+  <div class="inner">
+    <h2>What no human gamesmaster can do — and what still needs one</h2>
+    <div class="cols">
+      <ul>
+        <li>Hold <b>42 characters' knowledge</b> with per-fact provenance — certainty, source, since — and never leak.</li>
+        <li>Run <b>fifteen agendas</b> off-camera, on dice, without contradicting itself, for as many sessions as the game lasts.</li>
+        <li>Run a <b>consistency check</b> that catches a character learning a thing before it was true.</li>
+        <li>Roll every roll, honestly, including against itself — and show the number in one line, then never mention it.</li>
+        <li>Answer a rules question by <b>query</b> over 271 faceted rule nodes rather than by memory.</li>
+        <li>Typeset the <b>novel</b> by morning, in Moorcock's voice if you like.</li>
+        <li>The three layers — rules, agendas on clocks, projected knowledge — are a <b>world model for any domain</b> where things happen off-camera and different people know different things.</li>
+      </ul>
+      <ul>
+        <li><b>Taste.</b> The style card is derived from the author's own draft.</li>
+        <li><b>Conduct.</b> The table rules are a record of corrections, each one paid for at the table by a real player who stopped the game to say so.</li>
+        <li><b>The scenario.</b> Where the seam in Alderic Vantt is was written by a person with the whole arc in view.</li>
+        <li><b>The evening.</b> The model is the voice; the ontology is the world; the human is the one who knows what a good evening feels like. The system is a way for that taste to be enforced at scale, not replaced.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes-src"><h4>Superhuman, and not</h4><p>Left column is the honest pitch. Right column keeps me honest.</p></div>
+</section>
+
+<!-- ===================================================== 29 · CLOSE -->
+<section class="slide point" data-img="img/29-dawn.jpg" data-budget="0:15">
+  <div class="inner">
+    <h1>The moat is not the curated context. It is the curated <em>ontology</em>.</h1>
+    <p class="sub"><a href="https://github.com/fourth-wall-gaming/mythras-gm" target="_blank" rel="noopener">github.com/fourth-wall-gaming/mythras-gm</a> · <a href="https://github.com/GullyBurns/skillful-alhazen" target="_blank" rel="noopener">github.com/GullyBurns/skillful-alhazen</a></p>
+  </div>
+  <div class="notes-src">
+    <h4>Close</h4>
+    <p>Back to Johnson. He said the winners will be the ones with the most artfully curated contexts. Running a game taught me what the curation has to look like: a schema for what can be true, who was there, who knows it, and what happens next — and an agent disciplined enough to keep the numbers on its own side of the wall. Stop at twenty. Questions.</p>
+  </div>
+</section>
+
+</main>
+
+<aside id="notes" aria-label="Speaker notes">
+  <div id="notes-body"></div>
+  <div class="help">← → space: slides · S: notes · H: hide controls · T: reset clock · Home / End</div>
+</aside>
+
+<div id="hud">
+  <span id="counter">1 / 31</span>
+  <span id="clock" title="Elapsed since first advance">00:00 / 20:00</span>
+  <button id="notesBtn" type="button" aria-controls="notes">notes</button>
+</div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length, idx = 0, startedAt = null, TALK = 20 * 60;
+  var notes = document.getElementById('notes'), notesBody = document.getElementById('notes-body');
+  var counter = document.getElementById('counter'), progress = document.getElementById('progress');
+  var clock = document.getElementById('clock'), hud = document.getElementById('hud');
+
+  function parseBudget(s) { var p = (s || '0:00').split(':'); return (+p[0]) * 60 + (+p[1]); }
+  var cum = [], acc = 0;
+  slides.forEach(function (s) { acc += parseBudget(s.dataset.budget); cum.push(acc); });
+  function fmt(sec) { var m = Math.floor(sec / 60), s = Math.floor(sec % 60); return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
+
+  // background images: use the file if it exists, otherwise show its name so it can be generated
+  slides.forEach(function (s) {
+    var src = s.dataset.img; if (!src) return;
+    var tag = document.createElement('div'); tag.className = 'imgname'; tag.textContent = src + ' — see img/PROMPTS.md'; s.appendChild(tag);
+    var im = new Image();
+    im.onload = function () { s.style.setProperty('--img', 'url("' + src + '")'); s.classList.add('has-img'); };
+    im.src = src;
+  });
+
+  // inline notes for narrow screens
+  slides.forEach(function (s) {
+    var src = s.querySelector('.notes-src'); if (!src) return;
+    var inl = document.createElement('div'); inl.className = 'notes-inline'; inl.innerHTML = src.innerHTML;
+    s.querySelector('.inner').appendChild(inl);
+  });
+
+  function show(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === idx); });
+    counter.textContent = (idx + 1) + ' / ' + total;
+    progress.style.width = ((idx + 1) / total * 100) + '%';
+    var src = slides[idx].querySelector('.notes-src');
+    notesBody.innerHTML = '<div class="budget">slide ' + (idx + 1) + ' · ' + (slides[idx].dataset.budget || '') + '<span class="cum">by ' + fmt(cum[idx]) + '</span></div>' + (src ? src.innerHTML : '');
+    notes.scrollTop = 0;
+    try { location.hash = 's' + (idx + 1); } catch (e) {}
+    if (window.innerWidth < 900) slides[idx].scrollIntoView({ block: 'start' });
+  }
+  function next() { if (startedAt === null && idx === 0) startedAt = Date.now(); show(idx + 1); }
+  function prev() { show(idx - 1); }
+  function toggleNotes() { var open = notes.classList.toggle('open'); try { localStorage.setItem('wm-notes', open ? '1' : '0'); } catch (e) {} }
+  function toggleHud() { hud.classList.toggle('hidden'); progress.classList.toggle('hidden'); }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); next(); break;
+      case 'ArrowLeft': case 'PageUp': e.preventDefault(); prev(); break;
+      case 'Home': e.preventDefault(); show(0); break;
+      case 'End': e.preventDefault(); show(total - 1); break;
+      case 's': case 'S': toggleNotes(); break;
+      case 'h': case 'H': toggleHud(); break;
+      case 't': case 'T': startedAt = Date.now(); break;
+    }
+  });
+  document.getElementById('notesBtn').addEventListener('click', toggleNotes);
+  document.getElementById('deck').addEventListener('click', function (e) {
+    if (window.innerWidth < 900 || e.target.closest('a, button')) return;
+    var r = document.getElementById('deck').getBoundingClientRect();
+    if (e.clientX - r.left > r.width * 0.75) next(); else if (e.clientX - r.left < r.width * 0.25) prev();
+  });
+  setInterval(function () {
+    if (startedAt === null) return;
+    var el = Math.floor((Date.now() - startedAt) / 1000);
+    clock.textContent = fmt(el) + ' / ' + fmt(TALK);
+    clock.classList.toggle('over', el > TALK);
+  }, 500);
+
+  var start = 0;
+  try { var m = /s(\d+)/.exec(location.hash); if (m) start = (+m[1]) - 1; } catch (e) {}
+  try { if (localStorage.getItem('wm-notes') === '1') notes.classList.add('open'); } catch (e) {}
+  show(start);
+})();
+</script>
+</body>
+</html>
