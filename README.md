@@ -171,15 +171,25 @@ GM="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
 uv run -q --project "$GM" python "$GM/mythras_gm.py" doctor
 ```
 
-### Locked-down or disposable containers
+### This plugin runs locally, not in Claude Code cloud sessions
 
-Claude Code cloud sessions run in a container whose home directory does not
-survive an idle restart, and whose egress gateway refuses `repo.typedb.com`.
-Neither is something `init-db` can fix, so each is one environment variable:
+**Run it on your own machine.** Cloud sessions were tried and abandoned, for
+three independent reasons, any one of which is fatal:
+
+1. Plugin `SessionStart` hooks do not fire there at all, so nothing brings the
+   engine up -- and the whole no-setup story depends on that hook.
+2. The container's home directory does not survive an idle restart, so the save
+   under `~/.claude/mythras-gm/typedb/data` is wiped between sittings.
+3. Its egress gateway refuses `repo.typedb.com`, so the first-run download 403s.
+
+The variables below were written for (2) and (3) and they still work, but they
+cannot fix (1), which is why the answer is simply to play locally. Keep them:
+each earns its place on a local machine too -- moving a save off `$HOME`,
+installing with no network, or reaching the archive past a proxy.
 
 | Variable | What it does |
 |---|---|
-| `MYTHRAS_TYPEDB_HOME` | Where the server binary, PID file, log **and data directory** live. Default `~/.claude/mythras-gm/typedb`. Point it inside the repo checkout so the save survives whatever wipes `$HOME`. |
+| `MYTHRAS_TYPEDB_HOME` | Where the server binary, PID file, log **and data directory** live -- all four move together, because a data directory that outlives its binary is just another way to lose the save. Default `~/.claude/mythras-gm/typedb`. Set it to keep a campaign on an external disk, to run two separate saves side by side, or to put the save somewhere you actually back up. |
 | `TYPEDB_DIST_BASE` | Directory URL holding `typedb-all-<platform>-<version>.<ext>` flat by filename -- a GitHub release page is the natural mirror, and GitHub asset hosts are reachable where the vendor CDN is not. |
 | `TYPEDB_DIST_ARCHIVE` | Path to the archive already on disk. No network at all. Your file is never deleted. |
 | `TYPEDB_DIST_SHA256` | Pinned digest the archive must match before anything is unpacked. Set it whenever you use a mirror. |
