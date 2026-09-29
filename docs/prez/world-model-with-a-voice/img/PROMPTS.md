@@ -84,11 +84,16 @@ entire city — canals, bridges, towers, rooftops — drawn in ink and growing o
 of the page as if the writing were becoming the place.
 
 ### `27-superhuman.jpg` — Superhuman gamesmastering
-A gamesmaster's table extended to an impossible length, vanishing into
-darkness, with hundreds of small carved figures standing on it — knights,
-priests, thieves, boatmen — each casting its own shadow from the single lamp,
-each turned slightly toward its own business. At the near end, one empty chair
-and one screen.
+A gamesmaster's table seen from one end and receding into darkness, far longer
+than any room could hold. Standing on it, in ranks that fade with distance, are
+hundreds of small carved figures — knights, priests, thieves, boatmen, a woman
+with a wolf — every one of them turned a different way, each attending to its
+own business, none of them facing the viewer. Each figure casts its own separate
+shadow from the single lamp at the near end, and the shadows all fall in
+different directions, as though every figure has a light of its own. Beside the
+lamp: one empty chair, a folded screen, an open ledger, and two percentile dice
+still settling. Nobody is seated. The lamp is the brightest thing; the far end of
+the table dissolves into unlit depth where the figures continue.
 
 ### `29-dawn.jpg` — Close: the moat is the curated ontology
 The same canal city at first light, seen from a water-stair at water level.

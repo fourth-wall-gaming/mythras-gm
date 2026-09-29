@@ -1,0 +1,4 @@
+# full-resolution sources for the slide art; the deck ships the 1920px JPEGs
+img/original/
+# local exports
+*.zip
