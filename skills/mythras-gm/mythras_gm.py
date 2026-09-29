@@ -4817,7 +4817,11 @@ def cmd_doctor(args):
         step("docker running", ok, msg if not ok else f"server {msg}")
         ok, msg = sh("docker", "ps", "--filter", "name=mythras-typedb",
                      "--format", "{{.Names}} {{.Status}}")
-        step("container mythras-typedb up", bool(msg), msg or "not running")
+        # `ok and`, not bare `bool(msg)`: when the daemon is down `docker ps`
+        # fails and msg holds the ERROR text, which is non-empty -- so the old
+        # check reported the container as up precisely when Docker was dead.
+        step("container mythras-typedb up", ok and bool(msg.strip()),
+             msg.strip() or "not running")
 
     step("uv available", shutil.which("uv") is not None)
 
