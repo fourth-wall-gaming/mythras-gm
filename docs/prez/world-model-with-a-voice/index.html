@@ -286,7 +286,7 @@
     <div class="cols aboutme">
       <ul>
         <li><b>Professionally</b>, I work in the field of scientific knowledge-engineering. Recent work is concerned with <a href="https://www.caisconf.org/program/2026/demos/ontological-notebook-memory/">'Agentic Ontological Notebook Memory'</a>, forming the basic agent memory framework this talk is built on.</li>
-        <li><b>I have been playing tabletop roleplaying games since I was 10.</b> I develop open source systems and material here: <a href="https://github.com/fourth-wall-gaming" target="_blank" rel="noopener">fourth-wall-gaming</a> .</li>
+        <li><b>I have been playing tabletop roleplaying games since I was 10.</b> I develop open source systems and material here: <a href="https://github.com/fourth-wall-gaming" target="_blank" rel="noopener">fourth-wall-gaming</a></li>
         <li><b>I am a published author</b>. The Design Mechanism just released <a href="https://thedesignmechanism.com/dreams-of-lost-children/">Dreams of Lost Children</a> (Aug. 25, 2026), a scenario for <i>Destined</i>, a superhero game based on the Mythras system.</li>
       </ul>
       <figure class="cover">
@@ -953,7 +953,6 @@
 <div id="hud">
   <span id="counter">1 / 21</span>
   <span id="clock" title="Elapsed since first advance">00:00 / 20:00</span>
-  <button id="notesBtn" type="button" aria-controls="notes">notes</button>
 </div>
 
 <script>
@@ -1046,7 +1045,6 @@
       case 't': case 'T': startedAt = Date.now(); break;
     }
   });
-  document.getElementById('notesBtn').addEventListener('click', toggleNotes);
   document.getElementById('deck').addEventListener('click', function (e) {
     if (window.innerWidth < 900 || e.target.closest('a, button, .replay')) return;
     var r = document.getElementById('deck').getBoundingClientRect();
