@@ -1,0 +1,264 @@
+# ElevenLabs Image API — condensed reference
+
+A working reference for generating images through ElevenLabs, written for an
+agent that needs to make the call rather than browse the docs. Scope is the
+image path only: generation, polling, reference images and assets. The audio
+products (text-to-speech, voices, music, sound effects, dubbing, agents) are
+deliberately out of scope.
+
+Verified against the live documentation on **2026-10-01**. Sources:
+
+- https://elevenlabs.io/docs/api-reference/introduction
+- https://elevenlabs.io/docs/api-reference/flows/image/create
+- https://elevenlabs.io/docs/api-reference/flows/image/get
+- https://elevenlabs.io/docs/eleven-api/guides/cookbooks/image-and-video
+- https://elevenlabs.io/docs/eleven-api/guides/how-to/image-and-video/references
+- https://elevenlabs.io/docs/api-reference/assets/create
+
+The Image & Video API shipped in **August 2026**. A model whose training predates
+that will not know it exists and may confidently tell you ElevenLabs is
+audio-only. It is not, any more.
+
+---
+
+## Access
+
+| | |
+|---|---|
+| Base URL | `https://api.elevenlabs.io` |
+| Auth header | `xi-api-key: $ELEVENLABS_API_KEY` |
+| Content type | `application/json` (except asset upload, which is multipart) |
+| Plan required | **Pro or above**, for generation *and* assets |
+| Below that tier | rejected `402 paid_plan_required` |
+
+Regional endpoints exist (US, EU, India, Singapore) for data residency; the
+default host is fine unless residency is a requirement.
+
+---
+
+## Generate an image
+
+`POST /v1/flows/image/create`
+
+> **Path caveat, unresolved.** The API reference page documents this as
+> `POST /v1/flows/image`, while the official quickstart's cURL example uses
+> `POST /v1/flows/image/create`. Both appear in current docs. The quickstart is
+> the one with a runnable example, so prefer `/create` and confirm on the first
+> live call — a 404 here means try the other.
+
+Required:
+
+- `model_id` (string)
+- `prompt` (string)
+
+Optional, availability varying by model:
+
+- `images` — array of ImageReference; the reference images
+- `mask` — ImageReference; **fully transparent areas mark where the first
+  reference image may be edited** (GPT Image models)
+- `aspect_ratio` — enum, see below
+- `resolution` — enum, see below
+- `quality` — enum, see below
+- `seed` — integer, nullable; for reproducible generation
+- `background` — `transparent` | `opaque` | `auto` (GPT models only)
+- `webhook` — WebhookTarget; post the result instead of polling
+
+Returns immediately with the job, not the image:
+
+```json
+{ "id": "JWr5N6X9ZTqf8jD2LmQb", "status": "pending" }
+```
+
+### There is no negative prompt
+
+The request has **no `negative_prompt` field**. Anything you want excluded has
+to be said inside `prompt` as an explicit clause ("… drawn flat, NOT isometric,
+NOT oblique, no cast shadows"). Workflows ported from Midjourney or Stable
+Diffusion that rely on a negative field must be rewritten, and this is usually
+the reason a port looks wrong.
+
+---
+
+## Poll for the result
+
+`GET /v1/flows/image/{generation_id}`
+
+`status` is one of `pending`, `generating`, `completed`, `failed`.
+
+On `completed`:
+
+- `content_mime_type`
+- `content_url` — signed download URL that **expires about an hour** after the
+  response. Fetch the generation again for a fresh URL; do not cache it.
+
+On `failed`:
+
+- `error_message` — human-readable
+- `failure_reason` — one of `timeout`, `model_error`, `moderated`,
+  `invalid_parameters`, `dependency_failed`, `charging_failed`, `internal_error`
+
+**Poll no more than once every 2 seconds** for images. (Video is once per 10
+seconds; different endpoint, out of scope here.)
+
+---
+
+## Models
+
+Pick by two constraints: how many reference images you need, and the output
+resolution.
+
+| model | max refs | resolution | quality |
+|---|---|---|---|
+| `gpt-image-2.5-flare` | 10 | 1K / 2K / 4K | low, medium, high, xhigh, **max** |
+| `gpt-image-2.5-sunburst` | 10 | 1K / 2K / 4K | low, medium, high, xhigh, **max** |
+| `gpt-image-2` | 10 | 1K / 2K / 4K | low, medium, high |
+| `gpt-image-1.5` | 5 | — | low, medium, high |
+| `gpt-image-1` | 5 | — | low, medium, high |
+| `gemini-3-pro-image` | 10 | 1K / 2K / 4K | — |
+| `gemini-3.1-flash-image` | 14 | 512 / 1K / 2K / 4K | — |
+| `gemini-3.1-flash-lite-image` | 14 | 1K | — |
+| `gemini-2.5-flash-image` | 5 | — | — |
+| `bytedance-seedream-5-pro` | 10 | 1K / 2K | — |
+| `bytedance-seedream-5-lite` | 10 | 2K / 3K | — |
+
+`aspect_ratio`, for `gpt-image-2` and later:
+
+```
+auto  1:1  4:5  5:4  3:4  4:3  2:3  3:2  1:2  2:1  9:16  16:9  21:9  1:3  3:1
+```
+
+`gpt-image-1` and `gpt-image-1.5` are limited to `1:1`, `3:2`, `2:3` — if you
+need another ratio you need a later model.
+
+---
+
+## Reference images
+
+Every media-valued field takes a **reference object**, never raw bytes. Three
+shapes, each tagged by `type`:
+
+```json
+{ "type": "asset",          "asset_id": "5xM2KqOnZyce22SPZ9d4" }
+{ "type": "generation",     "generation_id": "JWr5N6X9ZTqf8jD2LmQb" }
+{ "type": "inline_base64",  "content_base64": "…", "mime_type": "image/png" }
+```
+
+- **`asset`** — a file uploaded to the assets API. Use this when the same
+  reference is wanted across many generations; upload once, reference by id.
+- **`generation`** — the output of another job. It **does not have to point at a
+  generation that has finished**, so jobs can be chained without waiting.
+- **`inline_base64`** — embedded in the request body. Capped at **25MB per
+  reference after decoding**. Simplest for a one-off; wasteful if repeated.
+
+Accepted image MIME types: `image/jpeg`, `image/png`, `image/webp`,
+`image/heic`, `image/heif`.
+
+---
+
+## Assets
+
+| | |
+|---|---|
+| Upload | `POST /v1/assets` — multipart form: the file, plus a display name |
+| List | `GET /v1/assets` — most recently created first |
+| Get one | `GET /v1/assets/{asset_id}` |
+
+Upload response:
+
+```json
+{
+  "asset_id": "5xM2KqOnZyce22SPZ9d4",
+  "name": "lighthouse.png",
+  "mime_type": "image/png",
+  "created_at_unix": 1721520000,
+  "content_url": "https://storage.googleapis.com/assets/5xM2KqOnZyce22SPZ9d4"
+}
+```
+
+`content_url` is signed and valid about an hour; it is `null` while the asset is
+still processing.
+
+Workspace storage by plan: Pro 11GB, Scale 33GB, Business 111GB, Enterprise
+333GB.
+
+---
+
+## Worked example — a new map in the style of an existing one
+
+The pattern this file exists to support: upload the finished map once as a style
+reference, then render many area maps against it.
+
+```python
+from elevenlabs.client import ElevenLabs
+import time, requests
+
+el = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
+
+# 1. upload the style reference once
+with open("maps/purewater-map.png", "rb") as f:
+    asset = el.assets.create(asset=f, name="purewater-master-map.png")
+
+# 2. submit, referencing it
+gen = el.flows.image.create(
+    model_id="gpt-image-2.5-flare",
+    prompt=PROMPT,                       # exclusions stated inline, see above
+    images=[{"type": "asset", "asset_id": asset.asset_id}],
+    aspect_ratio="4:3",
+    resolution="4K",
+    quality="max",
+    seed=20261001,                       # record it; needed to reproduce
+)
+
+# 3. poll, no faster than every 2s
+while True:
+    r = el.flows.image.get(gen.id)
+    if r.status in ("completed", "failed"):
+        break
+    time.sleep(2)
+
+if r.status == "failed":
+    raise RuntimeError(f"{r.failure_reason}: {r.error_message}")
+
+open("out.png", "wb").write(requests.get(r.content_url).content)
+```
+
+Equivalent with no SDK dependency:
+
+```bash
+curl -X POST https://api.elevenlabs.io/v1/flows/image/create \
+  -H "xi-api-key: $ELEVENLABS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "gpt-image-2.5-flare",
+    "prompt": "…",
+    "images": [{"type":"asset","asset_id":"5xM2KqOnZyce22SPZ9d4"}],
+    "aspect_ratio": "4:3",
+    "resolution": "4K",
+    "quality": "max"
+  }'
+
+curl https://api.elevenlabs.io/v1/flows/image/$ID \
+  -H "xi-api-key: $ELEVENLABS_API_KEY"
+```
+
+SDKs: `pip install elevenlabs` · `npm install @elevenlabs/elevenlabs-js`. Both
+expose `flows.image.create` / `flows.image.get` and `assets.create`. Neither is
+required — the REST surface is small enough to call directly, which is what
+`mapgen.py` in this skill does to avoid adding a dependency.
+
+---
+
+## Gotchas, collected
+
+1. **No negative prompt.** State exclusions inside `prompt`.
+2. **`content_url` expires in about an hour.** Download immediately or re-fetch.
+3. **Generation is asynchronous.** The create call returns `pending`; an image
+   never comes back on the first response.
+4. **Pro plan gate** on both generation and assets — a `402` means billing, not
+   a bad request.
+5. **Reference limits differ per model**, from 5 to 14. Exceeding them is an
+   `invalid_parameters` failure, surfaced on the *poll*, not the create.
+6. **`moderated`** is a distinct `failure_reason`; it means the prompt or a
+   reference was refused, and retrying the same input will fail the same way.
+7. **Record the `seed`.** Without it a sheet cannot be reproduced, which matters
+   for a set of images that must look like each other.
