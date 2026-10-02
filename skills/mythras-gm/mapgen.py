@@ -41,6 +41,7 @@ import hashlib
 import json
 import mimetypes
 import os
+import shutil
 import sys
 import time
 import urllib.error
@@ -136,6 +137,7 @@ def load_spec(path):
         "seed": meta.get("seed"),
         "labels": meta.get("labels") or [],
         "do_not_label": meta.get("do_not_label") or [],
+        "revision": (meta.get("revision") or "").strip(),
         "body": body.strip(),
         "path": path,
         "parse_error": meta.get("_parse_error"),
@@ -152,7 +154,14 @@ def load_specs(root):
     for name in sorted(os.listdir(d)):
         if not name.endswith(".md") or name.startswith("_"):
             continue
-        specs.append(load_spec(os.path.join(d, name)))
+        path = os.path.join(d, name)
+        # A spec is a file with YAML front matter. Without this check a README
+        # dropped in beside them is read as a spec, and `render --all` spends a
+        # generation drawing a map of its own documentation.
+        with open(path, encoding="utf-8") as fh:
+            if not fh.read(3).startswith("---"):
+                continue
+        specs.append(load_spec(path))
     return specs
 
 
@@ -170,14 +179,40 @@ def load_style_block(root, style):
     return body.strip()
 
 
-def assemble_prompt(spec, style_text):
+def assemble_prompt(spec, style_text, revising=False):
     """Style block + area brief + labels + the do-not-label list, as one string.
 
     The do-not-label list is appended last and phrased as an instruction because
     the API has no negative prompt; it is the only place these exclusions can
     live.
+
+    When `revising`, a preamble explains that a SECOND reference image is the
+    previous attempt at this same sheet, and the spec's `revision:` note says
+    what to fix about it. Passing the old render back in is what keeps a
+    re-roll from throwing away the parts that already worked.
     """
-    parts = [style_text, "", "AREA BRIEF -- %s" % spec["title"], "", spec["body"]]
+    parts = []
+    if revising:
+        parts += [
+            "TWO REFERENCE IMAGES ARE SUPPLIED.",
+            "",
+            "The FIRST is the master city map -- the authority for style and "
+            "geography, described below.",
+            "",
+            "The SECOND is a PREVIOUS ATTEMPT AT THIS VERY SHEET. Keep what it "
+            "gets right: its framing, its layout, the parts of its linework and "
+            "lettering that already match the master. Redraw it with the faults "
+            "below corrected. This is a revision of that drawing, not a fresh "
+            "start from nothing.",
+            "",
+        ]
+        if spec["revision"]:
+            parts += ["CORRECT THESE FAULTS IN THE PREVIOUS ATTEMPT:", "",
+                      spec["revision"], ""]
+        parts += ["-" * 70, ""]
+    parts += [style_text, "", "AREA BRIEF -- %s" % spec["title"],
+              "", "THE TITLE CARTOUCHE ON THIS SHEET READS: %s" % spec["title"],
+              "", spec["body"]]
     if spec["labels"]:
         parts += ["", "LETTER EXACTLY THESE LABELS, spelled as written, and no "
                       "other place names:"]
@@ -428,7 +463,15 @@ def cmd_status(args):
 def _render_one(root, spec, args, style_cache):
     style_text = style_cache.setdefault(
         spec["style"], load_style_block(root, spec["style"]))
-    prompt = assemble_prompt(spec, style_text)
+
+    previous = os.path.join(areas_dir(root), spec["slug"] + ".png")
+    revising = bool(getattr(args, "revise", False)) and os.path.isfile(previous)
+    if getattr(args, "revise", False) and not revising:
+        return {"slug": spec["slug"], "ok": False,
+                "error_message": "--revise needs a previous render at %s"
+                                 % os.path.relpath(previous, root)}
+
+    prompt = assemble_prompt(spec, style_text, revising=revising)
     seed = args.seed if args.seed is not None else spec["seed"]
 
     payload = {
@@ -448,6 +491,21 @@ def _render_one(root, spec, args, style_cache):
 
     ref = ensure_style_ref(root)
     payload["images"] = [{"type": "asset", "asset_id": ref["asset_id"]}]
+
+    if revising:
+        # Snapshot the old render before it is overwritten -- it is the second
+        # reference, and losing it would make the revision unrepeatable.
+        archive = os.path.join(areas_dir(root), "previous")
+        os.makedirs(archive, exist_ok=True)
+        kept = os.path.join(archive, spec["slug"] + ".png")
+        if not os.path.exists(kept):
+            shutil.copy2(previous, kept)
+        with open(kept, "rb") as fh:
+            payload["images"].append({
+                "type": "inline_base64",
+                "content_base64": base64.b64encode(fh.read()).decode("ascii"),
+                "mime_type": "image/png",
+            })
 
     created, path_used = create_generation(payload)
     gen_id = created.get("id")
@@ -477,6 +535,7 @@ def _render_one(root, spec, args, style_cache):
         "aspect_ratio": spec["aspect_ratio"], "seed": seed,
         "generation_id": gen_id, "create_path": path_used,
         "style_ref_asset_id": ref["asset_id"],
+        "revised_from_previous": revising,
         "prompt": prompt,
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         "spec_file": os.path.relpath(spec["path"], root),
@@ -551,6 +610,10 @@ def build_parser():
     s.add_argument("--seed", type=int, help="override the spec's seed")
     s.add_argument("--dry-run", action="store_true",
                    help="assemble and print the prompt without calling the API")
+    s.add_argument("--revise", action="store_true",
+                   help="pass the existing render back as a second reference and "
+                        "apply the spec's revision note; the old image is kept "
+                        "under previous/")
     s.add_argument("--yes", action="store_true", help="confirm an expensive --all run")
     s.add_argument("--quiet", action="store_true", help="no progress on stderr")
 
