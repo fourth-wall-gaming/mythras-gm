@@ -33,19 +33,29 @@
   ::selection { background: var(--amber); color: var(--ground); }
 
   /* ---------- deck ---------- */
-  .deck { display: block; }
+  /* One slide at a time, at EVERY width. This used to sit inside
+     @media (min-width:900px), which meant a phone got none of it: every slide
+     stacked into one long scrolling page with the speaker notes printed under
+     each one. That is a document, not a deck. */
+  .deck { display: block; height: 100dvh; overflow: hidden; }
   .slide {
-    min-height: 100dvh; box-sizing: border-box; position: relative;
+    box-sizing: border-box; position: relative;
     padding-block: 7vh 8vh; padding-inline: clamp(16px, 7vw, 120px);
-    display: flex; flex-direction: column; justify-content: center;
-    border-bottom: 1px solid var(--line);
+    display: none; height: 100dvh; border-bottom: 0;
+    flex-direction: column; justify-content: center;
   }
-  @media (min-width: 900px) {
-    .deck { height: 100dvh; overflow: hidden; }
-    .slide { display: none; height: 100dvh; border-bottom: 0; }
-    .slide.active { display: flex; }
+  .slide.active {
+    display: flex;
+    /* a slide whose content genuinely will not fit a small screen scrolls
+       itself, rather than pushing the whole deck into one page */
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   }
-  .slide > .inner { max-width: 1100px; width: 100%; margin-inline: auto; position: relative; }
+  /* min-width:0 matters: .inner is a flex item, and a flex item's automatic
+     minimum is its min-content width. The references block holds long
+     unbreakable DOIs and arXiv ids, so without this the inner box grows wider
+     than a phone screen, everything inside wraps to that wider box, and the
+     slide appears clipped at the right edge. */
+  .slide > .inner { max-width: 1100px; width: 100%; min-width: 0; margin-inline: auto; position: relative; }
 
   /* ---------- point slides: image + one sentence ---------- */
   .point {
@@ -59,8 +69,13 @@
   .point .inner { max-width: 1240px; }
   .point h1 {
     margin: 0; font-weight: 600; font-variation-settings: "opsz" 144;
-    font-size: clamp(2.2em, 5.4vw, 4.6em); line-height: 1.02; letter-spacing: -.015em;
+    /* The floor is deliberately low. It used to be 2.2em, which on a phone beat
+       the 5.4vw term and forced ~38px onto lines the <br>s will not let wrap --
+       so the title ran off the right edge. Above ~700px the vw term wins and
+       nothing changes. */
+    font-size: clamp(1.2rem, 5.4vw, 4.6em); line-height: 1.04; letter-spacing: -.015em;
     text-wrap: balance; max-width: 15em;
+    overflow-wrap: break-word;
     text-shadow: 0 2px 24px rgba(0,0,0,.55);
   }
   .point h1 em { font-style: italic; font-weight: 300; color: var(--amber); }
@@ -86,7 +101,7 @@
   @media print { .build > li, .build > p, .build > .branch, .build > .who { opacity: 1 !important; transform: none !important; } }
   body.printing .build > li, body.printing .build > p, body.printing .build > .branch, body.printing .build > .who { opacity: 1 !important; transform: none !important; }
   .detail .muted { color: var(--muted); }
-  .detail .refs { font-size: .62em; color: var(--muted); line-height: 1.5; max-width: none; margin-top: 1.4em; border-top: 1px solid var(--line); padding-top: .8em; }
+  .detail .refs { font-size: .62em; overflow-wrap: anywhere; color: var(--muted); line-height: 1.5; max-width: none; margin-top: 1.4em; border-top: 1px solid var(--line); padding-top: .8em; }
   .detail .refs .au { color: var(--amber); }
   .detail .refs a { border-bottom-color: transparent; }
   .detail .refs a:hover, .detail .refs a:focus-visible { border-bottom-color: var(--amber); }
@@ -203,9 +218,21 @@
   #notes .help { font-family: var(--mono); font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 18px; }
   .notes-src, .notes-inline { display: none; }
   @media (max-width: 899px) {
-    #notes { display: none; }
-    .notes-inline { display: block; margin-top: 2em; border-top: 1px dashed var(--line); padding-top: 1em; font-size: .85em; color: var(--muted); }
-    .point .notes-inline { color: var(--text); }
+    /* The notes belong to the speaker. Printing them under every slide put
+       them in front of anyone glancing at the phone; they are now reachable
+       only by tapping the slide counter. */
+    .notes-inline { display: none; }
+    .slide { padding-block: 4.5vh 9vh; padding-inline: clamp(14px, 5.5vw, 44px); }
+    .slide h1, .slide h2, .slide p, .slide li { overflow-wrap: break-word; }
+    .point .sub { font-size: 1rem; }
+    /* the longest br-locked line on the title slide is 35 characters */
+    .point h1 { font-size: clamp(1.45rem, 6.6vw, 2.4rem); }
+    .detail h2 { font-size: clamp(1.15rem, 5.2vw, 1.7em); }
+    .detail .refs { font-size: 9.5px; line-height: 1.4; }
+    .build > li, .build > p { font-size: .92rem; }
+    #notes { width: 100vw; border-left: 0; font-size: 16px; }
+    #hud { font-size: 12px; gap: 10px; }
+    #counter { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; }
   }
   @media (prefers-reduced-motion: reduce) { #progress, #notes { transition: none; } .build > li, .build > p, .build > .branch, .build > .who { transition: none; transform: none; } }
   :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
@@ -977,12 +1004,6 @@
     im.src = src;
   });
 
-  // inline notes for narrow screens
-  slides.forEach(function (s) {
-    var src = s.querySelector('.notes-src'); if (!src) return;
-    var inl = document.createElement('div'); inl.className = 'notes-inline'; inl.innerHTML = src.innerHTML;
-    s.querySelector('.inner').appendChild(inl);
-  });
 
   var STEP_SEL = '.build > li, .build > p, .build > .branch, .build > .who';
   function steps(slide) {
@@ -1016,7 +1037,7 @@
     notesBody.innerHTML = '<div class="budget">slide ' + (idx + 1) + ' · ' + (slides[idx].dataset.budget || '') + '<span class="cum">by ' + fmt(cum[idx]) + '</span></div>' + (src ? src.innerHTML : '');
     notes.scrollTop = 0;
     try { location.hash = 's' + (idx + 1); } catch (e) {}
-    if (window.innerWidth < 900) slides[idx].scrollIntoView({ block: 'start' });
+    slides[idx].scrollTop = 0;
     document.dispatchEvent(new CustomEvent('slidechange', { detail: { index: idx, slide: slides[idx] } }));
   }
   function next() {
@@ -1033,6 +1054,12 @@
   function toggleNotes() { var open = notes.classList.toggle('open'); try { localStorage.setItem('wm-notes', open ? '1' : '0'); } catch (e) {} }
   function toggleHud() { hud.classList.toggle('hidden'); progress.classList.toggle('hidden'); }
 
+  // No keyboard on a phone, so the slide counter is the way in -- small,
+  // unlabelled, and not something an audience member would try.
+  document.getElementById('counter').addEventListener('click', function (e) {
+    e.stopPropagation(); toggleNotes();
+  });
+
   document.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.key) {
@@ -1045,11 +1072,39 @@
       case 't': case 'T': startedAt = Date.now(); break;
     }
   });
+  var swipedAt = 0;   // set by the swipe handler, so a swipe is not also a tap
   document.getElementById('deck').addEventListener('click', function (e) {
-    if (window.innerWidth < 900 || e.target.closest('a, button, .replay')) return;
+    if (e.target.closest('a, button, input, .replay')) return;
+    if (Date.now() - swipedAt < 500) return;
     var r = document.getElementById('deck').getBoundingClientRect();
-    if (e.clientX - r.left > r.width * 0.75) next(); else if (e.clientX - r.left < r.width * 0.25) prev();
+    var x = (e.clientX - r.left) / r.width;
+    // A phone gives the whole width to the thumb: left half back, right half on.
+    // A desktop keeps a dead zone in the middle so you can point at the slide
+    // without advancing it.
+    var narrow = window.innerWidth < 900;
+    if (x > (narrow ? 0.5 : 0.75)) next();
+    else if (x < (narrow ? 0.5 : 0.25)) prev();
   });
+
+  // Swipe. A tap is not the only thing a thumb does, and on a phone the
+  // vertical gesture has to stay available for a slide that scrolls itself.
+  (function () {
+    var deck = document.getElementById('deck'), x0 = null, y0 = 0, t0 = 0;
+    deck.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { x0 = null; return; }
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+    }, { passive: true });
+    deck.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      x0 = null;
+      if (Date.now() - t0 > 600) return;                       // a slow drag is a scroll
+      if (Math.abs(dx) < 45) return;                           // a tap, not a swipe
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) return;           // mostly vertical: let it scroll
+      swipedAt = Date.now();
+      if (dx < 0) next(); else prev();
+    }, { passive: true });
+  })();
   setInterval(function () {
     if (startedAt === null) return;
     var el = Math.floor((Date.now() - startedAt) / 1000);
@@ -1412,7 +1467,7 @@
   // if the deck loaded straight onto this slide (deep link), the slidechange
   // event already fired before this script parsed -- start it here instead.
   var here = root.closest('.slide');
-  if (here && (here.classList.contains('active') || window.innerWidth < 900)) {
+  if (here && here.classList.contains('active')) {
     startedOnce = true;
     play(0);
   }
