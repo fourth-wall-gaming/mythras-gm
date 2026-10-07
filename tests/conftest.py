@@ -40,10 +40,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "myth
 import pytest  # noqa: E402
 
 
+# Why the last connection attempt failed, so a required-database failure can
+# say something more useful than "unreachable". A swallowed driver error cost a
+# CI round trip to diagnose a port mapping that was wrong by one digit.
+LAST_DRIVER_ERROR = None
+
+
 def _driver():
+    global LAST_DRIVER_ERROR
     try:
         from typedb.driver import TypeDB, Credentials, DriverOptions
-    except ImportError:
+    except ImportError as exc:
+        LAST_DRIVER_ERROR = f"typedb-driver is not installed: {exc}"
         return None
     try:
         return TypeDB.driver(
@@ -51,7 +59,8 @@ def _driver():
             Credentials(os.getenv("TYPEDB_USERNAME", "admin"),
                         os.getenv("TYPEDB_PASSWORD", "password")),
             DriverOptions(is_tls_enabled=False))
-    except Exception:
+    except Exception as exc:
+        LAST_DRIVER_ERROR = f"{type(exc).__name__}: {exc}"
         return None
 
 
@@ -118,5 +127,6 @@ def pytest_configure(config):
             f"{os.getenv('TYPEDB_PORT', '1730')}. The database-backed tests "
             "carry roughly half this suite's coverage and must not be skipped "
             "where a floor is enforced. Start a server, or unset "
-            "MYTHRAS_REQUIRE_DB to run the pure-logic tests only."
+            "MYTHRAS_REQUIRE_DB to run the pure-logic tests only.\n"
+            f"The driver said: {LAST_DRIVER_ERROR}"
         )

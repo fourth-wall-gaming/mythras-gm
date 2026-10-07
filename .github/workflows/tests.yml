@@ -27,7 +27,11 @@ jobs:
         # tests/test_versions_are_in_step pins them together.
         image: typedb/typedb:3.8.0
         ports:
-          - 1730:1730
+          # The container listens on 1729 INSIDE; docker-compose.yml maps
+          # host 1730 to it and this must agree. Published as 1730:1730, the
+          # TCP probe below still succeeded -- docker-proxy accepts the
+          # connection -- and every driver call then failed with "unreachable".
+          - 1730:1729
 
     env:
       TYPEDB_HOST: localhost
@@ -45,21 +49,28 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Wait for TypeDB to accept connections
-        # The service container is up before it is listening, and a race here
-        # looks exactly like "TypeDB is unreachable", which is the one error
-        # this workflow exists to distinguish from a real failure.
+      - name: Wait for TypeDB to accept driver connections
+        # Opens a real driver connection, not a TCP socket. A bare socket probe
+        # passes against docker-proxy whether or not anything is listening
+        # inside the container, which is exactly how a wrong port mapping got
+        # through here once already.
         run: |
-          for i in $(seq 1 60); do
-            if (echo > /dev/tcp/localhost/1730) 2>/dev/null; then
-              echo "TypeDB is listening after ${i}s"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "TypeDB never started listening on 1730" >&2
-          docker ps -a >&2
-          exit 1
+          uv run -q --project skills/mythras-gm python - <<'PY'
+          import sys, time
+          from typedb.driver import TypeDB, Credentials, DriverOptions
+          for attempt in range(60):
+              try:
+                  d = TypeDB.driver("localhost:1730",
+                                    Credentials("admin", "password"),
+                                    DriverOptions(is_tls_enabled=False))
+                  print("TypeDB answered the driver after %ds; databases: %s"
+                        % (attempt, sorted(x.name for x in d.databases.all())))
+                  sys.exit(0)
+              except Exception as exc:
+                  last = exc
+                  time.sleep(1)
+          sys.exit("TypeDB never answered a driver connection: %r" % (last,))
+          PY
 
       - name: Run the suite with the coverage floor
         # The floor lives in pyproject.toml so this workflow and a local run

@@ -107,3 +107,49 @@ def test_the_test_database_is_never_a_live_one():
     for name in ("mythras", "alh_mythras"):
         assert name in conftest.LIVE_DATABASES, \
             f"{name} is not on the refuse-list"
+
+
+def test_ci_publishes_the_port_typedb_actually_listens_on():
+    """The container listens on 1729 inside and docker-compose.yml maps host
+    1730 to it. CI published 1730:1730 once, which a TCP probe accepted --
+    docker-proxy answers whether or not anything is behind it -- so the whole
+    suite failed with "TypeDB is unreachable" and a green-looking service
+    container. Derived from docker-compose.yml so the two cannot drift.
+    """
+    compose = (ROOT / "docker-compose.yml").read_text()
+    m = re.search(r'"\$\{MYTHRAS_PORT:-(\d+)\}:(\d+)"', compose)
+    assert m, "could not read the port mapping out of docker-compose.yml"
+    host_port, container_port = m.group(1), m.group(2)
+
+    workflow = WORKFLOW.read_text()
+    mapping = re.search(r"-\s*(\d+):(\d+)\s*$", workflow, re.MULTILINE)
+    assert mapping, "no port mapping in the CI workflow"
+    assert mapping.group(2) == container_port, (
+        f"CI publishes to container port {mapping.group(2)}, but TypeDB "
+        f"listens on {container_port} (per docker-compose.yml)"
+    )
+    assert mapping.group(1) == host_port, (
+        f"CI exposes host port {mapping.group(1)}, but the engine defaults to "
+        f"{host_port}"
+    )
+
+
+def test_the_ci_readiness_probe_uses_a_real_driver_connection():
+    """A bare TCP probe against a published Docker port is a false positive:
+    docker-proxy accepts the connection regardless of what is listening
+    inside. The probe has to complete a driver handshake."""
+    workflow = WORKFLOW.read_text()
+    assert "/dev/tcp" not in workflow, \
+        "the readiness probe is a bare TCP connect, which passes falsely"
+    assert "TypeDB.driver" in workflow, \
+        "the readiness probe does not open a real driver connection"
+
+
+def test_a_failed_connection_reports_what_the_driver_said():
+    """An unexplained 'unreachable' cost a CI round trip to diagnose a port
+    that was wrong by one digit."""
+    import conftest
+    assert hasattr(conftest, "LAST_DRIVER_ERROR")
+    src = (ROOT / "tests" / "conftest.py").read_text()
+    assert "The driver said:" in src, \
+        "the required-database error does not include the driver's own message"
