@@ -400,7 +400,9 @@ def cmd_get_campaign(args):
         c = _get_entity(driver, "myth-campaign", args.campaign,
                         ["myth-system", "description", "content",
                          "myth-game-date", "myth-current-scene",
-                         "myth-session-number", "myth-time-index"])
+                         "myth-session-number", "myth-time-index",
+                         "myth-staging-notes", "myth-played-pcs",
+                         "myth-arc-json"])
     if not c:
         fail(f"No campaign '{args.campaign}'")
     c.setdefault("myth-system", "mythras")
@@ -5607,6 +5609,17 @@ def build_parser():
     s.add_argument("--session", type=int, dest="session",
                    help="alias for --session-number")
     s.add_argument("--time-index", type=int, help="numeric world clock; prefer tick in play")
+    s.add_argument("--staging-notes", help="the world's physical laws -- the few "
+                   "facts that would break the fiction if forgotten. Shown with "
+                   "EVERY place brief, because locations do not nest")
+    s.add_argument("--arc-file", help="path to the campaign's story.md; parses "
+                   "the act skeleton (what each act is FOR and what it TAKES) "
+                   "into the save, so the plan rides on get-context, forecast "
+                   "and tick instead of being read once and forgotten")
+    s.add_argument("--played", help="comma-separated ids of the PCs somebody is "
+                   "actually playing. Beat staging counts only these -- a "
+                   "campaign full of GM-run PCs otherwise marks every beat in "
+                   "the world onscreen, which tells you nothing")
 
     s = sub.add_parser("set-knowledge",
                        help="Record what a character knows, thinks it meant, and feels")
@@ -5638,17 +5651,6 @@ def build_parser():
     s.add_argument("--by", help="id of the record that replaces this one")
 
     sub.add_parser("list-campaigns")
-    s.add_argument("--staging-notes", help="the world's physical laws -- the few "
-                   "facts that would break the fiction if forgotten. Shown with "
-                   "EVERY place brief, because locations do not nest")
-    s.add_argument("--arc-file", help="path to the campaign's story.md; parses "
-                   "the act skeleton (what each act is FOR and what it TAKES) "
-                   "into the save, so the plan rides on get-context, forecast "
-                   "and tick instead of being read once and forgotten")
-    s.add_argument("--played", help="comma-separated ids of the PCs somebody is "
-                   "actually playing. Beat staging counts only these -- a "
-                   "campaign full of GM-run PCs otherwise marks every beat in "
-                   "the world onscreen, which tells you nothing")
 
     s = sub.add_parser("create-character")
     s.add_argument("--campaign")

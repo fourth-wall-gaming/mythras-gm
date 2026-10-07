@@ -674,3 +674,64 @@ def test_stop_db_only_kills_a_server_this_cli_started():
     body = src.split("def _stop_native_server(")[1].split("\ndef ")[0]
     assert "NATIVE_PID_FILE" in body
     assert 'sub.add_parser("stop-db"' in src
+
+
+def test_every_handler_reads_only_flags_its_subparser_defines():
+    """A handler reading args.X where X is not on its own subparser is an
+    AttributeError on every invocation of that command.
+
+    This happened: update-campaign's --staging-notes, --arc-file and --played
+    were appended to build_parser after a bare `sub.add_parser("list-campaigns")`,
+    so they bound to whatever `s` still pointed at -- retire-canon -- and
+    update-campaign crashed on its first line for every caller.
+    """
+    import inspect
+    import re as _re
+
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    always = {"command", "func"}
+    broken = {}
+
+    for cmd, p in sub.choices.items():
+        fn = getattr(gm, "cmd_" + cmd.replace("-", "_"), None)
+        if fn is None:
+            continue
+        src = inspect.getsource(fn)
+        # Bare attribute reads only. getattr(args, "x", default) is deliberate
+        # and safe, so strip those calls before scanning.
+        src = _re.sub(r'getattr\(\s*args\s*,[^)]*\)', '', src)
+        read = set(_re.findall(r'\bargs\.([a-zA-Z_][a-zA-Z0-9_]*)', src))
+        dests = {a.dest for a in p._actions} | always
+        missing = sorted(read - dests)
+        if missing:
+            broken[cmd] = missing
+
+    assert not broken, (
+        "handlers read flags their subparser does not define: " + repr(broken))
+
+
+def test_get_campaign_reads_back_everything_update_campaign_writes():
+    """A save you can write and not read is half a save.
+
+    update-campaign gained --arc-file, --played and --staging-notes; get-campaign's
+    fetch list did not, so the arc loaded into the database and no command could
+    show it. The GM then has no way to tell a loaded arc from a missing one.
+    """
+    import inspect
+    import re as _re
+
+    # _set_attr(driver, "myth-campaign", <id>, "<attribute>", value): the
+    # attribute is the SECOND quoted string, not the first (that is the type).
+    written = set(_re.findall(
+        r'_set_attr\(\s*driver,\s*"myth-campaign",\s*[^,]+,\s*"([a-z][a-z-]*)"',
+        inspect.getsource(gm.cmd_update_campaign)))
+    read = set(_re.findall(r'"([a-z][a-z-]*)"',
+                           inspect.getsource(gm.cmd_get_campaign)))
+    assert "myth-arc-json" in written, "regex no longer matches the handler"
+    # _get_entity always returns id and name, so name needs no fetch entry.
+    # set-scene owns the scene; update-campaign never writes it.
+    missing = sorted(written - read - {"name"})
+    assert not missing, (
+        "update-campaign writes these and get-campaign cannot read them back: "
+        + repr(missing))
