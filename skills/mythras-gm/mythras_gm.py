@@ -5517,6 +5517,10 @@ NEEDS_CAMPAIGN = {
     "add-beat", "list-beats", "fire-beat", "tick", "add-fact", "list-facts",
     "get-fact", "establish-fact", "who-knows", "character-view", "supersede-fact",
     "cascade", "check-consistency", "get-log", "get-context", "export-campaign",
+    # forecast and timeline were the only campaign-scoped commands that still
+    # demanded --campaign, so `gm timeline` errored where every neighbour
+    # defaulted. Their help already promised the default.
+    "forecast", "timeline",
     "delete-campaign", "start-encounter",
 }
 
@@ -5671,7 +5675,7 @@ def build_parser():
     sub.add_parser("list-campaigns")
 
     s = sub.add_parser("create-character")
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--type", default="pc", choices=["pc", "npc", "creature"])
     s.add_argument("--species", default="avian",
@@ -5714,7 +5718,7 @@ def build_parser():
     s.add_argument("--file", required=True,
                    help="JSON file: a sheet object or list of sheets "
                         "(stats/skills as list-of-dicts or flat dicts)")
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--type", default="pc", choices=["pc", "npc", "creature"])
 
     s = sub.add_parser("export-characters",
@@ -5730,7 +5734,7 @@ def build_parser():
 
     s = sub.add_parser("list-locations",
                        help="The gazetteer index, and which places can be staged")
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("brief",
                        help="How to play a person or a place. Read it before they speak, or before you describe it.")
@@ -5881,7 +5885,7 @@ def build_parser():
     s.add_argument("--narrative")
 
     s = sub.add_parser("add-template")
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--stats", required=True)
     s.add_argument("--species", default="avian",
@@ -5896,7 +5900,7 @@ def build_parser():
     s = sub.add_parser("spawn")
     s.add_argument("--template", required=True)
     s.add_argument("--name", required=True)
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("move-character")
     s.add_argument("--id", required=True)
@@ -5979,7 +5983,8 @@ def build_parser():
     # --- Living world (agendas, clocks, beats) ---
     s = sub.add_parser("add-agenda",
                        help="Create a goal held by an NPC or faction, with a progress clock")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--holder", required=True,
                    help="character or faction id that wants this")
     s.add_argument("--title", required=True)
@@ -5996,7 +6001,8 @@ def build_parser():
                    help="how they pursue it, and what would change their mind")
 
     s = sub.add_parser("list-agendas", help="Who wants what, and how close they are")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--holder")
     s.add_argument("--status")
     s.add_argument("--compact", action="store_true")
@@ -6032,7 +6038,8 @@ def build_parser():
 
     s = sub.add_parser("add-beat",
                        help="Schedule the next concrete thing an agenda produces")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--agenda", required=True)
     s.add_argument("--title", required=True)
     s.add_argument("--when", help="time key, e.g. 'd-3/night' (day/watch)")
@@ -6054,7 +6061,8 @@ def build_parser():
                         "(fact ids); advances (agenda-id:N); thwarts (agenda ids)")
 
     s = sub.add_parser("list-beats", help="What is about to happen, and where")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--pending", action="store_true")
     s.add_argument("--due", action="store_true", help="only beats already triggered")
     s.add_argument("--at", help="filter by location id")
@@ -6110,25 +6118,28 @@ def build_parser():
 
     s = sub.add_parser("timeline",
                        help="Where the projection expects everybody to be, watch by watch")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--all", action="store_true", help="include past watches")
 
     s = sub.add_parser("sync-arc",
                        help="Reconcile the campaign's beats to an arc document")
     s.add_argument("--file", required=True, help="the arc markdown file")
-    s.add_argument("--campaign")
+    s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--dry-run", action="store_true",
                    help="show the diff, change nothing")
 
     s = sub.add_parser("forecast",
                        help="The canonical thread: what happens if nobody interferes")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--all", action="store_true",
                    help="include beats already in the past")
 
     s = sub.add_parser("tick",
                        help="Advance world time; report what came due, onscreen or off")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--to", required=True, help="time key, e.g. 'd-2/dawn'")
     s.add_argument("--set-date", dest="set_date",
                    help="also update the campaign's prose game-date")
@@ -6138,7 +6149,8 @@ def build_parser():
     # --- Epistemics (facts, knowledge, reconciliation) ---
     s = sub.add_parser("add-fact",
                        help="Record one proposition about the world")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--statement", required=True,
                    help="the proposition, e.g. 'Santo carved Emmeralda'")
     s.add_argument("--title", help="short label (defaults to the statement)")
@@ -6161,7 +6173,8 @@ def build_parser():
                    help="source for --learned-by")
 
     s = sub.add_parser("list-facts", help="The fact graph: what is true, and who knows")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--status")
     s.add_argument("--truth")
     s.add_argument("--about", help="filter to facts about this entity id")
@@ -6214,12 +6227,14 @@ def build_parser():
     s.add_argument("--fact", required=True)
 
     s = sub.add_parser("who-knows", help="Everyone who holds a given fact")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--fact", required=True)
 
     s = sub.add_parser("character-view",
                        help="What one character can legitimately act on")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--id", required=True)
     s.add_argument("--compact", action="store_true")
 
@@ -6239,7 +6254,8 @@ def build_parser():
 
     s = sub.add_parser("cascade",
                        help="Re-settle intentions and futures without moving time")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     s = sub.add_parser("require-fact",
                        help="Gate an agenda on its holder knowing something")
@@ -6248,7 +6264,8 @@ def build_parser():
 
     s = sub.add_parser("check-consistency",
                        help="Reconcile knowledge against facts, agendas and the clock")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
 
     # --- Provisioning (no campaign; safe to run on session start) ---
     s = sub.add_parser("init-db",
@@ -6361,7 +6378,8 @@ def build_parser():
 
     s = sub.add_parser("delete-campaign",
                        help="Permanently delete a campaign and everything in it")
-    s.add_argument("--campaign", required=True)
+    s.add_argument("--campaign", required=True,
+                   help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--yes", action="store_true",
                    help="required; without it the command reports what would be lost and stops")
 
