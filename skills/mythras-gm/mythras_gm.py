@@ -5313,6 +5313,50 @@ def cmd_query_rules(args):
          "count": len(results), "rules": results, "linked": linked})
 
 
+# Pacing. A game that has stopped rolling dice has usually stopped being a game,
+# and the drift is gradual enough that no written rule catches it: one scene in a
+# room is fine, the second is justified by the first, the third is a
+# continuation. Nothing is wrong at any single step and nobody has rolled for
+# forty minutes.
+#
+# The data was always in the journal. Every event carries a type, so a run of
+# talking scenes with no skill-roll or combat between them is the signal.
+PACING_WARN_AT = 3
+PACING_PHYSICAL = {"skill-roll", "combat"}
+# Bookkeeping is not a scene and must not inflate the streak, or every session
+# boundary would read as drift.
+PACING_IGNORED = {"gm-note", "session-start", "session-end"}
+
+
+def pacing_streak(events):
+    """How many scenes have run, most recent first, since anything was rolled.
+
+    Counts only what happened at the table: `played` and `reported` events.
+    Offscreen beats are world movement, not scenes.
+    """
+    streak = 0
+    for e in reversed(list(events)):
+        if (e.get("visibility") or "played") not in ("played", "reported"):
+            continue
+        kind = e.get("type")
+        if kind in PACING_IGNORED:
+            continue
+        if kind in PACING_PHYSICAL:
+            break
+        streak += 1
+    return streak
+
+
+def pacing_warning(streak):
+    """The nudge, or None. Says what to do rather than what went wrong."""
+    if streak < PACING_WARN_AT:
+        return None
+    return (f"{streak} scenes since anything was rolled. Consider cutting to "
+            "something physical, with jeopardy, happening to somebody they "
+            "care about -- a scene where nothing can go wrong is a summary, "
+            "not a scene.")
+
+
 def cmd_get_context(args):
     """Everything needed to resume a campaign: campaign state, PCs (full sheets),
     NPCs (names), locations, factions, active encounters, recent events."""
@@ -5410,6 +5454,12 @@ def cmd_get_context(args):
         offscreen = [e for e in wt.filter_log(events, visibility="offscreen")
                      if (e.get("session") or 0) >= (camp.get("myth-session-number") or 0) - 1]
         offscreen = sorted(offscreen, key=lambda r: str(r["at"]))[-5:]
+        # Pacing: surfaced here because this is what a GM loads at the start of
+        # a session and again mid-play.
+        streak = pacing_streak(sorted(events, key=lambda r: str(r["at"])))
+        pacing = {"scenes_since_a_roll": streak,
+                  "warning": pacing_warning(streak)}
+
         # Whose scene was this. The cheapest guard in the system against
         # attributing one crew's history to another.
         for e in recent:
@@ -5433,7 +5483,8 @@ def cmd_get_context(args):
                   "npcs": npcs, "locations": members("myth-location"),
                   "factions": members("myth-faction"),
                   "encounters": [e for e in encounters if e["status"] == "active"],
-                  "recent_events": recent}
+                  "recent_events": recent,
+                  "pacing": pacing}
         if former:
             result["former_player_characters"] = former
         if offscreen:
