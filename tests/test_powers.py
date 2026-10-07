@@ -4,6 +4,8 @@ schema, the CLI, the round trip, and the audit that compares sheets to books."""
 import json
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -72,9 +74,33 @@ def test_which_book_names_the_one_that_governs():
     assert "Channel (INT+CHA)" in text and "Devotion (POW+CHA)" in text
 
 
+# build_spell_registry.py audits a campaign package against the books, and
+# defaults to ../purewater-campaign-v2 -- a SIBLING repository. It is present
+# on a developer's machine and absent from a CI checkout, so this test was
+# green locally and could never be green anywhere else.
+AUDITED_PACKAGE = ROOT.parent / "purewater-campaign-v2"
+
+
 def test_registry_is_current():
     """Regenerating must be a no-op, or the audit is describing an older game."""
+    if not AUDITED_PACKAGE.is_dir():
+        pytest.skip(
+            f"the audited campaign package is not checked out at "
+            f"{AUDITED_PACKAGE}; the registry audit compares sheets in a "
+            f"sibling repository against the books and cannot run without it"
+        )
     before = (GM / "spell_registry.json").read_text()
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_spell_registry.py")],
-                   check=True, capture_output=True)
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "build_spell_registry.py")],
+        capture_output=True, text=True)
+    assert r.returncode == 0, (
+        f"build_spell_registry.py failed:\n{r.stdout}\n{r.stderr}")
     assert (GM / "spell_registry.json").read_text() == before
+
+
+def test_the_registry_audit_names_its_own_dependency():
+    """A test that silently depends on a sibling checkout is a test that cannot
+    be trusted when it passes. The script must say what it could not find."""
+    src = (ROOT / "scripts" / "build_spell_registry.py").read_text()
+    assert "no such campaign package" in src, \
+        "the script does not say which package it wanted"
