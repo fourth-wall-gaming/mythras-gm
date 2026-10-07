@@ -735,3 +735,59 @@ def test_get_campaign_reads_back_everything_update_campaign_writes():
     assert not missing, (
         "update-campaign writes these and get-campaign cannot read them back: "
         + repr(missing))
+
+
+def test_arc_acts_parse_for_and_takes_whole(tmp_path):
+    """An act's purpose and cost are prose that wraps. Both must survive whole.
+
+    The parser handled **Takes:** but not **For:**, so it fell back to "first
+    line that does not look like markup" -- which picked up a WRAPPED
+    CONTINUATION of the For paragraph -- and it read only the first physical
+    line of Takes. First Through's arc loaded into the save as three acts whose
+    purpose and cost were both sentence fragments, and nothing said so.
+    """
+    doc = tmp_path / "story.md"
+    doc.write_text(
+        "# ACT I — `d0 to d2` · THE NINE\n"
+        "\n"
+        "**For:** making the player love this place and these people, and\n"
+        "learning the job in their own hands. Light for two beats, then the\n"
+        "hardest night of their life.\n"
+        "\n"
+        "**Takes:** Ladder. Forty-two adults who are alive, well, and\n"
+        "permanently out of reach.\n"
+        "\n"
+        "| beat | who |\n"
+        "|---|---|\n"
+    )
+    acts = gm._parse_arc_acts(str(doc))
+    assert len(acts) == 1
+    a = acts[0]
+    assert a["act"] == "I"
+    assert a["when"] == "d0 to d2"
+    assert a["title"] == "THE NINE"
+    assert a["for"].startswith("making the player love this place")
+    assert a["for"].endswith("hardest night of their life.")
+    assert a["takes"].startswith("Ladder.")
+    assert a["takes"].endswith("permanently out of reach.")
+
+
+def test_update_event_can_amend_the_timestamp_log_event_can_set():
+    """created-at is second-granular, so events logged in one batch tie.
+
+    get-log sorts by (session, created-at), so a session written in a few
+    seconds comes back in arbitrary order. log-event --at exists to place an
+    event in story order instead of wall-clock order; update-event had no way
+    to amend it, so a journal already written out of order could not be
+    repaired through the CLI at all.
+    """
+    import inspect
+
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    assert "at" in {a.dest for a in sub.choices["log-event"]._actions}, \
+        "log-event lost --at"
+    assert "at" in {a.dest for a in sub.choices["update-event"]._actions}, \
+        "update-event cannot amend the timestamp log-event can set"
+    assert "created-at" in inspect.getsource(gm.cmd_update_event), \
+        "update-event takes --at but never writes created-at"

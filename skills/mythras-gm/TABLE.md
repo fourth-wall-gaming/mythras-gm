@@ -941,6 +941,17 @@ NPC-versus-NPC, where nobody is being asked anything.
 - **Persist relentlessly.** `log-event` after every scene; `set-scene` and
   `move-character` when the party moves; damage, healing, fatigue and luck
   immediately.
+- **Somebody invented at the table does not exist in the save.** `--involves`
+  can only name records that are already there, so a person the party met this
+  scene gets `create-character --type npc` BEFORE the event that mentions them --
+  including the PC's own fetch or companion, who is a person and not an
+  accessory. An unlinked name is a name no future session can look up: it reads
+  back as prose and nothing else.
+- **Write the journal in story order, not in the order you got round to it.**
+  `created-at` is granular to the second, so a batch of events logged at the end
+  of a scene ties and comes back arbitrarily shuffled. Pass `--at` with
+  timestamps a minute apart, or log as you go. `update-event --at` repairs a
+  journal already written out of order.
 - **The camera has a position, and every `log-event` says where it was.**
   `--visibility played` (on screen, the default), `reported` (the party was
   told), `offscreen` (happened elsewhere -- GM-side only; players learn of it

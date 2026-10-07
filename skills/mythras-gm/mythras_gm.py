@@ -417,26 +417,41 @@ def _parse_arc_acts(path):
     story.md's own first section forbids.
     """
     text = open(path, encoding="utf-8").read()
-    acts, cur = [], None
+    labels = (("**For:**", "for"), ("**Takes:**", "takes"))
+    acts, cur, field = [], None, None
     for line in text.splitlines():
         m = re.match(r"^#\s+ACT\s+([IVXL]+)\s*[-—–]\s*(.*)$", line.strip())
         if m:
             if cur:
                 acts.append(cur)
             rest = m.group(2)
-            span, _, title = rest.partition("·")
+            span, sep, title = rest.partition("·")
+            # No separator means no span -- the whole heading is the title.
+            # Inventing a span from a title gave acts a `when` of "THE NINE".
             cur = {"act": m.group(1),
-                   "when": span.replace("`", "").strip(),
-                   "title": title.strip() or rest.strip(),
+                   "when": span.replace("`", "").strip() if sep else "",
+                   "title": (title.strip() if sep else rest.strip()),
                    "for": "", "takes": ""}
+            field = None
             continue
         if not cur:
             continue
         t = line.strip()
-        if t.startswith("**Takes:**"):
-            cur["takes"] = t[len("**Takes:**"):].strip()
-        elif t and not t.startswith(("|", "#", "-", "**", "`")) and not cur["for"]:
+        started = next((k for lab, k in labels if t.startswith(lab)), None)
+        if started:
+            lab = next(l for l, k in labels if k == started)
+            cur[started] = t[len(lab):].strip()
+            field = started
+        elif not t or t.startswith(("|", "#", "-", "**", "`")):
+            # Blank line or a new block ends the paragraph being collected.
+            field = None
+        elif field:
+            # A wrapped continuation of **For:** or **Takes:**.
+            cur[field] = (cur[field] + " " + t).strip()
+        elif not cur["for"]:
+            # An act whose purpose is a bare paragraph, with no **For:** label.
             cur["for"] = t
+            field = "for"
     if cur:
         acts.append(cur)
     if not acts:
@@ -2306,6 +2321,9 @@ def cmd_update_event(args):
         if args.session is not None:
             _set_attr(driver, "myth-game-event", args.id,
                       "myth-session-number", args.session, quote=False)
+        if getattr(args, "at", None) is not None:
+            _set_attr(driver, "myth-game-event", args.id, "created-at",
+                      args.at, quote=False)
 
         linked = 0
         participant_types = ["myth-character", "myth-location", "myth-faction",
@@ -5922,6 +5940,10 @@ def build_parser():
                    help="where the camera was; default played. offscreen = the party was not there and learns of it only through consequences")
     s.add_argument("--involves",
                    help="comma-separated entity ids to link (existing links kept)")
+    s.add_argument("--at", help="ISO timestamp (YYYY-MM-DDTHH:MM:SS) to move the "
+                               "event to. created-at is second-granular, so events "
+                               "logged in one batch tie and get-log returns them in "
+                               "arbitrary order; this is how story order is restored")
 
     s = sub.add_parser("add-lore", help="Add a worldbuilding lore entry to a campaign")
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
