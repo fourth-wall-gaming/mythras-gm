@@ -1,0 +1,37 @@
+# Test and coverage configuration for the repository.
+#
+# The engine itself is a plugin skill, not an installable package -- its own
+# dependencies live in skills/mythras-gm/pyproject.toml. This file exists only
+# to hold the pytest and coverage settings in one place, so the floor the CI
+# workflow enforces and the floor a developer sees locally are the same number.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["skills/mythras-gm"]
+branch = false
+omit = [
+    "*/.venv/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+# The floor. Raise it when coverage rises; never lower it to make a red build
+# green -- that is what tests/test_coverage_floor.py is there to prevent.
+#
+# Set at 74 against a measured 76% with a database present. Two points of slack
+# absorbs ordinary churn without letting a real regression through.
+#
+# NOTE: this number is only meaningful with TypeDB running. Without it, 64
+# database-backed tests skip and coverage falls to 38%, so CI sets
+# MYTHRAS_REQUIRE_DB=1 and conftest refuses to start without a server.
+fail_under = 74
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

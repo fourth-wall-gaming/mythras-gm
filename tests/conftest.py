@@ -86,6 +86,8 @@ def throwaway_database():
             tx.commit()
     except Exception as exc:      # provisioning failed; let tests skip themselves
         print(f"conftest: could not provision {TEST_DB}: {exc}", file=sys.stderr)
+        if os.environ.get("MYTHRAS_REQUIRE_DB"):
+            raise
         yield None
         return
 
@@ -96,3 +98,25 @@ def throwaway_database():
             d.databases.get(TEST_DB).delete()
         except Exception as exc:
             print(f"conftest: could not drop {TEST_DB}: {exc}", file=sys.stderr)
+
+
+def pytest_configure(config):
+    """Refuse to start without a database when the environment demands one.
+
+    A silent skip plus a coverage floor is a floor that can be satisfied by not
+    running the tests: with TypeDB absent, 64 database-backed tests skip and
+    overall coverage falls from 76% to 38%. CI sets MYTHRAS_REQUIRE_DB=1, so a
+    missing server stops the run there with one clear message, while a
+    developer with no server still gets the pure-logic half of the suite.
+    """
+    if not os.environ.get("MYTHRAS_REQUIRE_DB"):
+        return
+    if _driver() is None:
+        raise pytest.UsageError(
+            "MYTHRAS_REQUIRE_DB is set but TypeDB is unreachable at "
+            f"{os.getenv('TYPEDB_HOST', 'localhost')}:"
+            f"{os.getenv('TYPEDB_PORT', '1730')}. The database-backed tests "
+            "carry roughly half this suite's coverage and must not be skipped "
+            "where a floor is enforced. Start a server, or unset "
+            "MYTHRAS_REQUIRE_DB to run the pure-logic tests only."
+        )

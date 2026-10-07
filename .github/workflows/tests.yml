@@ -1,0 +1,78 @@
+name: tests
+
+# The engine's command layer is what breaks, and roughly half this suite's
+# coverage comes from tests that need a real TypeDB. So CI runs one as a
+# service container and sets MYTHRAS_REQUIRE_DB=1, which makes conftest refuse
+# to start without it. Without that, the database tests would skip silently and
+# the coverage floor could be satisfied by not running them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      typedb:
+        # Kept in step with TYPEDB_VERSION and TYPEDB_IMAGE in mythras_gm.py;
+        # tests/test_versions_are_in_step pins them together.
+        image: typedb/typedb:3.8.0
+        ports:
+          - 1730:1730
+
+    env:
+      TYPEDB_HOST: localhost
+      TYPEDB_PORT: "1730"
+      MYTHRAS_REQUIRE_DB: "1"
+      # conftest forces the database name to mythras_pytest and refuses to
+      # inherit a live one, but being explicit here documents the intent.
+      TYPEDB_DATABASE: mythras_pytest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Wait for TypeDB to accept connections
+        # The service container is up before it is listening, and a race here
+        # looks exactly like "TypeDB is unreachable", which is the one error
+        # this workflow exists to distinguish from a real failure.
+        run: |
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/localhost/1730) 2>/dev/null; then
+              echo "TypeDB is listening after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "TypeDB never started listening on 1730" >&2
+          docker ps -a >&2
+          exit 1
+
+      - name: Run the suite with the coverage floor
+        # The floor lives in pyproject.toml so this workflow and a local run
+        # enforce the same number.
+        run: >
+          uv run -q --project skills/mythras-gm
+          --with pytest --with pytest-cov
+          pytest tests/ --cov --cov-report=term --cov-report=xml
+
+      - name: Upload the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: warn
