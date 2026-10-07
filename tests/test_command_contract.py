@@ -163,3 +163,49 @@ def test_help_that_promises_a_default_is_telling_the_truth():
             liars.append(cmd)
     assert not liars, (
         "these say --campaign defaults and then require it: " + repr(liars))
+
+
+def test_every_cli_command_the_rules_graph_names_actually_exists():
+    """The rules are read at the table and tell the GM what to run.
+
+    `skill/experience` told GMs to use `award-experience` and `improve-skill`
+    for as long as it had existed, and neither command was ever written. The
+    gap surfaced mid-session with three experience rolls owed, and the rolls
+    had to be done by hand in a shell loop.
+
+    Nothing else caught it: the other contract tests check the parser against
+    the handlers, which agreed with each other perfectly. The rules text is a
+    third party that can disagree with both.
+    """
+    import pathlib
+    import re as _re
+
+    rules_dir = pathlib.Path(gm.__file__).resolve().parent / "rules"
+    if not rules_dir.is_dir():
+        pytest.skip(f"no rules directory at {rules_dir}")
+
+    known = set(SUBCOMMANDS)
+    # Words that look like commands in prose but are not, plus the two shell
+    # verbs the rules legitimately mention.
+    ignore = {"mythras-gm", "uv", "python", "gm"}
+
+    offenders = {}
+    for path in sorted(rules_dir.rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        # Backticked hyphenated lower-case words: how the rules name a command.
+        for token in _re.findall(r"`([a-z][a-z-]{3,})`", text):
+            if token in known or token in ignore or "-" not in token:
+                continue
+            # Only flag it when the surrounding sentence is telling somebody to
+            # run something, rather than naming a game concept like
+            # `special-effect`.
+            for line in text.splitlines():
+                if f"`{token}`" not in line:
+                    continue
+                if _re.search(r"\b(CLI|command|run|use|call)\b", line, _re.I):
+                    offenders.setdefault(token, set()).add(
+                        str(path.relative_to(rules_dir)))
+
+    assert not offenders, (
+        "the rules graph tells the GM to run commands that do not exist: "
+        + repr({k: sorted(v) for k, v in offenders.items()}))

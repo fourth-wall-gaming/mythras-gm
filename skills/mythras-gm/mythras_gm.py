@@ -1435,6 +1435,103 @@ def _lore_about(driver, subject_id):
         fetch {{ "id": $i, "title": $n }};''')
 
 
+SKILL_POOLS = ("myth-skills-json", "myth-combat-styles-json",
+               "myth-passions-json")
+
+
+def _locate_skill(char, skill_name):
+    """Which pool a resolved skill, style or passion lives in.
+
+    _resolve_skill returns the name and value but not the blob, and improving
+    one means writing it back to the right place: a combat style merged into
+    the skills blob would create a duplicate and leave the real style untouched.
+    """
+    name, value = _resolve_skill(char, skill_name)
+    for pool in SKILL_POOLS:
+        if name in (char.get(pool) or {}):
+            return pool, name, value
+    fail(f"resolved '{name}' on {char['name']} but cannot find which pool it "
+         f"is in (looked in {', '.join(SKILL_POOLS)})")
+
+
+def cmd_award_experience(args):
+    """Add experience rolls to a character.
+
+    Accumulates rather than replacing: a GM awarding after each of two sessions
+    must not silently wipe the first award. The rule asks for 1-3 per session
+    at a natural break point, but catching up several sessions at once is a
+    real thing a GM does, so the count is not capped -- only required to be
+    positive, because awarding zero or minus two is a typo rather than an
+    intention.
+    """
+    rolls = 1 if args.rolls is None else args.rolls
+    if rolls < 1:
+        fail(f"--rolls must be at least 1 (got {rolls}). The rule awards 1-3 "
+             "per session at natural break points.")
+    with get_driver() as driver:
+        char = _load_character(driver, args.id)
+        have = char.get("myth-experience-rolls") or 0
+        total = have + rolls
+        _set_attr(driver, "myth-character", args.id, "myth-experience-rolls",
+                  total, quote=False)
+    out({"success": True, "id": args.id, "name": char["name"],
+         "awarded": rolls, "experience_rolls": total})
+
+
+def cmd_improve_skill(args):
+    """Spend an experience roll on one skill, style or passion.
+
+    From skill/experience: the player rolls 1d100+INT against the skill;
+    >= skill gains 1d4+1%, below it gains +1%. Note the direction -- this is
+    the opposite of every other check in the game. A LOW skill is easy to beat
+    and improves fast; a high one grinds a point at a time, which is the whole
+    shape of advancement in Mythras.
+
+    --fumbled takes the free +1% the rule gives a skill fumbled during play. It
+    costs no experience roll and makes no check: it is awarded for having
+    failed badly, not for having studied.
+    """
+    with get_driver() as driver:
+        char = _load_character(driver, args.id)
+        pool, name, before = _locate_skill(char, args.skill)
+
+        if args.fumbled:
+            # Free, and deliberately not a check.
+            roll = total = None
+            beat = False
+            gain = 1
+            spent = False
+            remaining = char.get("myth-experience-rolls") or 0
+        else:
+            remaining = char.get("myth-experience-rolls") or 0
+            if remaining < 1:
+                fail(f"{char['name']} has no experience rolls to spend. "
+                     "Award some with `award-experience --id <char> --rolls N`, "
+                     "or take the free point for a skill fumbled in play with "
+                     "`improve-skill --fumbled`.")
+            int_score = (char.get("myth-characteristics-json") or {}).get("INT", 0)
+            roll = args.roll if args.roll is not None else eng.roll_dice("1d100")["total"]
+            total = roll + int_score
+            beat = total >= before
+            gain = eng.roll_dice("1d4")["total"] + 1 if beat else 1
+            spent = True
+            remaining -= 1
+            _set_attr(driver, "myth-character", args.id,
+                      "myth-experience-rolls", remaining, quote=False)
+
+        after = before + gain
+        updated = dict(char.get(pool) or {})
+        updated[name] = after
+        _set_attr(driver, "myth-character", args.id, pool, json.dumps(updated))
+
+    out({"success": True, "id": args.id, "name": char["name"],
+         "skill": name, "pool": pool,
+         "roll": roll, "total": total, "beat": beat,
+         "fumbled": bool(args.fumbled), "spent_a_roll": spent,
+         "gain": gain, "from": before, "to": after,
+         "experience_rolls": remaining})
+
+
 def cmd_apply_damage(args):
     with get_driver() as driver:
         c = _load_character(driver, args.id)
@@ -5476,6 +5573,8 @@ ALIASES = {
     "brief":             {"--character": "id"},
     "roll-skill":        {"--character": "id"},
     "apply-damage":      {"--character": "id"},
+    "award-experience":  {"--character": "id"},
+    "improve-skill":     {"--character": "id"},
     "heal":              {"--character": "id"},
     "move-character":    {"--character": "id", "--to": "location"},
     "character-view":    {"--character": "id"},
@@ -5768,6 +5867,26 @@ def build_parser():
     s.add_argument("--powers", help="JSON list of powers, e.g. "
                    "[{\"name\": \"Berserk\", \"rule\": \"magic/powers/berserk\"}]. "
                    "Powers carry everything the CFI spell list has no entry for")
+
+    s = sub.add_parser("award-experience",
+                       help="Add experience rolls to a character (1-3 per "
+                            "session at a natural break point)")
+    s.add_argument("--id", required=True)
+    s.add_argument("--rolls", type=int,
+                   help="how many to add; accumulates, default 1")
+
+    s = sub.add_parser("improve-skill",
+                       help="Spend an experience roll: 1d100+INT vs the skill, "
+                            ">= gains 1d4+1%%, below gains +1%%")
+    s.add_argument("--id", required=True)
+    s.add_argument("--skill", required=True,
+                   help="skill, combat style or passion; partial names resolve")
+    s.add_argument("--roll", type=int,
+                   help="use this d100 instead of rolling, for a table that "
+                        "rolls its own dice")
+    s.add_argument("--fumbled", action="store_true",
+                   help="take the free +1%% for a skill fumbled in play; costs "
+                        "no experience roll and makes no check")
 
     s = sub.add_parser("apply-damage")
     s.add_argument("--id", required=True)
