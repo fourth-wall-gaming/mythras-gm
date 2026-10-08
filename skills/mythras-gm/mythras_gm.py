@@ -5347,6 +5347,45 @@ def pacing_streak(events):
     return streak
 
 
+# The companion signal, and it measures something the streak above cannot see:
+# whether the player character is doing anything or merely attending.
+#
+# A scene with three or more NPCs in it is a committee. Rolls keep happening in
+# a committee -- they are just rolls to persuade somebody -- so the dice do not
+# redeem it, and the PC quietly becomes a courier of narrative between people
+# who hold all the insights.
+COMMITTEE_AT = 3
+COMMITTEE_CAST = 3
+
+
+def committee_streak(events):
+    """Consecutive recent scenes with a cast of three or more.
+
+    Counts what happened at the table, same as pacing_streak. Bookkeeping is
+    skipped; a scene with a small cast breaks the run.
+    """
+    streak = 0
+    for e in reversed(list(events)):
+        if (e.get("visibility") or "played") not in ("played", "reported"):
+            continue
+        if e.get("type") in PACING_IGNORED:
+            continue
+        if len(e.get("who") or []) >= COMMITTEE_CAST:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def committee_warning(streak):
+    """The nudge. Asks the question rather than naming the fault."""
+    if streak < COMMITTEE_AT:
+        return None
+    return (f"{streak} scenes in a row with three or more NPCs present. Ask "
+            "what the player character can do here that nobody else in the "
+            "room can -- and if the answer is 'walk to the next room', cut.")
+
+
 def pacing_warning(streak):
     """The nudge, or None. Says what to do rather than what went wrong."""
     if streak < PACING_WARN_AT:
@@ -5456,9 +5495,15 @@ def cmd_get_context(args):
         offscreen = sorted(offscreen, key=lambda r: str(r["at"]))[-5:]
         # Pacing: surfaced here because this is what a GM loads at the start of
         # a session and again mid-play.
-        streak = pacing_streak(sorted(events, key=lambda r: str(r["at"])))
+        ordered = sorted(events, key=lambda r: str(r["at"]))
+        for e in ordered:
+            e.setdefault("who", [n for _, n in participants.get(e["id"], [])])
+        streak = pacing_streak(ordered)
+        committee = committee_streak(ordered)
         pacing = {"scenes_since_a_roll": streak,
-                  "warning": pacing_warning(streak)}
+                  "warning": pacing_warning(streak),
+                  "committee_scenes": committee,
+                  "committee_warning": committee_warning(committee)}
 
         # Whose scene was this. The cheapest guard in the system against
         # attributing one crew's history to another.

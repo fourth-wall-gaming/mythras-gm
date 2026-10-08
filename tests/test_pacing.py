@@ -79,3 +79,63 @@ def test_get_context_reports_pacing():
     import inspect
     src = inspect.getsource(gm.cmd_get_context)
     assert "pacing" in src, "get-context does not report pacing"
+
+
+# --- the committee detector ------------------------------------------------
+#
+# The second failure caught at the table: the player character reduced to a
+# courier of narrative between NPCs who hold all the insights. Scenes-since-a-
+# roll does not see it, because the rolls keep happening -- they are just rolls
+# to persuade somebody in a room.
+#
+# The measurable proxy is CAST SIZE. Three or more NPCs in a room with the PC is
+# a committee, and a committee is where agency goes to die.
+
+def ev_cast(n, type_="scene", visibility="played"):
+    return {"type": type_, "visibility": visibility,
+            "who": [f"npc{i}" for i in range(n)]}
+
+
+def test_a_two_hander_is_not_a_committee():
+    assert gm.committee_streak([ev_cast(2), ev_cast(1)]) == 0
+
+
+def test_three_npcs_counts():
+    assert gm.committee_streak([ev_cast(1), ev_cast(3)]) == 1
+
+
+def test_consecutive_committees_accumulate():
+    assert gm.committee_streak([ev_cast(4), ev_cast(3), ev_cast(5)]) == 3
+
+
+def test_a_small_scene_breaks_the_streak():
+    assert gm.committee_streak([ev_cast(4), ev_cast(5), ev_cast(1)]) == 0
+
+
+def test_a_roll_does_not_break_a_committee_streak():
+    """This is the whole point: persuading four people in an office is still a
+    committee, and the dice do not redeem it."""
+    assert gm.committee_streak([ev_cast(4), ev_cast(4, "skill-roll")]) == 2
+
+
+def test_the_committee_threshold_is_three():
+    assert gm.COMMITTEE_AT == 3
+
+
+def test_the_committee_warning_asks_the_right_question():
+    w = gm.committee_warning(3)
+    assert w
+    low = w.lower()
+    assert "3" in w
+    assert "nobody else" in low or "can do" in low, \
+        "the warning should ask what the PC can do that nobody else in the room can"
+
+
+def test_no_committee_warning_below_two_in_a_row():
+    assert gm.committee_warning(1) is None
+
+
+def test_get_context_reports_the_committee_streak():
+    import inspect
+    src = inspect.getsource(gm.cmd_get_context)
+    assert "committee" in src
