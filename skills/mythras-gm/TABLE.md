@@ -1047,6 +1047,26 @@ NPC-versus-NPC, where nobody is being asked anything.
   through consequences, never cutaways), `meta` (bookkeeping about the game, not
   an event in it). Mark your own correction notes `meta` or they pollute both
   knowledge scoping and the recent-events window.
+- **After a rollback, the journal is the only history. Not your memory.**
+  When play is rewound and events are retired or retracted, you will keep the
+  retracted version in your head — it is vivid, you wrote it, and it happened as
+  far as you are concerned. The player's character did not do any of it.
+
+  The failure in practice: an NPC told a fifteen-year-old she had felt a
+  particular door set under her own weight twice. She had, in the version that
+  was rewound. In the live one she had never stepped on that plate, and the line
+  handed her an experience she never had and a standing she had not earned.
+
+  So before referring to anything the player character has done, **read it back**
+  — `get-log --type skill-roll` is usually enough, and it excludes retracted
+  events by design, which is the whole reason to retract rather than delete.
+  Do this at the start of any session that follows a rewind, and again the first
+  time an NPC refers to the character's record.
+
+  The same applies to what the player *knows*. Information gathered in a
+  retracted scene is information their character never gathered, however
+  obviously true it now is.
+
 - **Canon that stops being true is retired, not deleted.** `retire-canon --id X
   --status superseded --by Y`. The record keeps its audit trail and stops being
   read as live. GM truth from a rejected version of a campaign once sat in a
