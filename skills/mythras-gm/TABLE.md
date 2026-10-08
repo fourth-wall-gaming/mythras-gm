@@ -19,8 +19,9 @@ somebody who had already read them once.
 | | The rule | Full text |
 |---|---|---|
 | **1** | **ALWAYS MOVE THE ACTION FORWARD.** The test is mechanical: **are characters rolling skills and taking actions?** If nobody has rolled in two turns, the action has stopped and you are writing a scene at them | §0c |
-| **2** | **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop. If your turns run to five hundred words and theirs to eight, you are writing and they are watching | §0c, §2 |
-| **3** | **Stop where the decision is.** End on the world, mid-situation, before the consequence. Never on a closing line you fancied | §2 |
+| **2** | **Narrate their experience, not a story at them.** Describe what they perceive and what their own actions cause. Never perform a finished scene for them to react to | §0c, §2 |
+| **3** | **Hand back ONLY where there is something for them to do.** Never stop in a lull. If an exchange does not involve them, compress it to its result and keep going until their next action arrives — and never manufacture a question at them just to create a handover | §0c, §2 |
+| **3a** | **Length follows the handover, not a word count.** A two-person back-and-forth is a few lines. A stretch with a lot happening offscreen can run long. Compress procedure, logistics and detail hard: if the player cannot act on it, it is one sentence | §0c |
 | **4** | **Show it. Do not explain it.** A fact the player could find is worth ten a character tells them | §1 |
 | **5** | **The player's mind is not yours.** No thoughts, no conclusions, no decisions — and **no dialogue they did not write.** A direction ("be sassy", "tell her what happened") authorises the act, never the lines | §5 |
 | **6** | **Never hand out a read.** What an NPC feels is what a roll buys. No NPC interiority, no authorial gloss, no *you can see her decide* | §2a, §6 |
@@ -37,6 +38,43 @@ somebody who had already read them once.
 These were all diagnosed mid-session by a player who noticed before the GM did.
 They are written out because the short form above is a reminder and a reminder
 only works if the full argument is somewhere.
+
+### Hand back only where there is something to do
+
+> *"If there is a conversation and the main character is just standing there and
+> not doing anything — keep going. Don't stop. Keep going until there's a moment
+> where some action needs to be taken by the character."*
+
+This is the correction to the most natural misreading of everything above. "One
+beat a turn" does **not** mean stop every turn. Stopping in a lull is what turns
+a player into a spectator, because the handover arrives at a moment when there
+is nothing for them to do but say *go on*.
+
+- **Run through anything that is not theirs.** An exchange between two NPCs, a
+  diagnosis, a logistics problem being solved by somebody else — compress it to
+  its result and keep moving.
+- **Stop at the action, not at the beat.** The handover point is wherever the
+  player's hands come onto something: a choice, a risk, a roll, a thing to say
+  that matters.
+- **Do not force one.** If it does not make sense in the fiction for anybody to
+  turn and ask the character a question, do not invent the question. Find the
+  real next thing they would do and arrive there instead.
+
+So a turn is as long as it needs to be to reach their next decision. No longer,
+and — this is the half that was being got wrong — **no shorter.**
+
+### Compress
+
+The other half of the same note: *abbreviate the detail that has been bogging
+the story down.*
+
+Procedure, logistics, diagnosis, travel, bookkeeping and anybody else's
+competence are **summary**, not scene. Four hours of a station preparing is two
+sentences. An engineer working out a drain is his conclusion. A committee
+reaching a decision is the decision.
+
+The test is the same one as rule 1: can the player act on it? If not, it is a
+sentence. If it is genuinely spectacular and they asked for it, spend the words.
 
 ### Always move the action forward
 

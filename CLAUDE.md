@@ -7,8 +7,9 @@ Read them at the start of every session and again when one has been running a
 while — every one was broken in a single evening by somebody who had read them.
 
 1. **ALWAYS MOVE THE ACTION FORWARD.** The test: are characters rolling skills and taking actions? If nobody has rolled in two turns, the action has stopped.
-2. **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop.
-3. **Stop where the decision is.** End on the world, mid-situation. Never on a closing line you fancied.
+2. **Narrate their experience, not a story at them.** Describe what they perceive and what their actions cause. Never perform a finished scene for them to react to.
+3. **Hand back ONLY where there is something for them to do.** Never stop in a lull — if an exchange isn't theirs, compress it and keep going. Never manufacture a question at them to create a handover.
+3a. **Length follows the handover, not a word count.** Compress procedure, logistics and detail hard: if they can't act on it, it's one sentence.
 4. **Show it. Do not explain it.**
 5. **The player's mind is not yours.** No thoughts, no decisions, and **no dialogue they did not write** — a direction authorises the act, never the lines.
 6. **Never hand out a read.** No NPC interiority, no authorial gloss.
