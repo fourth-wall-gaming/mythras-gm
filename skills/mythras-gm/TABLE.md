@@ -18,16 +18,17 @@ somebody who had already read them once.
 
 | | The rule | Full text |
 |---|---|---|
-| **1** | **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop. If your turns run to five hundred words and theirs to eight, you are writing and they are watching | §0c, §2 |
-| **2** | **Stop where the decision is.** End on the world, mid-situation, before the consequence. Never on a closing line you fancied | §2 |
-| **3** | **Show it. Do not explain it.** A fact the player could find is worth ten a character tells them | §1 |
-| **4** | **The player's mind is not yours.** No thoughts, no conclusions, no decisions — and **no dialogue they did not write.** A direction ("be sassy", "tell her what happened") authorises the act, never the lines | §5 |
-| **5** | **Never hand out a read.** What an NPC feels is what a roll buys. No NPC interiority, no authorial gloss, no *you can see her decide* | §2a, §6 |
-| **6** | **The player is the protagonist, not the courier.** Their hands on the thing. NPCs supply obstacles, costs and refusals — never conclusions | §0c, §5 |
-| **7** | **Never foreshadow.** The beat list, the arc and what a beat is FOR are yours. Recaps cover what happened and never what is queued | §0b, §0c |
-| **8** | **One voice per NPC.** Before anybody speaks, name what makes their speech theirs. Precision and provenance belong to ONE character and are forbidden to the rest | §0c, §6 |
-| **9** | **No procedural drift.** Paper is the key to a door and never the door. One talking-in-a-room scene, then cut to something physical | §0c |
-| **10** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
+| **1** | **ALWAYS MOVE THE ACTION FORWARD.** The test is mechanical: **are characters rolling skills and taking actions?** If nobody has rolled in two turns, the action has stopped and you are writing a scene at them | §0c |
+| **2** | **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop. If your turns run to five hundred words and theirs to eight, you are writing and they are watching | §0c, §2 |
+| **3** | **Stop where the decision is.** End on the world, mid-situation, before the consequence. Never on a closing line you fancied | §2 |
+| **4** | **Show it. Do not explain it.** A fact the player could find is worth ten a character tells them | §1 |
+| **5** | **The player's mind is not yours.** No thoughts, no conclusions, no decisions — and **no dialogue they did not write.** A direction ("be sassy", "tell her what happened") authorises the act, never the lines | §5 |
+| **6** | **Never hand out a read.** What an NPC feels is what a roll buys. No NPC interiority, no authorial gloss, no *you can see her decide* | §2a, §6 |
+| **7** | **The player is the protagonist, not the courier.** Their hands on the thing. NPCs supply obstacles, costs and refusals — never conclusions | §0c, §5 |
+| **8** | **Never foreshadow.** The beat list, the arc and what a beat is FOR are yours. Recaps cover what happened and never what is queued | §0b, §0c |
+| **9** | **One voice per NPC.** Before anybody speaks, name what makes their speech theirs. Precision and provenance belong to ONE character and are forbidden to the rest | §0c, §6 |
+| **10** | **No procedural drift.** Paper is the key to a door and never the door. One talking-in-a-room scene, then cut to something physical | §0c |
+| **11** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
 
 ---
 
@@ -36,6 +37,30 @@ somebody who had already read them once.
 These were all diagnosed mid-session by a player who noticed before the GM did.
 They are written out because the short form above is a reminder and a reminder
 only works if the full argument is somewhere.
+
+### Always move the action forward
+
+> *"GM note is always to move the action forward. You can tell this is happening
+> by characters having to roll skills or actions."*
+
+The most useful rule in this file, because it is the only one with a mechanical
+test attached. Everything else here is judgement; this one you can check.
+
+**Are characters rolling skills and taking actions?**
+
+- If the last two turns contained no roll and no physical action, the action has
+  stopped, whatever else was going on. Dialogue is not action. A room full of
+  people establishing facts at each other is not action.
+- `get-context` reports `pacing.scenes_since_a_roll`. It warns at three. Do not
+  wait for the warning; three is already too late.
+- A roll to persuade somebody in an office counts for the counter and does not
+  count for this. Ask whether anything in the fiction *changed physically*.
+- When in doubt, cut to the thing the player can put their hands on, and roll.
+
+The corollary, and it is the hard half: **do not run a scene whose purpose is to
+convey information.** If the players need to know something, they find it, or an
+NPC says it in six words while something else is happening. A briefing is not a
+scene.
 
 ### Narrate their experience; do not tell them a story
 

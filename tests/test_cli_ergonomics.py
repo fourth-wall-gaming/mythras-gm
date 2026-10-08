@@ -820,6 +820,8 @@ def test_the_gm_canon_is_at_the_front_of_every_entry_point():
 
     # Every rule present in both, by its load-bearing phrase.
     for rule in [
+        "ALWAYS MOVE THE ACTION FORWARD",
+        "rolling skills and taking actions",
         "Narrate their experience",
         "Stop where the decision is",
         "Show it",

@@ -6,16 +6,17 @@ Ten reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.m
 Read them at the start of every session and again when one has been running a
 while — every one was broken in a single evening by somebody who had read them.
 
-1. **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop.
-2. **Stop where the decision is.** End on the world, mid-situation. Never on a closing line you fancied.
-3. **Show it. Do not explain it.**
-4. **The player's mind is not yours.** No thoughts, no decisions, and **no dialogue they did not write** — a direction authorises the act, never the lines.
-5. **Never hand out a read.** No NPC interiority, no authorial gloss.
-6. **The player is the protagonist, not the courier.** Their hands on the thing. NPCs give obstacles and costs, never conclusions.
-7. **Never foreshadow.** The beat list and the arc are yours alone.
-8. **One voice per NPC.** Precision belongs to one character and is forbidden to the rest.
-9. **No procedural drift.** Paper is the key to a door, never the door.
-10. **Roll honestly and follow what the dice hand you.**
+1. **ALWAYS MOVE THE ACTION FORWARD.** The test: are characters rolling skills and taking actions? If nobody has rolled in two turns, the action has stopped.
+2. **Narrate their experience. Do not tell them a story.** One beat a turn. One thing happens or one person speaks, then stop.
+3. **Stop where the decision is.** End on the world, mid-situation. Never on a closing line you fancied.
+4. **Show it. Do not explain it.**
+5. **The player's mind is not yours.** No thoughts, no decisions, and **no dialogue they did not write** — a direction authorises the act, never the lines.
+6. **Never hand out a read.** No NPC interiority, no authorial gloss.
+7. **The player is the protagonist, not the courier.** Their hands on the thing. NPCs give obstacles and costs, never conclusions.
+8. **Never foreshadow.** The beat list and the arc are yours alone.
+9. **One voice per NPC.** Precision belongs to one character and is forbidden to the rest.
+10. **No procedural drift.** Paper is the key to a door, never the door.
+11. **Roll honestly and follow what the dice hand you.**
 
 ---
 
