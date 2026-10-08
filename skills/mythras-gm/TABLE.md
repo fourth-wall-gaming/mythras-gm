@@ -1047,25 +1047,31 @@ NPC-versus-NPC, where nobody is being asked anything.
   through consequences, never cutaways), `meta` (bookkeeping about the game, not
   an event in it). Mark your own correction notes `meta` or they pollute both
   knowledge scoping and the recent-events window.
-- **After a rollback, the journal is the only history. Not your memory.**
-  When play is rewound and events are retired or retracted, you will keep the
-  retracted version in your head — it is vivid, you wrote it, and it happened as
-  far as you are concerned. The player's character did not do any of it.
+- **Managing context across a rollback.** When play is rewound, the retracted
+  version is the most recent thing you wrote and therefore the most available
+  thing in your head. You will leak it. Assume that, and work from the save.
 
-  The failure in practice: an NPC told a fifteen-year-old she had felt a
-  particular door set under her own weight twice. She had, in the version that
-  was rewound. In the live one she had never stepped on that plate, and the line
-  handed her an experience she never had and a standing she had not earned.
+  **What survives a rollback and what does not:**
 
-  So before referring to anything the player character has done, **read it back**
-  — `get-log --type skill-roll` is usually enough, and it excludes retracted
-  events by design, which is the whole reason to retract rather than delete.
-  Do this at the start of any session that follows a rewind, and again the first
-  time an NPC refers to the character's record.
+  | | |
+  |---|---|
+  | **Events** — gone. Retracted, and `get-log` excludes them by design, which is the reason to retract rather than delete | Read them back. `get-log --type skill-roll` before any NPC refers to the character's record |
+  | **Entities invented during the rewound stretch** — people, places, lore, cosmology — **stay.** They are setting, not history | A person invented in a rewound scene still exists. The scene where they met does not |
+  | **Relationships, debts, promises, standing** — gone, because they were events | A kindness banked in a retracted scene was never done |
+  | **Mechanical state** — luck, fatigue, experience, skills — must be set back explicitly | Read the character after resetting. Do not assume |
+  | **Beats fired during the stretch** — back to `pending` | `revise-beat --status pending` |
+  | **What the PLAYER knows** — they remember all of it, and may act on it | That is their business. What their CHARACTER knows is the save's business |
 
-  The same applies to what the player *knows*. Information gathered in a
-  retracted scene is information their character never gathered, however
-  obviously true it now is.
+  The failure in practice: play was rewound a full day, and an NPC then told a
+  fifteen-year-old she had felt a particular door set under her own weight
+  twice. She had, in the rewound version. In the live one she had never stepped
+  on that plate — and the line handed her an experience she never had and a
+  standing she had not earned.
+
+  **Do the read-back twice:** at the start of the first session after a rewind,
+  and again the first time anybody refers to the character's record. And log a
+  `gm-note --visibility meta` saying what was retracted and what survived, so
+  the next session does not have to reconstruct it.
 
 - **Canon that stops being true is retired, not deleted.** `retire-canon --id X
   --status superseded --by Y`. The record keeps its audit trail and stops being
