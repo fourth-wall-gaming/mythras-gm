@@ -791,3 +791,56 @@ def test_update_event_can_amend_the_timestamp_log_event_can_set():
         "update-event cannot amend the timestamp log-event can set"
     assert "created-at" in inspect.getsource(gm.cmd_update_event), \
         "update-event takes --at but never writes created-at"
+
+
+def test_the_gm_canon_is_at_the_front_of_every_entry_point():
+    """The canon has to be in context before anybody narrates a line.
+
+    TABLE.md already carried most of these rules in its own section 0, and they
+    were broken anyway over one long evening -- because TABLE.md is a file you
+    read once and CLAUDE.md is the thing that is actually in front of you every
+    run. So the short form lives at the top of CLAUDE.md, with a pointer to the
+    full argument, and this test stops the copies drifting apart.
+    """
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    table = (root / "skills" / "mythras-gm" / "TABLE.md").read_text()
+    claude = (root / "CLAUDE.md").read_text()
+
+    # The canon is section 0: first thing after the preamble, not buried.
+    assert "## 0. THE CANON" in table
+    assert table.index("## 0. THE CANON") < table.index("## 1. Voice")
+    assert "## 0c. The five caught at the table" in table
+
+    # And it is at the FRONT of CLAUDE.md -- above everything else.
+    assert "THE GM CANON" in claude, "CLAUDE.md does not carry the canon"
+    assert claude.index("THE GM CANON") < 200, \
+        "the canon is not at the front of CLAUDE.md"
+    assert "TABLE.md" in claude, "the canon in CLAUDE.md has no lookup pointer"
+
+    # Every rule present in both, by its load-bearing phrase.
+    for rule in [
+        "Narrate their experience",
+        "Stop where the decision is",
+        "Show it",
+        "The player's mind is not yours",
+        "Never hand out a read",
+        "protagonist, not the courier",
+        "Never foreshadow",
+        "One voice per NPC",
+        "No procedural drift",
+        "follow what the dice hand you",
+    ]:
+        assert rule in table, f"TABLE.md canon is missing: {rule}"
+        assert rule in claude, f"CLAUDE.md canon is missing: {rule}"
+
+
+def test_no_dialogue_the_player_did_not_write_is_in_the_canon():
+    """The rule most often broken, and the one a direction from the player
+    makes easiest to break: "be sassy" authorises the act, never the lines."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    both = ((root / "skills" / "mythras-gm" / "TABLE.md").read_text()
+            + (root / "CLAUDE.md").read_text())
+    assert "no dialogue they did not write" in both.lower()
+    assert "authorises the act" in both.lower()
