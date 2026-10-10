@@ -357,3 +357,33 @@ def test_build_golden_path(tmp_path):
     pdf = nov.build_manuscript(mdir)
     assert os.path.basename(pdf) == "sample-book.pdf"
     assert os.path.getsize(pdf) > 10_000  # a real multi-page PDF, not an error stub
+
+
+# --- voice divs -------------------------------------------------------------
+
+def test_expand_voice_divs_wraps_in_raw_typst():
+    md = "before\n\n::: glint\nStill here.\n\nAnd *more*.\n:::\n\nafter"
+    out = nov.expand_voice_divs(md)
+    assert '#voice("glint")[' in out
+    assert "```{=typst}" in out
+    # the markdown inside the div is left alone for pandoc to convert
+    assert "And *more*." in out
+    assert "::: glint" not in out
+    assert out.strip().endswith("after")
+
+
+def test_expand_voice_divs_handles_attribute_form_and_nesting_depth():
+    md = "::: {.fathom}\nAsk them.\n:::"
+    assert '#voice("fathom")[' in nov.expand_voice_divs(md)
+
+
+def test_expand_voice_divs_leaves_scene_breaks_and_quotes_alone():
+    md = "a\n\n---\n\n> a quoted document\n\nb"
+    assert nov.expand_voice_divs(md) == md
+
+
+def test_expand_voice_divs_balances_open_and_close():
+    md = "::: glint\none\n:::\n\n::: fathom\ntwo\n:::"
+    out = nov.expand_voice_divs(md)
+    assert out.count("#voice(") == 2
+    assert out.count("\n]\n") == 2

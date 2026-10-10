@@ -113,6 +113,37 @@ def assemble_body(manuscript_dir):
     return "\n\n".join(parts)
 
 
+VOICE_OPEN = re.compile(r"^:{3,}\s*\{?\s*\.?([A-Za-z][\w-]*)\s*\}?\s*$")
+VOICE_CLOSE = re.compile(r"^:{3,}\s*$")
+
+
+def expand_voice_divs(md):
+    """Turn fenced Divs (`::: glint` ... `:::`) into raw-typst `#voice(...)` calls.
+
+    Pandoc's typst writer drops Div classes -- every Div becomes a bare
+    `#block[...]` -- so a manuscript cannot style one speaker differently from
+    another through markdown alone. This runs before pandoc and brackets the
+    Div's contents in raw-typst blocks, which pass through untouched while the
+    markdown between them is converted normally. `voice` is defined in
+    book_template/novel.typ and falls back to plain body text for a name it
+    does not know, so an unrecognised class degrades instead of failing.
+    """
+    out, depth = [], 0
+    for line in md.split("\n"):
+        stripped = line.strip()
+        if depth and VOICE_CLOSE.match(stripped):
+            out += ["", "```{=typst}", "]", "```", ""]
+            depth -= 1
+            continue
+        m = VOICE_OPEN.match(stripped)
+        if m:
+            out += ["", "```{=typst}", f'#voice("{m.group(1)}")[', "```", ""]
+            depth += 1
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
 def validate_manuscript(manuscript_dir):
     """Return a list of human-readable problems; empty list means buildable."""
     errors = []
@@ -373,7 +404,7 @@ def build_manuscript(manuscript_dir):
     os.makedirs(build_dir, exist_ok=True)
 
     with open(os.path.join(build_dir, "body.md"), "w", encoding="utf-8") as fh:
-        fh.write(assemble_body(manuscript_dir))
+        fh.write(expand_voice_divs(assemble_body(manuscript_dir)))
 
     # --wrap=none keeps each markdown paragraph on one line so text-anchored
     # illustration placement (after_text) can match a phrase reliably.
@@ -386,7 +417,7 @@ def build_manuscript(manuscript_dir):
     with open(body_typ_path, encoding="utf-8") as fh:
         body_content = fh.read()
     with open(body_typ_path, "w", encoding="utf-8") as fh:
-        fh.write('#import "novel.typ": horizontalrule\n' + body_content)
+        fh.write('#import "novel.typ": horizontalrule, voice\n' + body_content)
 
     # Illustrations: copy generated images into the build dir and inject
     # #figure blocks at the manifest positions. Images not yet generated are

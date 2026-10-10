@@ -48,7 +48,14 @@ Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
 
 4. **Draft.** One chapter at a time to `chapters/NN-<slug>.md`, starting each
    file with `# Chapter N — Title`. Scene breaks within a chapter are a line
-   containing only `---` (typeset as ⁂). Set `status: drafted` in `book.yaml`
+   containing only `---` (typeset as ⁂).
+
+   *Voices:* a line of `::: <name>` ... `:::` around a passage sets it in a
+   named voice from `book_template/novel.typ` (`glint`, `fathom`, `pin`) --
+   use it when a speaker is not producing sound and should not be in
+   quotation marks. Pandoc discards Div classes, so `build` rewrites these
+   into Typst calls before conversion; an unknown name falls back to body
+   text rather than failing. Add a voice by adding it to `voice-styles`. Set `status: drafted` in `book.yaml`
    when the outline is fully drafted.
 
    *Front matter (optional):* a `front-matter.md` in the manuscript root is
