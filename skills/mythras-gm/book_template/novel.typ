@@ -77,6 +77,12 @@
   )
   counter(page).update(1)
 
+  // Plates. A novel has pictures, not figures: no "Figure 1:" and no numbering,
+  // just the caption under the image, quiet and out of the way.
+  set figure(numbering: none, gap: 0.9em)
+  show figure.caption: it => text(size: 8.5pt, style: "italic", fill: luma(45%), it.body)
+  show figure: set block(breakable: false)
+
   // Chapter openers: new page, centered small-caps title, ornament.
   show heading.where(level: 1): it => {
     pagebreak(weak: true)
