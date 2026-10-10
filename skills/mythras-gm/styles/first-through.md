@@ -14,14 +14,14 @@ Paragraphs run one to five sentences and are broken constantly by one-line
 paragraphs used as drumbeats. A long sentence is allowed when a character is
 explaining how the world works and never when the narrator is.
 
-Lists of three, bare and unglossed: *Wash. Feed the membrane. Boots.*
+Lists of three, bare and unglossed: *Wash. Feed the weave. Boots.*
 
 ## Diction
 Modern, concrete, unembarrassed, no period costume. Anglo-Saxon by default;
 Latinate only where a thing has a real name. **No profanity** — the setting's
 own oath *grash* carries all of it, and it is funnier for being the only one.
 Technical vocabulary is used flatly and never explained twice: a *housing*, a
-*set*, a *membrane*, a *fetch*, a *first-through*, the *Standing*.
+*set*, a *weave*, a *fetch*, a *first-through*, the *Standing*.
 
 **Numbers are said exactly as they were said at the table**, spelled out —
 *forty-one step-ups, twenty-three through*, *seven hundred and ninety-four*,
@@ -41,7 +41,7 @@ station's mind and are forbidden to everyone else.
 
 ## Description density
 Bursts. One exact detail and move on — two mismatched boots from two stars, a
-cushion with bad stitching on the corner, chalk to the elbow. Smell and noise
+cushion with bad stitching on the corner, ink to the elbow. Smell and noise
 before sight. Rooms get a sentence; hands and forearms get a paragraph.
 
 Every astronomical fact is real. A star's colour, distance and brightness are
@@ -88,7 +88,7 @@ be told who is talking.
 Ossuary has a mouth's worth of a voice and is in the room; do not set him
 apart. The split is sound against not-sound, not human against not-human.
 
-Keep documents — a letter, a speech out of the archive, a line of chalk on the
+Keep documents — a letter, a speech out of the archive, a line written up on the
 Standing, a human being quoted at length — as ordinary block quotes. That
 channel is for things that were written down.
 
