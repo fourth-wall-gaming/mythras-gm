@@ -18,14 +18,14 @@ Desaturated and cold by default: steel, worn aluminium, oxidised copper,
 sodium-orange where there are working lamps. Two light sources in most frames
 and they disagree — hard blue-white from a star or a ring housing, warm
 low-colour-temperature from human fittings. Colour is allowed exactly one
-loud exception per image, and it is always a living thing: a glint, a membrane,
+loud exception per image, and it is always a living thing: a glint, a weave,
 lamp-fed greenery.
 
 ## Line and texture
 Everything is used. Deck plate worn to a shine along the walking line, scuffs
 where crates are dragged, paint worn off handrails at hand height, dust in the
 corners of a room nobody cleans. Surfaces are scratched metal, moulded
-composite and grown membrane — no brushed-chrome, no glass panels, no seamless
+composite and grown weave — no brushed-chrome, no glass panels, no seamless
 white.
 
 ## Composition
@@ -41,10 +41,26 @@ flush in the deck, each four metres across, with a queue at each. Sirius is a
 hard blue-white point no filter quite tames; its white dwarf is a separate
 smaller meaner point.
 
-**A membrane** is a living second skin, close-fitting, translucent and faintly
-iridescent, worn as ordinary clothing. It **clouds** like breathed-on glass
-across the shoulders and forearms with use — that clouding is a person's
-career, visible, and the most important detail on any first-through.
+**A weave** looks like ordinary clothing and very nearly is: close-fitting
+matte cloth, long-sleeved and long-legged, about the weight of a good shirt.
+It is **not** translucent, not shiny, not a film and not a second skin — it is
+grown rather than woven, and the only visible sign of that is that it hangs
+exactly right on its owner and wrong on anybody else.
+
+**One part of it is uniform and the rest is the wearer.** At the left shoulder,
+the Threshold flash: a small plain mark grown into the cloth. Everything else
+is dyed to taste, because a living weave takes dye and a first-through who has
+been paid for three months has done something about the off-white. A hall is
+therefore full of colour at child height and grey at adult height — deck
+colours, home-system colours, a band at the cuff for every door somebody has
+stood, and the occasional plain black worn by somebody making a point.
+
+**And the dye is what makes the wear legible.** A weave goes **mottled** —
+faint, cloudy, pale patches across the shoulders first and then the forearms —
+and on dyed cloth that bleaching reads right across a hall. It is the most
+important detail on any first-through. A new one is saturated and even. On
+somebody of twenty-one the sleeves have gone white to the elbow and the colour
+survives only on the back and the chest.
 
 **Boots never match.** Nothing dead crosses a door, so everyone is wearing two
 boots from two different stations.
