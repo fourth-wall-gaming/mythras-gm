@@ -4264,7 +4264,47 @@ def _rule_links(driver, rule_id):
 # ---------------------------------------------------------------------------
 
 COMPOSE_FILE = os.path.join(_PROJECT_ROOT, "docker-compose.yml")
-ENGINE_POINTER = os.path.expanduser("~/.claude/mythras-gm/engine-root")
+# A plugin cannot resolve a sibling plugin's root, so a campaign package finds
+# this engine by reading a pointer file rather than by searching for it. Two
+# locations, written in this order and read in this order:
+#
+#   ~/.mythras-gm/engine-root        host-neutral; what a campaign should read
+#   ~/.claude/mythras-gm/engine-root the original; what every campaign already
+#                                    shipped reads, and the only one they read
+#
+# The second is not a statement that Claude Code is installed -- it is simply
+# where this was first put, and it keeps working under Codex untouched. But a
+# campaign author reading that path cannot know it is host-neutral, and a
+# campaign is a separately versioned plugin that may not be updated for
+# months, so both are written until the campaigns have moved.
+ENGINE_POINTERS = (
+    os.path.expanduser("~/.mythras-gm/engine-root"),
+    os.path.expanduser("~/.claude/mythras-gm/engine-root"),
+)
+ENGINE_POINTER = ENGINE_POINTERS[1]   # cited in docs and by installed campaigns
+
+
+def _write_engine_pointers(root, paths=ENGINE_POINTERS):
+    """Record this engine's location at every pointer path.
+
+    Returns a list of (path, ok, detail). Each location is attempted
+    independently and a failure is reported rather than raised: a sandboxed
+    host may permit one and refuse the other, and `init-db` must still come up
+    either way. The pointer is how a campaign avoids searching -- it is a
+    convenience, never a precondition.
+    """
+    results = []
+    for path in paths:
+        try:
+            parent = os.path.dirname(path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(path, "w") as fh:
+                fh.write(root + "\n")
+            results.append((path, True, ""))
+        except Exception as e:
+            results.append((path, False, str(e)[:120]))
+    return results
 TYPEDB_IMAGE = "typedb/typedb:3.8.0"   # docker path, kept for people who already run it
 
 # --- native TypeDB, no Docker -----------------------------------------------
@@ -4787,13 +4827,8 @@ def cmd_init_db(args):
     # A plugin cannot resolve a sibling plugin's root, so the campaign package
     # has no way to locate this CLI except by searching for it. Writing the path
     # here turns that search into a file read.
-    try:
-        os.makedirs(os.path.dirname(ENGINE_POINTER), exist_ok=True)
-        with open(ENGINE_POINTER, "w") as fh:
-            fh.write(_PROJECT_ROOT + "\n")
-        note("engine pointer", True, ENGINE_POINTER)
-    except Exception as e:
-        note("engine pointer", False, str(e)[:120])
+    for path, ok, detail in _write_engine_pointers(_PROJECT_ROOT):
+        note(f"engine pointer {path}", ok, detail)
 
     out({"success": True, "database": name,
          "host": f"{TYPEDB_HOST}:{TYPEDB_PORT}", "steps": steps,

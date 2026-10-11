@@ -272,3 +272,78 @@ def test_the_gm_skill_notices_a_session_the_preflight_never_reached():
         "SKILL.md never refers to the preflight's ready line"
     assert "doctor" in text, \
         "SKILL.md gives the model no way to check a cold start for itself"
+
+
+# --- the pointer a campaign plugin reads to find this engine --------------
+#
+# A plugin cannot resolve a sibling plugin's root; there is no variable for it.
+# So the engine writes its own location to a file and a campaign reads it. That
+# file lived at ~/.claude/mythras-gm/engine-root, which is where it was first
+# put rather than a statement about which agent is installed -- it works under
+# Codex unchanged. But a campaign author cannot know that from the path, so the
+# engine writes a host-neutral location too, and keeps the original because
+# every campaign already shipped reads only that one.
+
+import mythras_gm as gm  # noqa: E402  (conftest puts the engine on sys.path)
+
+
+def test_the_pointer_is_written_host_neutrally_and_to_the_legacy_path(tmp_path):
+    """Both, in that order. The host-neutral path is what a new campaign will
+    be told to read; the legacy path is what the installed ones already read."""
+    paths = (str(tmp_path / "neutral" / "engine-root"),
+             str(tmp_path / "legacy" / "engine-root"))
+    results = gm._write_engine_pointers("/somewhere/engine", paths)
+
+    assert [ok for _, ok, _ in results] == [True, True], results
+    for p in paths:
+        assert open(p).read() == "/somewhere/engine\n"
+
+
+def test_the_host_neutral_pointer_is_checked_first():
+    """Order is the contract Task 2's shell reader copies. If these two ever
+    disagree, the host-neutral one is the one to believe."""
+    assert gm.ENGINE_POINTERS[0].endswith("/.mythras-gm/engine-root")
+    assert gm.ENGINE_POINTERS[1].endswith("/.claude/mythras-gm/engine-root")
+    assert gm.ENGINE_POINTER == gm.ENGINE_POINTERS[1], \
+        "the old name must keep meaning the old path; docs and campaigns cite it"
+
+
+def test_one_unwritable_pointer_does_not_stop_the_other(tmp_path):
+    """A sandboxed host can allow one location and refuse the other. Writing
+    is a convenience; losing it must not cost us the location that did work."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("I am a file, not a directory")
+    good = str(tmp_path / "good" / "engine-root")
+    results = gm._write_engine_pointers("/somewhere/engine",
+                                        (str(blocked / "engine-root"), good))
+
+    assert [ok for _, ok, _ in results] == [False, True], results
+    assert open(good).read() == "/somewhere/engine\n"
+    assert results[0][2], "a failure must carry a detail string to report"
+
+
+def test_every_pointer_unwritable_is_survivable(tmp_path):
+    """Review Focus 1: a read-only home. init-db reports Ready regardless, so
+    the writer must return failures rather than raise them."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory")
+    results = gm._write_engine_pointers(
+        "/somewhere/engine",
+        (str(blocked / "a" / "engine-root"), str(blocked / "b" / "engine-root")))
+    assert [ok for _, ok, _ in results] == [False, False], results
+
+
+def test_the_pointer_paths_survive_no_home(monkeypatch):
+    """Review Focus 4: cron, or a bare container. Computing the paths must not
+    raise, and must not land them in the working directory."""
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    import importlib
+    reloaded = importlib.reload(gm)
+    try:
+        for p in reloaded.ENGINE_POINTERS:
+            assert p.startswith("/") or p.startswith("~"), \
+                f"{p} is relative; init-db would write into the user's cwd"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(gm)
