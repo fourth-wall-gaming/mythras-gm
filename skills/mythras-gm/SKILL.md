@@ -27,10 +27,25 @@ continue campaign, mythras, gamesmaster, novelize campaign, write novel
 ## CLI
 
 ```bash
-CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
-PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run -q --project "$PRJ" python "$CLI" <command> [args]
+uv run -q --project "$GM" python "$GM/mythras_gm.py" <command> [args]
 ```
+
+**Where `$GM` comes from**, in this order: the session-start hook's ready line
+names the engine's absolute path outright — use that. Failing that (the hook has
+not been trusted yet, or you are reading this skill standalone), it is the
+directory you loaded this `SKILL.md` from. Do not reach for a plugin-root
+environment variable: your host sets one for hook commands only, never in your
+shell, so in a skill it expands to nothing and every command below runs against
+a path that does not exist.
+
+**If this session has no ready line at all, do not start playing.** Its absence
+means the preflight never ran — and on Codex that most often means the user has
+not yet approved the plugin's startup check, so there is no database and nothing
+you do will be saved. Run `doctor` first; it is read-only and changes nothing.
+If it does not come back `Ready.`, follow the **`mythras-setup`** skill and say
+what is wrong in plain words. A session with no save file reads exactly like one
+that has it, right up to the moment the player comes back and finds the whole
+evening gone.
 
 ## Before you narrate one line
 
