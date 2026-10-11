@@ -29,6 +29,16 @@
       },
       "description": "The Veilwrack: The Stilling. An original sky-realm campaign. Winged Alar on the floating bone-spires of dead sky-leviathans, and the wind itself is dying. Needs the mythras-gm engine: Claude Code installs it as a dependency, Codex does not -- install mythras-gm alongside it there.",
       "category": "Games"
+    },
+    {
+      "name": "first-through",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/fourth-wall-gaming/first-through-campaign.git",
+        "ref": "v0.2.0"
+      },
+      "description": "First Through. A first roleplaying game for 10-15 year olds, set in the real stellar neighbourhood: seedships carried anchor pairs out at a twentieth of lightspeed, and where one arrived a door opened. You are fifteen, the newest the Threshold has taken in years, and the old doors are failing faster than age explains. Danger is real and always named before it is taken. Needs the mythras-gm engine: Claude Code installs it as a dependency, Codex does not -- install mythras-gm alongside it there.",
+      "category": "Games"
     }
   ],
   "description": "Tabletop RPG tooling and campaigns for Claude Code."
