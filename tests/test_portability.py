@@ -347,3 +347,104 @@ def test_the_pointer_paths_survive_no_home(monkeypatch):
     finally:
         monkeypatch.undo()
         importlib.reload(gm)
+
+
+def _run_check_in_isolation(tmp_path, home, extra_env=None):
+    """Run verify-install.sh from a copy OUTSIDE this repo.
+
+    Copying matters: the script's own location is one of its probes, so run in
+    place it finds this checkout and the pointer probe is never reached.
+    """
+    import os
+    import shutil
+    import subprocess
+    staged = tmp_path / "staged"
+    staged.mkdir(exist_ok=True)
+    shutil.copy2(VERIFY, staged / "verify-install.sh")
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    for k in ("MYTHRAS_GM_ROOT", "MYTHRAS_TYPEDB_HOME"):
+        env.pop(k, None)
+    env.update(extra_env or {})
+    return subprocess.run(["bash", str(staged / "verify-install.sh")],
+                          capture_output=True, text=True, env=env,
+                          cwd=str(staged), timeout=180)
+
+
+def _fake_engine(at):
+    """A directory that looks like an engine install to a path probe."""
+    cli = at / "skills" / "mythras-gm" / "mythras_gm.py"
+    cli.parent.mkdir(parents=True, exist_ok=True)
+    cli.touch()
+    return at
+
+
+def test_the_check_finds_the_engine_from_the_host_neutral_pointer(tmp_path):
+    """The whole point of Task 1: a campaign or a diagnostic on any host can
+    read one file instead of guessing at an install layout."""
+    home = tmp_path / "home"
+    engine = _fake_engine(tmp_path / "engine")
+    pointer = home / ".mythras-gm" / "engine-root"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(str(engine) + "\n")
+
+    out = _run_check_in_isolation(tmp_path, home).stdout
+    assert str(engine) in out, f"the host-neutral pointer was not read:\n{out}"
+
+
+def test_the_check_still_reads_the_legacy_pointer(tmp_path):
+    """Machines that have only ever run an older engine have only this file."""
+    home = tmp_path / "home"
+    engine = _fake_engine(tmp_path / "engine")
+    pointer = home / ".claude" / "mythras-gm" / "engine-root"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(str(engine) + "\n")
+
+    out = _run_check_in_isolation(tmp_path, home).stdout
+    assert str(engine) in out, f"the legacy pointer was not read:\n{out}"
+
+
+def test_a_stale_pointer_is_skipped_rather_than_reported(tmp_path):
+    """Review Focus 2: a plugin upgrade moves the engine and leaves the
+    pointer naming a directory with no CLI in it. Reporting that path as the
+    engine sends somebody to debug a directory that is not the problem."""
+    home = tmp_path / "home"
+    gone = tmp_path / "gone-away"
+    pointer = home / ".mythras-gm" / "engine-root"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(str(gone) + "\n")
+
+    out = _run_check_in_isolation(tmp_path, home).stdout
+    assert str(gone) not in out, f"a stale pointer was believed:\n{out}"
+    assert "engine" in out.lower()
+
+
+def test_the_newer_pointer_wins_when_the_two_disagree(tmp_path):
+    """Review Focus 3. Both exist, both resolve, and they name different
+    installs; the host-neutral one is the one written by the current engine."""
+    home = tmp_path / "home"
+    new = _fake_engine(tmp_path / "new-engine")
+    old = _fake_engine(tmp_path / "old-engine")
+    for rel, target in ((".mythras-gm", new), (".claude/mythras-gm", old)):
+        p = home / rel / "engine-root"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(str(target) + "\n")
+
+    out = _run_check_in_isolation(tmp_path, home).stdout
+    assert str(new) in out and str(old) not in out, \
+        f"the host-neutral pointer must win:\n{out}"
+
+
+def test_an_empty_pointer_file_is_treated_as_absent(tmp_path):
+    """Review Focus 5: an interrupted write. An empty file must not resolve to
+    /skills/mythras-gm/mythras_gm.py and must not crash the check."""
+    home = tmp_path / "home"
+    pointer = home / ".mythras-gm" / "engine-root"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text("   \n")
+
+    r = _run_check_in_isolation(tmp_path, home)
+    assert r.returncode in (0, 1), f"exit {r.returncode}:\n{r.stdout}\n{r.stderr}"
+    assert "unbound variable" not in r.stderr, r.stderr
+    assert "/skills/mythras-gm" not in r.stdout.replace(str(home), ""), \
+        f"an empty pointer resolved to a root-relative path:\n{r.stdout}"

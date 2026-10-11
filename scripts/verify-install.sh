@@ -68,12 +68,18 @@ find_engine() {
   if [ -n "${MYTHRAS_GM_ROOT:-}" ] && [ -f "${MYTHRAS_GM_ROOT}/${GM_REL}" ]; then
     printf '%s' "${MYTHRAS_GM_ROOT}"; return 0
   fi
-  # The breadcrumb the engine drops when it first starts. Host-neutral.
-  local pointer="${HOME}/.claude/mythras-gm/engine-root"
-  if [ -f "$pointer" ]; then
-    local p; p=$(head -1 "$pointer" 2>/dev/null)
+  # The breadcrumb the engine drops when it first starts, host-neutral location
+  # first. Each is CHECKED before it is trusted: a plugin upgrade can leave a
+  # pointer naming a directory that no longer holds the CLI, and reporting that
+  # path as the engine sends somebody to debug the wrong directory. An empty or
+  # whitespace-only file (an interrupted write) must read as absent, not as "/".
+  local pointer p
+  for pointer in "${HOME:-}/.mythras-gm/engine-root" \
+                 "${HOME:-}/.claude/mythras-gm/engine-root"; do
+    [ -f "$pointer" ] || continue
+    p=$(head -1 "$pointer" 2>/dev/null | tr -d '[:space:]')
     [ -n "$p" ] && [ -f "${p}/${GM_REL}" ] && { printf '%s' "$p"; return 0; }
-  fi
+  done
   # This script ships inside the plugin, so its own location is a strong hint.
   local here; here=$(cd "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/.." 2>/dev/null && pwd)
   [ -n "$here" ] && [ -f "${here}/${GM_REL}" ] && { printf '%s' "$here"; return 0; }
