@@ -87,3 +87,20 @@ only place that probe can be observed failing.
 start. The `mythras-setup` skill runs the same checks, says what is wrong in
 plain language, and offers to make the config change for you rather than handing
 you a file to edit.
+
+### How a campaign finds the engine
+
+A campaign plugin (Purewater, Veilwrack) cannot resolve a sibling plugin's
+root — no host provides a variable for it — so it reads a pointer file the
+engine writes on first run:
+
+| Path | Read by |
+| --- | --- |
+| `~/.mythras-gm/engine-root` | current campaigns, any host |
+| `~/.claude/mythras-gm/engine-root` | every campaign shipped so far |
+
+Both are written, and both are checked before being trusted: a plugin upgrade
+can leave one naming a directory that no longer holds the engine. If a campaign
+reports the engine as missing on a machine where `verify-install.sh` finds it,
+that pointer is the first thing to look at — and `MYTHRAS_GM_ROOT` overrides
+the lot.
