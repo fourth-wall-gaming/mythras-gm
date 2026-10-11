@@ -13,20 +13,22 @@
     {
       "name": "purewater",
       "source": {
-        "source": "github",
-        "repo": "fourth-wall-gaming/purewater-campaign",
+        "source": "url",
+        "url": "https://github.com/fourth-wall-gaming/purewater-campaign.git",
         "ref": "v1.3.0"
       },
-      "description": "And Then the Dragons Came: Purewater. A canal city, a Baron with a concealed champion, three days to the Tourney. Installs the mythras-gm engine automatically."
+      "description": "And Then the Dragons Came: Purewater. A canal city, a Baron with a concealed champion, three days to the Tourney. Needs the mythras-gm engine: Claude Code installs it as a dependency, Codex does not -- install mythras-gm alongside it there.",
+      "category": "Games"
     },
     {
       "name": "veilwrack",
       "source": {
-        "source": "github",
-        "repo": "fourth-wall-gaming/veilwrack-campaign",
+        "source": "url",
+        "url": "https://github.com/fourth-wall-gaming/veilwrack-campaign.git",
         "ref": "v1.2.0"
       },
-      "description": "The Veilwrack: The Stilling. An original sky-realm campaign. Winged Alar on the floating bone-spires of dead sky-leviathans, and the wind itself is dying. Installs the mythras-gm engine automatically."
+      "description": "The Veilwrack: The Stilling. An original sky-realm campaign. Winged Alar on the floating bone-spires of dead sky-leviathans, and the wind itself is dying. Needs the mythras-gm engine: Claude Code installs it as a dependency, Codex does not -- install mythras-gm alongside it there.",
+      "category": "Games"
     }
   ],
   "description": "Tabletop RPG tooling and campaigns for Claude Code."
