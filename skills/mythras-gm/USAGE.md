@@ -172,7 +172,8 @@ Walk the player through it conversationally, then persist once:
 
 1. Concept + setting frame (species/culture options come from the
    campaign's lore entries).
-2. Characteristics: `--roll` (3d6/2d6+6, avian mods auto-applied) or
+2. Characteristics: `--roll` (3d6/2d6+6; avian mods auto-applied only when
+   `--species avian`, which is not the default) or
    `--stats` for point-build/assigned. SRD "Dice Roll High" option: roll one
    **extra** die and discard the lowest (3d6 → 4d6 drop lowest;
    2d6+6 → 3d6 drop lowest, +6) — not "roll twice, keep higher".

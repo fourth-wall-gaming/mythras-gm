@@ -13,7 +13,7 @@ Campaign:
 
 Characters:
     create-character --campaign ID --name N [--type pc|npc|creature]
-        [--species avian|humanoid|winged-quadruped] [--stats JSON] [--roll]
+        [--species humanoid|avian|winged-quadruped] [--stats JSON] [--roll]
         [--skills JSON] [--combat-styles JSON] [--equipment JSON]
         [--passions JSON] [--armor JSON] [--description D] [--narrative TEXT]
     get-character --id ID [--compact]
@@ -5908,7 +5908,12 @@ def build_parser():
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--type", default="pc", choices=["pc", "npc", "creature"])
-    s.add_argument("--species", default="avian",
+    # `humanoid` is the baseline body plan, not `avian`. This engine was
+    # written for Veilwrack, a sky realm of winged Alar, so its body plan
+    # became everyone's default -- and every other campaign produced winged
+    # characters unless the GM remembered the flag. The sheet is valid, just
+    # wrong, so nothing complains. A setting that wants wings asks for them.
+    s.add_argument("--species", default="humanoid",
                    choices=["avian", "humanoid", "winged-quadruped"])
     s.add_argument("--stats", help='JSON {"STR":11,...}')
     s.add_argument("--roll", action="store_true")
@@ -6138,7 +6143,12 @@ def build_parser():
     s.add_argument("--campaign", help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
     s.add_argument("--name", required=True)
     s.add_argument("--stats", required=True)
-    s.add_argument("--species", default="avian",
+    # `humanoid` is the baseline body plan, not `avian`. This engine was
+    # written for Veilwrack, a sky realm of winged Alar, so its body plan
+    # became everyone's default -- and every other campaign produced winged
+    # characters unless the GM remembered the flag. The sheet is valid, just
+    # wrong, so nothing complains. A setting that wants wings asks for them.
+    s.add_argument("--species", default="humanoid",
                    choices=["avian", "humanoid", "winged-quadruped"])
     s.add_argument("--skills")
     s.add_argument("--combat-styles")

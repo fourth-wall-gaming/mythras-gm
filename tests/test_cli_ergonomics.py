@@ -860,3 +860,46 @@ def test_no_dialogue_the_player_did_not_write_is_in_the_canon():
             + (root / "AGENTS.md").read_text())
     assert "no dialogue they did not write" in both.lower()
     assert "authorises the act" in both.lower()
+
+
+def _species_owners():
+    """Every subcommand that takes --species, derived rather than listed.
+
+    Written out by hand this named `spawn`, which has no --species at all, and
+    missed `add-template`, which does. Deriving it means a new subcommand with
+    a body plan is covered the day it is added."""
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    return sorted(c for c, sp in sub.choices.items()
+                  if any(x.dest == "species" for x in sp._actions))
+
+
+def test_something_takes_a_species_at_all():
+    """If --species is ever renamed, the test below would pass vacuously."""
+    assert _species_owners(), "no subcommand takes --species"
+
+
+@pytest.mark.parametrize("cmd", _species_owners())
+def test_a_new_character_is_humanoid_unless_asked_otherwise(cmd):
+    """The default body plan was `avian`, which is a Veilwrack body plan.
+
+    Veilwrack is a sky realm of winged Alar, and the engine was written there
+    first, so its body plan became everyone's default. Every other campaign
+    therefore produced winged characters unless the GM remembered a flag:
+    wings, a Flight skill and a flying movement rate on a canal-city thief or
+    a fifteen-year-old courier. It is silent -- the sheet is valid, just wrong
+    -- and it reached played characters in at least two campaigns.
+
+    `humanoid` is the engine's baseline: USAGE.md already states that every
+    CFI race is a humanoid for hit-location purposes, and every test in this
+    suite passes `species="humanoid"` by hand. A setting that wants wings asks
+    for them.
+    """
+    parser = gm.build_parser()
+    sub = [a for a in parser._actions if hasattr(a, "choices") and a.choices][0]
+    action = [a for a in sub.choices[cmd]._actions if a.dest == "species"][0]
+    assert action.default == "humanoid", (
+        f"{cmd} defaults to {action.default!r}; a campaign that does not want "
+        f"wings should not have to say so")
+    # avian must stay reachable -- Veilwrack needs it, explicitly.
+    assert set(action.choices) == {"humanoid", "avian", "winged-quadruped"}
