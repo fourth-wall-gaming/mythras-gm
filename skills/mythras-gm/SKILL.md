@@ -38,6 +38,15 @@ environment variable: your host sets one for hook commands only, never in your
 shell, so in a skill it expands to nothing and every command below runs against
 a path that does not exist.
 
+**If this session has no ready line at all, do not start playing.** Its absence
+means the preflight never ran — and on Codex that most often means the user has
+not yet approved the plugin's startup check, so there is no database and nothing
+you do will be saved. Run `doctor` first; it is read-only and changes nothing.
+If it does not come back `Ready.`, follow the **`mythras-setup`** skill and say
+what is wrong in plain words. A session with no save file reads exactly like one
+that has it, right up to the moment the player comes back and finds the whole
+evening gone.
+
 ## Before you narrate one line
 
 **Read `TABLE.md`, then `styles/gamesmaster.md`, then the campaign's

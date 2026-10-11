@@ -62,3 +62,28 @@ reads back every `false` check.
   nothing here depends on them, and play is unaffected.
 - **The canon loads from `AGENTS.md`.** Codex reads `AGENTS.md`; Claude Code
   reads `CLAUDE.md`, which imports it. One file, both hosts.
+
+## Checking a machine where it will not start
+
+One command. It installs nothing, downloads nothing, and changes nothing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fourth-wall-gaming/mythras-gm/main/scripts/verify-install.sh | bash
+```
+
+It reports the host, the engine, `uv`, whether the save location is writable,
+outbound network, the database verdict, and — if a campaign plugin is installed
+— whether that campaign can find the engine. For anything that fails it prints
+the remedy as an action to take, and exits non-zero. Nothing it reports requires
+reading this document first.
+
+**A second machine tells you something this repository's own machine cannot.**
+A campaign plugin finds the engine by searching, and one of its probes is
+`$HOME/mythras-gm` — so on a development machine with a checkout there, the
+lookup always succeeds no matter which host is running. A clean machine is the
+only place that probe can be observed failing.
+
+**If you would rather not run a script**, ask the agent why the game will not
+start. The `mythras-setup` skill runs the same checks, says what is wrong in
+plain language, and offers to make the config change for you rather than handing
+you a file to edit.

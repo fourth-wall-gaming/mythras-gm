@@ -14,10 +14,52 @@ the database, define the schema, load the rules graph. Use this skill only
 when that failed, or when you deliberately want the Docker-managed path
 instead of the built-in native one.
 
-On Codex, one more cause belongs at the top of the list: **plugin-bundled hooks
-are not trusted until the user reviews them**, so on a fresh install the
-preflight has not run at all. That is not a broken setup; it is an untrusted
-one. Say so, and have them trust the hook rather than chasing a database fault.
+## The person in front of you is here to play
+
+They are not an engineer and should not have to become one to start a game.
+Three rules for everything below:
+
+- **Say what is wrong in the words they'd use.** "The game can't open its save
+  file yet" — not "the SessionStart hook is untrusted" or "init-db returned a
+  non-zero verdict".
+- **Do the part you can do.** You can read and edit their config file; they
+  should not be handed a TOML stanza and a path. **Offer to make the change
+  yourself**, say what it does in one line, and do it when they agree.
+- **Never improvise a game instead.** If the save cannot be opened, say so
+  plainly and stop. Do not narrate, do not roll, and do not tell them anything
+  was saved.
+
+### On Codex, check this before anything else
+
+Codex will not run a plugin's startup check until the user approves it. So on a
+fresh install the check has not run at all — and it could not warn them,
+because it is the thing that did not run. This looks exactly like a broken
+database and is not one.
+
+Say: *"Codex hasn't been given permission to run Mythras's startup step yet.
+Open `/plugins`, find Mythras, and approve it — then start a new session."*
+That is a click in a menu, so describe it as one.
+
+### If it ran and still failed, it is usually one of two permissions
+
+The game keeps its save outside your working folder and downloads a small
+database server once. A sandboxed Codex blocks both. Both are fixed by the same
+file, `~/.codex/config.toml`:
+
+```toml
+[sandbox_workspace_write]
+network_access = true
+writable_roots = ["~/.claude/mythras-gm"]
+```
+
+**Offer to add that for them** — read the file, merge rather than overwrite it,
+and tell them it lets the game save and fetch its database. Then say they need
+to **restart** Codex or start a new session for it to take effect, because a
+config change does not reach a running session.
+
+`scripts/verify-install.sh` in this plugin runs all of these checks at once and
+names the remedy for each. Run it when you want the whole picture before
+saying anything.
 
 ## Steps
 

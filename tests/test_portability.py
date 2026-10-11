@@ -192,3 +192,83 @@ def test_the_canon_is_single_sourced_for_both_hosts():
     assert "ALWAYS MOVE THE ACTION FORWARD" in agents.read_text(), (
         "AGENTS.md exists but does not hold the canon"
     )
+
+
+# --- the cold start on a host nobody has configured -----------------------
+#
+# The install these tests protect is not an engineer's. A player installs the
+# plugin in Codex, opens a session, and the game either comes up or it does
+# not; if it does not, the thing in front of them must say what to do in words
+# they already know, and do the part it can do itself.
+#
+# The worst case is specific and worth naming: Codex does not trust a plugin's
+# hooks until the user reviews them, so on a fresh install the preflight NEVER
+# RUNS -- and the preflight is the thing that would otherwise print the
+# warning. No message can come from the hook, because the hook is what is
+# missing. Only the skill can notice, so the skill has to.
+
+VERIFY = ROOT / "scripts" / "verify-install.sh"
+SETUP_SKILL = ROOT / "skills" / "mythras-setup" / "SKILL.md"
+GM_SKILL = ROOT / "skills" / "mythras-gm" / "SKILL.md"
+
+
+def test_the_install_check_exists_and_runs():
+    """The instrument for a second machine: one command, no checkout, no
+    arguments. If it needs explaining it is not the right tool."""
+    import os
+    import subprocess
+    assert VERIFY.exists(), "scripts/verify-install.sh is missing"
+    assert os.access(VERIFY, os.X_OK), "verify-install.sh is not executable"
+    out = subprocess.run(["bash", str(VERIFY)], capture_output=True, text=True,
+                         timeout=180)
+    assert "install check" in out.stdout.lower(), \
+        f"no recognisable report on stdout:\n{out.stdout}\n{out.stderr}"
+    # Exit code is the verdict: 0 when nothing blocks play.
+    assert out.returncode in (0, 1), \
+        f"unexpected exit {out.returncode}:\n{out.stdout}\n{out.stderr}"
+
+
+def test_the_install_check_reports_every_thing_that_can_block_play():
+    """Each of these has stopped a real install dead. A check that omits one
+    sends somebody to look in the wrong place."""
+    import subprocess
+    out = subprocess.run(["bash", str(VERIFY)], capture_output=True, text=True,
+                         timeout=180).stdout.lower()
+    for thing in ["host", "engine", "uv", "database", "writable", "network"]:
+        assert thing in out, f"the check never mentions {thing!r}"
+
+
+def test_the_install_check_explains_the_untrusted_hook_in_plain_words():
+    """The failure that prints nothing on its own. The remedy is a click in a
+    menu, so it has to be described as one -- not as a hook, a lifecycle event
+    or a trust policy."""
+    text = VERIFY.read_text()
+    assert "/plugins" in text, \
+        "the check never tells anyone where to approve the startup check"
+    assert "startup check" in text.lower(), \
+        "the check calls it a hook; a player does not know what that is"
+
+
+def test_the_setup_skill_offers_to_fix_rather_than_instructs():
+    """A player cannot be handed a TOML stanza and a file path. The model can
+    open that file itself, so the skill must have it offer, with permission,
+    instead of describing the edit."""
+    text = SETUP_SKILL.read_text()
+    assert "offer to" in text.lower(), \
+        "the setup skill never offers to make the change itself"
+    assert "config.toml" in text, \
+        "the setup skill cannot apply the sandbox fix without naming the file"
+    assert "restart" in text.lower(), \
+        "a config change needs a restart; the skill must say so"
+
+
+def test_the_gm_skill_notices_a_session_the_preflight_never_reached():
+    """No ready line in context means the preflight did not run, which under
+    Codex most often means the startup check is not approved yet. The skill
+    must check rather than narrate on, because narrating on is how a session
+    gets played with nothing saved."""
+    text = GM_SKILL.read_text().lower()
+    assert "ready line" in text, \
+        "SKILL.md never refers to the preflight's ready line"
+    assert "doctor" in text, \
+        "SKILL.md gives the model no way to check a cold start for itself"
