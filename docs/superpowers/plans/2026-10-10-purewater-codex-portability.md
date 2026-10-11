@@ -192,7 +192,10 @@ with:
                  "${HOME:-}/.claude/mythras-gm/engine-root"; do
     [ -n "${HOME:-}" ] || break
     [ -f "$pointer" ] || continue
-    p=$(head -1 "$pointer" 2>/dev/null | tr -d '[:space:]')
+    # `read -r` trims the ends and nothing else: a whitespace-only file (an
+    # interrupted write) reads as empty, while a path that legitimately
+    # contains a space survives intact.
+    p=""; read -r p < "$pointer" 2>/dev/null || true
     if [ -n "$p" ] && [ -f "${p}/${gm_rel}" ]; then
       printf '%s' "$p"; return 0
     fi

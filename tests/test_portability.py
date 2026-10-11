@@ -448,3 +448,19 @@ def test_an_empty_pointer_file_is_treated_as_absent(tmp_path):
     assert "unbound variable" not in r.stderr, r.stderr
     assert "/skills/mythras-gm" not in r.stdout.replace(str(home), ""), \
         f"an empty pointer resolved to a root-relative path:\n{r.stdout}"
+
+
+def test_a_pointer_naming_a_path_with_a_space_is_read_intact(tmp_path):
+    """Stripping whitespace to tolerate an interrupted write must not mangle a
+    legitimate path. `tr -d '[:space:]'` removed INTERNAL spaces too, so an
+    engine installed under "My Plugins" silently stopped being found and the
+    probe fell through to searching the install trees -- no error, no clue.
+    Trim the ends only."""
+    home = tmp_path / "home"
+    engine = _fake_engine(tmp_path / "My Plugins" / "engine")
+    pointer = home / ".mythras-gm" / "engine-root"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(f"  {engine}  \n")
+
+    out = _run_check_in_isolation(tmp_path, home).stdout
+    assert str(engine) in out, f"a path with a space was not read intact:\n{out}"
