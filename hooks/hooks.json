@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
-            "timeout": 180000,
+            "timeout": 180,
             "statusMessage": "Checking the Mythras save file",
             "async": false
           }

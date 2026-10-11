@@ -3,10 +3,11 @@
 Full command reference for the Mythras GM skill. See SKILL.md for quick start.
 
 ```bash
-CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
-PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run -q --project "$PRJ" python "$CLI" <command> [args]
+uv run -q --project "$GM" python "$GM/mythras_gm.py" <command> [args]
 ```
+
+`$GM` is the engine directory — the session-start hook's ready line names it
+absolutely; see **CLI** in `SKILL.md` for the fallback.
 
 ## Session Startup (ALWAYS do this first)
 

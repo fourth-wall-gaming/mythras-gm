@@ -24,9 +24,17 @@ skills/mythras-gm/
     core-mechanics.md       Distilled SRD: checks, grades, opposed rolls, fatigue, healing
     combat.md               Distilled SRD: initiative, action points, special effects, wounds
     magic.md                Distilled SRD: Magic & Superpowers frameworks
+skills/mythras-play/        Sit down at the table: the session startup ritual
+skills/mythras-setup/       Diagnose or force first-run setup
+skills/mythras-audit/       Audit a transcript against the conduct rules
 agents/gamemaster/
   AGENT.md                  The Gamesmaster persona for Claude
+docs/CODEX.md               Running the same plugin in Codex
 ```
+
+The three entry-point skills carry the bodies; `commands/*.md` are the Claude
+Code slash-menu wrappers that delegate to them. Codex has no commands
+component, so anything load-bearing lives in a skill -- see `docs/CODEX.md`.
 
 Campaign settings live in their own repos and load with `import-campaign`.
 The reference campaign is **[The Veilwrack: The Stilling](https://github.com/fourth-wall-gaming/veilwrack-campaign)** —
@@ -159,16 +167,19 @@ setup step:
 /plugin install mythras-gm@fourth-wall-gaming
 ```
 
-Start a session and the hook reports `mythras-gm ready`. `/mythras-gm:setup`
-still exists for the rare case the hook could not manage it automatically --
+Start a session and the hook reports `mythras-gm ready`, naming the engine's
+absolute path. `/mythras-gm:setup` (the `mythras-setup` skill) still exists for
+the rare case the hook could not manage it automatically --
 no network for the first-run download, or a platform with no native build --
 and for `--docker`, if you would rather run the old docker-compose.yml path.
 
 If anything is wrong, one command tells you what:
 
 ```bash
-GM="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run -q --project "$GM" python "$GM/mythras_gm.py" doctor
+# The hook's ready line prints this path; it is the plugin's install
+# directory plus /skills/mythras-gm.
+GM=~/.claude/plugins/cache/fourth-wall-gaming/mythras-gm/*/skills/mythras-gm
+uv run -q --project $GM python $GM/mythras_gm.py doctor
 ```
 
 ### This plugin runs locally, not in Claude Code cloud sessions

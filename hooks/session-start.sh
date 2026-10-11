@@ -47,7 +47,14 @@ fi
 if OUT=$(uv run -q --project "$GM" python "$GM/mythras_gm.py" init-db 2>&1); then
   DB=$(printf '%s' "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("database","?"))' 2>/dev/null || echo "$TYPEDB_DATABASE")
   HOME_LINE=$(printf '%s' "$OUT" | python3 -c 'import json,sys; h=json.load(sys.stdin).get("native_home"); print(f" Engine and data at {h}." if h else "")' 2>/dev/null || true)
-  echo "mythras-gm ready: database ${DB} on ${TYPEDB_PORT}.${HOME_LINE} State persists; roll everything through the CLI."
+  # Publish the ABSOLUTE invocation, because this is the only place the path is
+  # resolvable in both hosts: Claude Code and Codex each export
+  # CLAUDE_PLUGIN_ROOT to hook commands, and neither puts it in the model's
+  # shell. The skills used to carry "${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
+  # as literal text, which Claude Code substitutes when it loads the file and
+  # Codex does not -- so under Codex every documented command ran against
+  # /skills/mythras-gm and failed as if the engine were missing.
+  echo "mythras-gm ready: database ${DB} on ${TYPEDB_PORT}.${HOME_LINE} The engine is at ${GM} -- run every command as: uv run -q --project \"$GM\" python \"$GM/mythras_gm.py\" <command> [args]. State persists; roll everything through the CLI."
   exit 0
 fi
 

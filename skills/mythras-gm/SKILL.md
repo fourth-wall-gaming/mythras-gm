@@ -27,10 +27,16 @@ continue campaign, mythras, gamesmaster, novelize campaign, write novel
 ## CLI
 
 ```bash
-CLI="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/mythras_gm.py"
-PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run -q --project "$PRJ" python "$CLI" <command> [args]
+uv run -q --project "$GM" python "$GM/mythras_gm.py" <command> [args]
 ```
+
+**Where `$GM` comes from**, in this order: the session-start hook's ready line
+names the engine's absolute path outright — use that. Failing that (the hook has
+not been trusted yet, or you are reading this skill standalone), it is the
+directory you loaded this `SKILL.md` from. Do not reach for a plugin-root
+environment variable: your host sets one for hook commands only, never in your
+shell, so in a skill it expands to nothing and every command below runs against
+a path that does not exist.
 
 ## Before you narrate one line
 

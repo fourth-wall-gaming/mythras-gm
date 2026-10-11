@@ -7,10 +7,11 @@ you write here goes back into TypeDB.
 ## CLI
 
 ```bash
-NOV="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm/novelist.py"
-PRJ="${CLAUDE_PLUGIN_ROOT}/skills/mythras-gm"
-uv run -q --project "$PRJ" python "$NOV" <command> [args]
+uv run -q --project "$GM" python "$GM/novelist.py" <command> [args]
 ```
+
+`$GM` is the engine directory — the session-start hook's ready line names it
+absolutely; see **CLI** in `SKILL.md` for the fallback.
 
 Requires `pandoc` and `typst` for `build` (`brew install pandoc typst`).
 
