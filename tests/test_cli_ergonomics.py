@@ -264,7 +264,12 @@ def test_the_marketplace_lists_the_campaign_too():
     names = {p["name"] for p in mk["plugins"]}
     assert {"mythras-gm", "purewater"} <= names, names
     pw = next(p for p in mk["plugins"] if p["name"] == "purewater")
-    assert pw["source"]["source"] == "github", "campaign should come from its own repo"
+    # `url`, not `github`: both are "the campaign's own repo", but only `url` is
+    # a plugin-source type BOTH hosts resolve. Codex skips an entry it cannot
+    # resolve rather than failing the marketplace, so the `github` form made the
+    # campaign silently absent there. See test_portability.py for the guard.
+    assert pw["source"]["source"] == "url", "campaign should come from its own repo"
+    assert pw["source"]["url"].endswith("purewater-campaign.git")
     assert pw["source"].get("ref"), "pin the campaign to a tag so installs are reproducible"
 
 

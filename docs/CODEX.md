@@ -13,6 +13,42 @@ reads this repository's Claude manifests directly:
 What keeps that true over time is `tests/test_portability.py`, which runs in the
 ordinary `tests` workflow and fails if a Claude-only construct comes back.
 
+### The catalog is not the manifest, and it has its own schema
+
+The plugin manifests are dual-host. The **marketplace catalog** is not,
+automatically: the two hosts share the entry shape but not every `source` type.
+
+| Entry source | Claude Code | Codex |
+| --- | --- | --- |
+| `"./"` or `"./path"` (relative) | yes | yes |
+| `{"source": "url", "url": "<git url>", "ref": "<tag>"}` | yes | yes |
+| `{"source": "github", "repo": "owner/name", "ref": "<tag>"}` | yes | **no** |
+
+Use the `url` form for anything outside this repository. The `github` form is
+the trap: **Codex skips an entry whose source it cannot resolve rather than
+failing the marketplace**, so the catalog loads, the relative-path entries
+resolve, and the campaigns vanish with no error anywhere. What the user sees is
+`<name> not found in marketplace fourth-wall-gaming` — which reads like a typo
+in the plugin name, not a schema mismatch in the catalog.
+
+A `url` source takes a full git URL; `owner/repo` shorthand is rejected for that
+type. Pin every entry with `ref`.
+
+### Codex does not install a plugin's dependencies
+
+A campaign's `plugin.json` declares `"dependencies": ["mythras-gm"]`. That is a
+Claude Code feature — Codex's manifest spec has no plugin-level `dependencies`
+field — so on Codex **install the engine explicitly alongside the campaign**:
+
+```bash
+codex plugin marketplace add fourth-wall-gaming/mythras-gm
+codex plugin add mythras-gm@fourth-wall-gaming
+codex plugin add purewater@fourth-wall-gaming
+```
+
+Installing only the campaign gets you a campaign whose preflight reports the
+engine missing — on a machine where nothing is wrong except the missing install.
+
 ## Install
 
 In a Codex CLI session:

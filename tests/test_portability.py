@@ -464,3 +464,83 @@ def test_a_pointer_naming_a_path_with_a_space_is_read_intact(tmp_path):
 
     out = _run_check_in_isolation(tmp_path, home).stdout
     assert str(engine) in out, f"a path with a space was not read intact:\n{out}"
+
+
+# --- the catalog, not just the manifests ---------------------------------
+#
+# The portability guard above checks that the PLUGIN is dual-host. It did not
+# check the MARKETPLACE, and that gap shipped: the campaign entries described
+# themselves in Claude Code's `github` source form (`repo` + `ref`), which is
+# not one of Codex's plugin-source types. Codex's documented behaviour is to
+# SKIP an entry whose source it cannot resolve rather than fail the
+# marketplace -- so the catalog loaded, `mythras-gm` resolved (a relative path
+# works in both), and `purewater` and `veilwrack` silently vanished. The user
+# got "purewater-campaign not found in marketplace fourth-wall-gaming" and no
+# indication that the catalog was at fault.
+#
+# Both hosts have a `url` plugin source with the same fields -- Claude Code:
+# url/ref/sha; Codex: `"source": "url"` for a plugin at the repository root --
+# so one entry can serve both, and that is the only object form that does.
+
+MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
+
+# Object source types each host understands. The intersection is what we may
+# ship; anything outside it resolves on one host and disappears on the other.
+DUAL_HOST_SOURCE_TYPES = {"url"}
+CLAUDE_ONLY_SOURCE_TYPES = {"github", "archive", "command", "npm"}
+
+
+def _catalog_entries():
+    return json.loads(MARKETPLACE.read_text())["plugins"]
+
+
+def test_the_catalog_lists_something():
+    """Every test below iterates the entries; an empty catalog would pass them
+    all while shipping nothing."""
+    assert len(_catalog_entries()) >= 2, "expected the engine and a campaign"
+
+
+@pytest.mark.parametrize("entry", _catalog_entries(), ids=lambda e: e["name"])
+def test_every_catalog_entry_resolves_on_both_hosts(entry):
+    """A relative path works in both. Of the object forms, only `url` does."""
+    source = entry["source"]
+    if isinstance(source, str):
+        assert source.startswith("./") or source == ".", (
+            f"{entry['name']}: a relative source must start with './' or be '.'")
+        return
+    kind = source.get("source")
+    assert kind not in CLAUDE_ONLY_SOURCE_TYPES, (
+        f"{entry['name']} uses the {kind!r} source form, which Claude Code "
+        f"resolves and Codex does not -- Codex SKIPS the entry silently, so the "
+        f"plugin simply is not in the marketplace there. Use "
+        f'{{"source": "url", "url": "<git url>", "ref": "<tag>"}}.')
+    assert kind in DUAL_HOST_SOURCE_TYPES, (
+        f"{entry['name']} uses the {kind!r} source form, which is not known to "
+        f"resolve on both hosts. Known-good: {sorted(DUAL_HOST_SOURCE_TYPES)}")
+    assert source.get("url", "").startswith(("https://", "git@", "http://")), (
+        f"{entry['name']}: a url source takes a full git URL, not owner/repo "
+        f"shorthand -- Claude Code rejects the shorthand for this type")
+
+
+@pytest.mark.parametrize("entry", _catalog_entries(), ids=lambda e: e["name"])
+def test_every_remote_catalog_entry_is_pinned(entry):
+    """An unpinned campaign installs from whatever its default branch happens
+    to be that day, which is not a release."""
+    source = entry["source"]
+    if isinstance(source, str):
+        return
+    assert source.get("ref") or source.get("sha"), (
+        f"{entry['name']} names no ref or sha, so an install takes the default "
+        f"branch rather than a release")
+
+
+def test_the_catalog_promises_nothing_one_host_cannot_do():
+    """`dependencies` in a plugin manifest is a Claude Code feature: Codex's
+    manifest spec has no plugin-level dependencies field, so a campaign's
+    engine is NOT installed for you there. A blurb that says otherwise sends
+    somebody to debug a working install."""
+    for entry in _catalog_entries():
+        text = entry.get("description", "")
+        assert "engine automatically" not in text, (
+            f"{entry['name']}'s description promises automatic engine install; "
+            f"true in Claude Code, false in Codex")
