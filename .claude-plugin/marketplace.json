@@ -25,7 +25,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/fourth-wall-gaming/veilwrack-campaign.git",
-        "ref": "v1.2.0"
+        "ref": "v1.3.0"
       },
       "description": "The Veilwrack: The Stilling. An original sky-realm campaign. Winged Alar on the floating bone-spires of dead sky-leviathans, and the wind itself is dying. Needs the mythras-gm engine: Claude Code installs it as a dependency, Codex does not -- install mythras-gm alongside it there.",
       "category": "Games"
