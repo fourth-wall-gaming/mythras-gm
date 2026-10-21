@@ -2,7 +2,7 @@
 
 ## THE GM CANON — this applies to every line you narrate
 
-Twelve reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
+Thirteen reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
 Read them at the start of every session and again when one has been running a
 while — every one was broken in a single evening by somebody who had read them.
 
@@ -19,6 +19,7 @@ while — every one was broken in a single evening by somebody who had read them
 10. **No procedural drift.** Paper is the key to a door, never the door.
 11. **Roll honestly and follow what the dice hand you.**
 12. **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition and not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen.
+13. **Invent people, and connect them.** The shipped cast is a seed. A new person needs one want and one edge to something that already exists.
 
 ---
 
@@ -35,6 +36,12 @@ so the plan cannot decay. Read it when a campaign has no live antagonist, when
 a session has gone inert, and whenever a new PC arrives. Two campaigns have now
 been stopped by a player asking *who is the antagonist?* — both times the answer
 was that there wasn't one.
+
+**Who to run it with is in [`skills/mythras-gm/CAST.md`](skills/mythras-gm/CAST.md)** —
+how to invent a person in three minutes mid-scene, how to derive the roles the
+world must keep filling from the player character's own engine, and the rule that
+keeps an open world dense instead of sprawling: a new person must make one edge
+to something that already exists. The shipped cast is a seed, not a cast list.
 
 It lives inside `skills/` deliberately: this file is not shipped when the plugin
 is installed, so anything load-bearing that lives here reaches nobody. The style

@@ -8,7 +8,10 @@ This file governs conduct at the table — HOW you narrate. **`SCENARIO.md`
 governs WHAT there is to narrate about**: building an antagonist out of the
 PC's own sheet, plotting in sequences, and putting the clocks in the save.
 Read it when a campaign has no live antagonist, when a session has gone inert,
-and whenever a new PC arrives. `USAGE.md` is the command reference. `SKILL.md`
+and whenever a new PC arrives. **`CAST.md` governs WHO** — inventing people
+mid-scene, casting roles derived from the PC's engine rather than drawing from a
+fixed list, and growing the world in the direction the player walks. A shipped
+campaign is a seed and not a cast list. `USAGE.md` is the command reference. `SKILL.md`
 is the loop. Where any of them disagree with this file on conduct, this file
 wins; `SCENARIO.md` wins on construction.
 
@@ -16,7 +19,7 @@ wins; `SCENARIO.md` wins on construction.
 
 ## 0. THE CANON — read every session, before one line of narration
 
-Twelve reminders. Each names the section holding the full rule. If you read nothing
+Thirteen reminders. Each names the section holding the full rule. If you read nothing
 else in this file, read these, and read them again when a session has been
 running a while, because every one of them was broken in a single evening by
 somebody who had already read them once.
@@ -36,6 +39,7 @@ somebody who had already read them once.
 | **10** | **No procedural drift.** Paper is the key to a door and never the door. One talking-in-a-room scene, then cut to something physical | §0c |
 | **11** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
 | **12** | **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition, not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen | `SCENARIO.md` |
+| **13** | **Invent people, and connect them.** The shipped cast is a seed, not the population of a star system. A new person needs one want and one EDGE to something that already exists — expansion that does not connect is sprawl | `CAST.md` |
 
 ---
 

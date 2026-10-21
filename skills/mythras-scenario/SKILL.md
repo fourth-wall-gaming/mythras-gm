@@ -41,9 +41,13 @@ Put it in front of the player and let them correct it. It is their character.
 
 By `SCENARIO.md` §1: one whose ordinary daily business destroys that asset, one
 who can kill them. Prefer somebody already in the campaign; `brief --id` them
-first. Where you must invent, `create-character --type npc --species humanoid`
-— **pass `--species`, because the default is avian** — and card them with
-`update-character --actor-notes` using the `TABLE.md` §6 fields.
+first. Where you must invent, follow `$GM/CAST.md` §2: `create-character --type npc
+--species humanoid` — **pass `--species`, because the default is avian** — and
+card them with `update-character --actor-notes`.
+
+Then write the **cast role table** (`CAST.md` §1): four or five roles the world
+must keep filling, derived from the PC's engine sentence, so that later invention
+is casting rather than inventing. Put it in the scenario doc.
 
 ## 4. Plot six to eight sequences
 
