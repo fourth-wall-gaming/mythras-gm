@@ -81,6 +81,97 @@ the PC's best thing worthless is a story.
 
 ---
 
+## 1a. Stakes, danger, and the scale problem
+
+The failure in §0 has a second half, and it survives the fix. You can build two
+good antagonists, plot seven sequences, give every one of them a cost — and
+still produce something the player calls boring, because **every cost was
+social and nothing could kill anybody.**
+
+Observed immediately after SCENARIO.md was first written: a scenario for an
+interstellar campaign in which five of seven sequences were conversations and
+the top stake was *a politician will take credit for a maintenance statistic.*
+Thirty billion people in the setting; a man being unfairly thanked in the plot.
+
+### Scale the stakes to the setting, not to the clue
+
+This is the error, stated precisely. **A clue is small by nature.** A slipped
+quarter, a maintenance figure, a date column, a name on a list — these are how
+a player gets traction on something too big to punch, and they are correct as
+*entry points*. The mistake is letting the size of the entry point set the size
+of the story.
+
+So after you write a clue, say out loud what it is a clue **about**, and keep
+asking until the answer is the size of the setting:
+
+> The load bed has been re-balanced three times in thirty-one years, and twice
+> in the last two → somebody is driving that door harder than it was built for
+> → **a door that is driven to death does not come back, and there is no spare
+> and no second route** → that system has ONE door and ninety thousand people
+> behind it → *they all die, or they are alone for ever, and it is months away.*
+
+That last line is the stake. The maintenance figure was the doorknob.
+
+### Count your conversations
+
+Mechanical, like the roll test. **Go through the sequences and count how many
+are resolved by people talking in a room.** More than a third and you have
+written a political drama. Every other sequence should have at least one of:
+
+- a body somewhere it could be hurt,
+- a physical thing to be taken, carried, broken or reached in time,
+- a place the PC could die in.
+
+A scenario in which the player's hands never do anything is not an adventure
+however much is at stake in it.
+
+### Danger means the PC can die, and they must be reachable
+
+Not "could theoretically". Name the thing that can kill this character, name
+the sequence where it gets its chance, and let the dice decide. If the PC has
+never been anywhere in an act that could have killed them, **there was no
+adventure in that act**, only a plot.
+
+The player must be told, in the fiction, before they choose it (that is what a
+player is owed), and then it must be real.
+
+### Use the setting's own cruelty before you invent an enemy
+
+Every setting has physical facts that are already lethal, and they are better
+threats than any villain because they cannot be reasoned with, do not need a
+motive, and are *true*. Catalogue them once and reach for them first.
+
+In this one: nothing crosses but a living thing, so **no rescue can ever be
+sent**; no signal crosses, so **nobody can be told**; a door can stray while
+you are standing on the far side of it, so **the way home can simply stop
+existing**; the far side is vacuum or cold enough to stop a heart in ninety
+seconds and nobody surveyed it first; only children can go, so the only person
+who can come for you is another child.
+
+A GM who has those on a list will never again write a scenario whose worst
+outcome is embarrassment.
+
+### Escalate by rungs, and make the top rung visible from the bottom
+
+`TABLE.md` §2b.5 has the ladder — tolls, then a beating, then a death nobody
+answers for, then reprisal — and the addition is this: **the player should be
+able to see the top of the ladder from the first rung.** Not foreshadowed
+(`TABLE.md` §0, rule 8) — *inferred*, from a true thing they were shown. An
+enemy who puts a child in the dark on purpose, once, has told the player
+exactly what they are willing to do, and nothing further needs saying.
+
+### The test
+
+Three questions, and a scenario that fails any of them goes back:
+
+1. **What can kill the PC in this act, and in which sequence does it get its
+   chance?**
+2. **How many people die if the antagonist simply wins?** If the answer is
+   nobody, raise it until it isn't.
+3. **Where does the PC have to GO, and why is going there worse than staying?**
+
+---
+
 ## 2. Plot in sequences
 
 A **beat** is a unit of catalog — one event, with a time and a trigger. A

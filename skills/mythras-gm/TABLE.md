@@ -19,7 +19,7 @@ wins; `SCENARIO.md` wins on construction.
 
 ## 0. THE CANON — read every session, before one line of narration
 
-Thirteen reminders. Each names the section holding the full rule. If you read nothing
+Fourteen reminders. Each names the section holding the full rule. If you read nothing
 else in this file, read these, and read them again when a session has been
 running a while, because every one of them was broken in a single evening by
 somebody who had already read them once.
@@ -40,6 +40,7 @@ somebody who had already read them once.
 | **11** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
 | **12** | **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition, not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen | `SCENARIO.md` |
 | **13** | **Invent people, and connect them.** The shipped cast is a seed, not the population of a star system. A new person needs one want and one EDGE to something that already exists — expansion that does not connect is sprawl | `CAST.md` |
+| **14** | **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** Count the sequences resolved by people talking in a room: more than a third is a political drama. Name what can kill the PC and when it gets its chance | `SCENARIO.md` §1a |
 
 ---
 

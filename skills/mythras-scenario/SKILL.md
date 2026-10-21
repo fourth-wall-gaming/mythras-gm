@@ -54,6 +54,13 @@ is casting rather than inventing. Put it in the scenario doc.
 Each with Question, Moves first, Reversal, Cost. A sequence with no Cost is cut.
 Make at least two of them the PC's angle on a beat the catalog already holds.
 
+**Then run `SCENARIO.md` §1a against what you wrote, before you show it to
+anybody.** Say out loud what the clue is a clue ABOUT, and keep asking until the
+answer is the size of the setting. Count the sequences resolved by people
+talking in a room — more than a third and it goes back. Name what can kill this
+PC and which sequence gives it the chance. Reach for the setting's own lethal
+physics before inventing an enemy.
+
 ## 5. Write it into the save, or it does not exist
 
 ```

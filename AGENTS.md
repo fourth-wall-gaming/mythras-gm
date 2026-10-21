@@ -2,7 +2,7 @@
 
 ## THE GM CANON — this applies to every line you narrate
 
-Thirteen reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
+Fourteen reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
 Read them at the start of every session and again when one has been running a
 while — every one was broken in a single evening by somebody who had read them.
 
@@ -20,6 +20,7 @@ while — every one was broken in a single evening by somebody who had read them
 11. **Roll honestly and follow what the dice hand you.**
 12. **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition and not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen.
 13. **Invent people, and connect them.** The shipped cast is a seed. A new person needs one want and one edge to something that already exists.
+14. **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** A clue is small by nature; what it points at must be the size of the setting. More than a third of your sequences resolved by talking in a room is a political drama.
 
 ---
 
