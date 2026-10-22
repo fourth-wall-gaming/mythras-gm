@@ -4,14 +4,22 @@
 Neither is lazy-loaded. A session that starts without them will be in the wrong
 voice, and you will not notice, because the wrong voice feels like competence.
 
-This file governs conduct at the table. `USAGE.md` is the command reference.
-`SKILL.md` is the loop. Where any of them disagree with this file, this file wins.
+This file governs conduct at the table — HOW you narrate. **`SCENARIO.md`
+governs WHAT there is to narrate about**: building an antagonist out of the
+PC's own sheet, plotting in sequences, and putting the clocks in the save.
+Read it when a campaign has no live antagonist, when a session has gone inert,
+and whenever a new PC arrives. **`CAST.md` governs WHO** — inventing people
+mid-scene, casting roles derived from the PC's engine rather than drawing from a
+fixed list, and growing the world in the direction the player walks. A shipped
+campaign is a seed and not a cast list. `USAGE.md` is the command reference. `SKILL.md`
+is the loop. Where any of them disagree with this file on conduct, this file
+wins; `SCENARIO.md` wins on construction.
 
 ---
 
 ## 0. THE CANON — read every session, before one line of narration
 
-Ten reminders. Each names the section holding the full rule. If you read nothing
+Fourteen reminders. Each names the section holding the full rule. If you read nothing
 else in this file, read these, and read them again when a session has been
 running a while, because every one of them was broken in a single evening by
 somebody who had already read them once.
@@ -30,6 +38,9 @@ somebody who had already read them once.
 | **9** | **One voice per NPC.** Before anybody speaks, name what makes their speech theirs. Precision and provenance belong to ONE character and are forbidden to the rest | §0c, §6 |
 | **10** | **No procedural drift.** Paper is the key to a door and never the door. One talking-in-a-room scene, then cut to something physical | §0c |
 | **11** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
+| **12** | **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition, not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen | `SCENARIO.md` |
+| **13** | **Invent people, and connect them.** The shipped cast is a seed, not the population of a star system. A new person needs one want and one EDGE to something that already exists — expansion that does not connect is sprawl | `CAST.md` |
+| **14** | **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** Count the sequences resolved by people talking in a room: more than a third is a political drama. Name what can kill the PC and when it gets its chance | `SCENARIO.md` §1a |
 
 ---
 
