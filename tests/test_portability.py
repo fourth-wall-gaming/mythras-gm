@@ -525,13 +525,33 @@ def test_every_catalog_entry_resolves_on_both_hosts(entry):
 @pytest.mark.parametrize("entry", _catalog_entries(), ids=lambda e: e["name"])
 def test_every_remote_catalog_entry_is_pinned(entry):
     """An unpinned campaign installs from whatever its default branch happens
-    to be that day, which is not a release."""
+    to be that day, which is not a release.
+
+    This used to assert only that a ref EXISTED, which a branch name satisfies
+    -- and the refs were duly set to "main" on the entirely reasonable wish
+    that what is on main is what campaigns run. Two things were wrong with it:
+    a session could pick up a setting change committed mid-rewrite, and the
+    `url` source form is documented as taking a tag, so a branch ref risks the
+    silent skip in `docs/CODEX.md` -- the campaign vanishes from the
+    marketplace and the error reads like a typo in the plugin name.
+
+    The wish is right and the mechanism for it is to MOVE THE TAG: cut a
+    release at main and point the catalog at it. So this now checks the shape.
+    """
     source = entry["source"]
     if isinstance(source, str):
         return
-    assert source.get("ref") or source.get("sha"), (
+    ref, sha = source.get("ref"), source.get("sha")
+    assert ref or sha, (
         f"{entry['name']} names no ref or sha, so an install takes the default "
         f"branch rather than a release")
+    if sha and not ref:
+        return
+    assert re.fullmatch(r"v\d+\.\d+\.\d+", ref), (
+        f"{entry['name']} is pinned to {ref!r}, which is not a release tag. A "
+        f"branch ref means an install takes whatever was committed that day, "
+        f"and the url source form is documented as taking a tag. To ship what "
+        f"is on main, cut a tag at main and point the catalog at the tag.")
 
 
 def test_the_catalog_promises_nothing_one_host_cannot_do():
