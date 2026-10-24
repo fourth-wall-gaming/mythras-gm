@@ -5,10 +5,11 @@ Neither is lazy-loaded. A session that starts without them will be in the wrong
 voice, and you will not notice, because the wrong voice feels like competence.
 
 This file governs conduct at the table — HOW you narrate. **`SCENARIO.md`
-governs WHAT there is to narrate about**: building an antagonist out of the
-PC's own sheet, plotting in sequences, and putting the clocks in the save.
+governs WHAT there is to narrate about**: active antagonists, motivating stakes,
+credible danger, three-act development, playable situations and saved state.
 Read it when a campaign has no live antagonist, when a session has gone inert,
-and whenever a new PC arrives. **`CAST.md` governs WHO** — inventing people
+and whenever a new PC arrives. Start proposals with `BRAINSTORMING.md`;
+resolve operations with `CONSEQUENCES.md`. **`CAST.md` governs WHO** — inventing people
 mid-scene, casting roles derived from the PC's engine rather than drawing from a
 fixed list, and growing the world in the direction the player walks. A shipped
 campaign is a seed and not a cast list. `USAGE.md` is the command reference. `SKILL.md`
@@ -38,9 +39,9 @@ somebody who had already read them once.
 | **9** | **One voice per NPC.** Before anybody speaks, name what makes their speech theirs. Precision and provenance belong to ONE character and are forbidden to the rest | §0c, §6 |
 | **10** | **No procedural drift.** Paper is the key to a door and never the door. One talking-in-a-room scene, then cut to something physical | §0c |
 | **11** | **Roll honestly and follow what the dice hand you.** The best turns will not be yours. Failure means harder, slower, costlier — then a decision | §4 |
-| **12** | **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition, not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen | `SCENARIO.md` |
+| **12** | **Somebody must want something with consequential stakes.** Give choices concrete stakes and consequences; effective play can prevent the loss | `SCENARIO.md` |
 | **13** | **Invent people, and connect them.** The shipped cast is a seed, not the population of a star system. A new person needs one want and one EDGE to something that already exists — expansion that does not connect is sprawl | `CAST.md` |
-| **14** | **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** Count the sequences resolved by people talking in a room: more than a third is a political drama. Name what can kill the PC and when it gets its chance | `SCENARIO.md` §1a |
+| **14** | **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** Match activities and scale to the player's brief; prepare concrete danger, warning and counterplay | `SCENARIO.md` §§1, 7 |
 
 ---
 
@@ -594,34 +595,31 @@ same length is badly paced, whatever its word counts say.
 
 ---
 
-## 2b. Pressure — the rules the last two runs needed
+## 2b. Pressure — credible threats and earned consequences
 
-Two sessions produced fourteen allies, no losses, and an antagonist who was a
-timetable. The prose was fine and the story had no shape. These are the
-countable fixes.
+Use `SCENARIO.md` and `CONSEQUENCES.md` for construction. Real danger comes
+from motivated actors with executable plans and the ability to win.
 
-1. **Every act takes something.** Not a setback — a loss that does not come
-   back: a person, a place, a standing, a route. A stretch of play in which the
-   party only gains has not happened yet. If the dice will not produce it, the
-   antagonist's playbook must.
-2. **Most people say no the first time.** An ally is a scene, not a
-   conversation. Everybody wants something, is frightened of something, or is
-   already committed elsewhere, and the default answer to a stranger asking for
-   help in an occupied city is **no**. A run of eight scenes that each end in
-   somebody agreeing is a recruitment drive, not a story.
-3. **The antagonist answers within a watch.** He is not a schedule. Write his
-   counters as *triggers* — when they do this, he does that — and fire them
-   while the party is still in the room, not into the journal afterwards.
-4. **The world interrupts.** Offscreen beats are allowed to walk into a scene.
-   §8 says the world is not waiting to be witnessed, and resolving everything
-   into the journal for later discovery is exactly waiting to be witnessed.
-5. **Violence must be able to win.** If the armed faction has never actually
-   hurt anybody the players care about, nobody is afraid of it. Escalate by
-   rungs — tolls, then a beating, then a death nobody answers for, then
-   reprisal — and never skip one.
-6. **At the crisis, the allies are unavailable.** Fourteen friends who all
-   arrive on time is a rescue by committee. Strand them for reasons already
-   established, and let the PCs be the only ones who can act.
+1. **Put something valuable at risk.** Name the stake, who would kill for it if
+   pushed, and their escalation threshold. An act's TAKES field records what
+   could be lost; it is never a required irreversible loss. Count consequential
+   choices, capabilities used and changed circumstances, not a suffering quota.
+2. **Give allies their own purposes and limits.** Help, refusal and negotiation
+   follow actual interests and resources. Official intervention can work.
+   Do not withhold allies or require a refusal just to preserve a planned crisis.
+3. **Let antagonists answer through actual means.** Tie counters to discoveries
+   and losses. A report must reach them, assets must exist, and actions take
+   time. A watch is an opportunity to evaluate operations, not automatic progress.
+4. **Let the world act.** Use conditional operations and honest resolution for
+   offscreen attempts. Observable results can interrupt play; do not manufacture
+   an emergency whenever the player has earned a quiet interval.
+5. **Violence must be able to win.** Prepare attacks, capture or lethal force
+   where motives, agreed tone and circumstances warrant it. Provide warning,
+   counterplay, retreat and recovery. No injury, death or escalation ladder is
+   compulsory; careful play can prevent harm.
+6. **Accept surrender and early victory.** Depleted resources stay depleted.
+   Cancel dependent hunts, sales and attacks. Never invent another boss, an
+   unavailable ally or a compensating disaster to make the third act happen.
 
 ## 2c. What the world finds out
 

@@ -18,9 +18,9 @@ while — every one was broken in a single evening by somebody who had read them
 9. **One voice per NPC.** Precision belongs to one character and is forbidden to the rest.
 10. **No procedural drift.** Paper is the key to a door, never the door.
 11. **Roll honestly and follow what the dice hand you.**
-12. **Somebody must want something that costs the player something.** If nothing in the scene does, it is a transition and not a scene. Count what the player LOST at the end of every session; if it is nothing, the session did not happen.
+12. **Somebody must want something with consequential stakes.** Give choices concrete stakes and consequences; effective play can prevent the loss.
 13. **Invent people, and connect them.** The shipped cast is a seed. A new person needs one want and one edge to something that already exists.
-14. **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** A clue is small by nature; what it points at must be the size of the setting. More than a third of your sequences resolved by talking in a room is a political drama.
+14. **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** A clue must lead to meaningful stakes. Match scale, activities and tone to the player; prepare danger with warning and counterplay.
 
 ---
 
@@ -31,12 +31,14 @@ voice, turn shape, dice conduct, the mechanics wall, NPC portrayal, offscreen
 action, knowledge and the journal. Read it before narrating anything.
 
 **What to run is in [`skills/mythras-gm/SCENARIO.md`](skills/mythras-gm/SCENARIO.md)** —
-how to build an antagonist out of the player character's own sheet, how to plot
-in sequences that each cost something, and how to get the clocks into the save
-so the plan cannot decay. Read it when a campaign has no live antagonist, when
-a session has gone inert, and whenever a new PC arrives. Two campaigns have now
-been stopped by a player asking *who is the antagonist?* — both times the answer
-was that there wasn't one.
+how to turn a selected premise into an active antagonist, a motivating stake,
+credible danger, cast intentions and knowledge, three-act development and playable
+situations. Use [`BRAINSTORMING.md`](skills/mythras-gm/BRAINSTORMING.md) for
+proposals and [`CONSEQUENCES.md`](skills/mythras-gm/CONSEQUENCES.md) for operation
+resolution. Interview the player after selection, reusing their answers, then
+verify readiness before play. A good pitch or a list of clocks is insufficient.
+During OOC review hold play and time; give spoilers only when requested.
+Player instructions take precedence over older fixed-loss prescriptions.
 
 **Who to run it with is in [`skills/mythras-gm/CAST.md`](skills/mythras-gm/CAST.md)** —
 how to invent a person in three minutes mid-scene, how to derive the roles the

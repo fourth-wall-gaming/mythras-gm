@@ -52,9 +52,10 @@ A person with no edge is scenery, and scenery does not need a record.
 This is the part that makes a world feel like *their* world rather than a place
 they are visiting.
 
-You already wrote the PC's **engine sentence** (`SCENARIO.md` §1) — the
-contradiction they walk around with, taken from their passions and the floor of
-their sheet. The cast is not a list. It is a **function of that sentence.**
+Start with the PC's chosen objective, relationships and the player-experience
+brief (`SCENARIO.md` §§1–3). An engine sentence drawn from passions can help
+when the player agrees with it; a contradiction or weakness is not compulsory.
+Build cast roles that support that particular experience.
 
 The method: from the engine, derive four or five **roles the world must keep
 filling**, then fill them with whoever the current scene needs. Roles persist;
@@ -130,9 +131,11 @@ The ladder, and you climb one rung at a time, after the fact:
 | Live | the player went out of their way for or against them | a full §6 card |
 | Load-bearing | twice more | an **agenda with a clock**, and a beat hanging off it |
 
-**Never pre-promote.** Giving a brand-new NPC a secret the plot needs is a rail
-wearing a person, and the player can smell it. Invent them empty of plot and let
-what the player does decide what they turn out to have been.
+This ladder is useful for incidental people invented during play. A prepared
+antagonist, teacher, buyer or witness can begin with secrets, connections and
+an agenda. Apply `SCENARIO.md` to prepare their knowledge and intentions before
+play. Neither repeated appearances nor player attachment is required for the
+world's other people to have consequential plans.
 
 ---
 

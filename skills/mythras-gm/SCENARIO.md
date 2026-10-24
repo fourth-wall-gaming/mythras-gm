@@ -1,293 +1,276 @@
-# SCENARIO.md — building an antagonist and a scenario at the table
+# SCENARIO.md — from selected premise to playable adventure
 
-**`TABLE.md` governs how you narrate. This file governs what there is to
-narrate about.** Read it when a campaign has no live antagonist, when a session
-has gone inert, and whenever a new PC arrives — their arrival is the moment to
-build this and the cheapest it will ever be.
+Reusable method agreed with the player during the Glass Hounds review,
+23 October 2026. Apply to new adventures, replacements and other game systems.
+This is preparation guidance, not a script or a requirement for player approval.
+Use it after pitch selection; use its questions to improve pitches beforehand.
 
-Where this file and `TABLE.md` disagree, `TABLE.md` wins on conduct and this
-file wins on construction.
+Workflow: live starting position → diverse seeds → public pitches → player
+selection → brief preference interview → cast and opposing plans → knowledge and evidence → act development
+→ playable situations → model and verify → play and revise.
 
----
+Read alongside [BRAINSTORMING.md](BRAINSTORMING.md) and
+[CONSEQUENCES.md](CONSEQUENCES.md). The first governs
+selection; the second governs attempts, dependencies, clocks and consequences.
+Player preferences and the selected genre determine the experience being built.
 
-## 0. The failure this exists to prevent
+## After selection: interview the player before deep preparation
 
-Two separate campaigns produced the same report from the player, in almost the
-same words: **"this is boring — who is the antagonist?"**
+A selected premise does not establish the desired style of play. Briefly ask
+what would make this adventure fun before designing its deeper cast and events.
+Use a conversational interview, usually one to three questions. Reuse answers
+already given; do not make the player repeat themselves or delay preparation
+with a generic questionnaire.
 
-Both times the prose was fine. Both times the GM had read the conduct rules at
-the top of the session. Both times the answer to the question was that there
-wasn't one — the pressure in the campaign was coming from a timetable, a
-maintenance figure, or a slow institutional problem, and **nothing in the world
-wanted anything that cost the player anything.**
+Establish the desired mix of combat, intrigue/social play, exploration, mystery,
+magic or the current system's signature activities. These can overlap; ask which
+should dominate and which should appear occasionally. Ask about tone, danger,
+personal relationships or favourite capabilities only where they remain unclear.
+An example is: “For this premise, would you enjoy mostly magical investigation
+and infiltration, frequent fights, political intrigue, or exploring strange places?”
+Accept free-form answers and changes as play develops.
 
-A warm, well-written scene in which nobody wants anything feels like good work
-while you are writing it. That is the whole trap. You cannot catch it by
-reading your own prose, because the prose is not what is wrong. You catch it by
-counting.
+Write a short player-experience brief and use it to choose protagonist hooks,
+antagonist methods, locations, act turns and playable situations. Audit the plan
+against it: a magic-heavy adventure needs repeated consequential opportunities
+to cast, investigate, disguise, counter and experiment, not merely magical enemies
+in otherwise mundane fights. Occasional combat means fewer purposeful battles,
+not a compulsory fight at each lead. Respect actual powers and resources; never
+force a particular spell or make mundane ingenuity invalid. Preserve credible
+danger without confusing player preference with guaranteed safety or victory.
 
-**The count, at the end of every session: what did the player lose?** If the
-answer is nothing, the session did not happen.
+Glass Hounds example: first arrival in a new city; freelance fantasy-agent tone;
+magic-heavy with many opportunities for spellcasting, a little fighting, active
+adversaries and a meaningful former-teacher relationship. These preferences are
+specific to that adventure, not defaults imposed on all future games.
 
----
+## 1. State the experience and dramatic problem
 
-## 1. Build the antagonist out of the PC's sheet
+Record what the player wants to DO: hunt, investigate, explore, fight, infiltrate,
+command, negotiate, survive. Name the PC's personal objective, relevant existing
+relationships and starting knowledge. Preserve earned history and approved
+character choices. Separate rejected GM invention from unresolved play.
 
-An antagonist chosen to fit the setting produces a plot. An antagonist chosen
-to fit the **protagonist** produces a story. This is the step that gets skipped
-and it is the one that matters.
+Write the central conflict in plain language: who wants what, who opposes them,
+why now, why it matters to this PC, and what becomes worse without effective
+intervention. A topic or setting detail alone is not an adventure.
 
-### The method, in four moves
+Choose an opening that serves the experience. An outsider investigation needs
+room to navigate a new place, follow evidence, judge contacts and discover the
+danger. Starting beside the quarry and showing the monster immediately spends
+those discoveries. An action opening is appropriate when it serves the chosen
+experience; it is not an automatic cure for slow play.
 
-1. **Name the character's engine.** One sentence, and not a list of skills: the
-   contradiction they walk around with. Read the *passions* first — a campaign's
-   best fault lines are already written there, usually as two passions a few
-   points apart that cannot both be satisfied. Then read the lowest skill on the
-   sheet, because that is where the player has already told you what their
-   character cannot do.
-2. **Name the one asset the engine runs on.** There is almost always exactly
-   one. Testimony. Standing. A name. A trade. One person's protection. The
-   ability to walk away.
-3. **Build somebody whose ORDINARY DAILY BUSINESS destroys that asset.** Not
-   somebody who hates the PC — somebody for whom ruining them is Tuesday, who
-   would be doing it whoever was standing there, and who is pleasant about it.
-   This antagonist attacks what the character *is*.
-4. **Then build a second one who can kill them.** Competent, physical, and
-   able to win. This antagonist attacks whether the character *continues*.
+### A motive worth killing for, if pushed
 
-**You need both.** One alone fails in a predictable way: a purely social
-antagonist makes a campaign with no jeopardy, and a purely violent one makes a
-campaign the PC's sheet is already built to beat.
+Identify the concrete thing being fought over and why someone values it enough
+to kill for it if pushed: a person, freedom, a dangerous secret, a fortune,
+a livelihood, a claim to power, or an invention that changes who can hurt whom.
+Name who values it, what they stand to gain or lose, and the point at which they
+would choose violence. “Someone wants the scroll” is incomplete until the scroll's
+use and the cost of losing it are clear. A technical puzzle, disputed credit or
+routine administrative inconvenience needs a convincing connection to such stakes.
 
-### The sharpest version of move 3
+This tests the strength of motivation; it does not require a murder, a death in
+every act, or opponents who all fight to the death. A captain who will pay for
+an abduction yet surrender to avoid being killed has coherent limits. Match the
+threshold to the agreed genre; a deliberately nonlethal game uses an equally
+consequential commitment rather than adding unwanted lethal violence.
 
-**Cancel the PC's advantage with somebody who has the same advantage**, or with
-somebody against whom it simply does not apply. A PC who always knows the truth
-needs an enemy who controls whether truth *counts*. A PC nobody can catch needs
-an enemy who does not chase. A PC who can talk anybody into anything needs an
-enemy who is not listening and has already decided.
+Glass Hounds: the manuscript can sever the bindings that make a valuable hunting
+pack work. Rennic is carrying it and helping its maker stop the conversion. Senn
+therefore has a specific reason to recover the book and silence or capture the
+man who threatens her sale; living-caster hunters put magicians' freedom and lives
+at stake. Nimras is pursuing his former teacher, so the commission and their
+relationship give him a personal reason to act. None of this makes the fellowship
+secretly evil or predetermines Rennic's death.
 
-An antagonist who is merely stronger is an obstacle. An antagonist who makes
-the PC's best thing worthless is a story.
+## 2. Build an adversary who drives events
 
-### Three tests before you keep one
+For an adversarial adventure, identify the principal antagonist. Give them a
+concrete objective, motive, methods, resources, knowledge and next operation.
+Explain why they oppose this person or group specifically. Name intended victims
+and what the opponent will actually do to them if successful. Write the causal
+chain: **objective → motive → next operation → specific opposition to the PC
+or someone they care about → credible threatened harm**. Include the opponent's
+response to a discovered infiltrator, interrupted operation or lost asset.
 
-- **Can they win?** Not "could they theoretically". Is there a version of the
-  next month in which they get what they want and the PC does not stop them?
-- **Are they doing something today?** If their plan starts when the PC arrives,
-  they are scenery. Two things should already have happened.
-- **Can the PC hate them cleanly?** If yes, weaken it. The best ones are warm,
-  are partly right, and would be good company for an hour.
+Personalise the conflict through the PC's chosen objective, capabilities and
+relationships. Passions can deepen it without imposing a contradiction on the
+character or making every antagonist cancel the PC's best ability. One capable
+antagonist can combine political, commercial and physical danger; do not require
+two villains or a sympathetic villain when the premise does not need them.
 
----
+Give the adversary an organisation the PC can encounter: lieutenants, local
+blades, informants, specialists, patrons or buyers with distinct jobs. Assign
+quantities, locations, payments and limits. A captured follower, lost weapon,
+exposed route or defeated leader must remove real capacity. No endless thugs,
+omniscient surveillance or hidden replacement boss to cancel a victory.
 
-## 1a. Stakes, danger, and the scale problem
+A worthy antagonist can be dangerous through intelligence, competence, influence,
+force or ruthlessness. They need not be secretly right or equally sympathetic.
+They may bargain, flee or surrender without losing responsibility for their acts.
+For a non-adversarial genre, define the active hazard or competing interests with
+the same causal clarity instead of adding an unrelated villain.
 
-The failure in §0 has a second half, and it survives the fix. You can build two
-good antagonists, plot seven sequences, give every one of them a cost — and
-still produce something the player calls boring, because **every cost was
-social and nothing could kill anybody.**
+## 3. Give the cast independent intentions
 
-Observed immediately after SCENARIO.md was first written: a scenario for an
-interstellar campaign in which five of seven sequences were conversations and
-the top stake was *a politician will take credit for a maintenance statistic.*
-Thirty billion people in the setting; a man being unfairly thanked in the plot.
+For each consequential person record:
 
-### Scale the stakes to the setting, not to the clue
+- Role, relationship to the PC, distinctive voice and relevant capabilities.
+- What they want, why, what they owe, and where these conflict.
+- What they are doing now, their next concrete attempt and fallback.
+- Finite resources, dependencies, acceptable bargains and surrender conditions.
+- What they know, suspect, misunderstand and do not know.
 
-This is the error, stated precisely. **A clue is small by nature.** A slipped
-quarter, a maintenance figure, a date column, a name on a list — these are how
-a player gets traction on something too big to punch, and they are correct as
-*entry points*. The mistake is letting the size of the entry point set the size
-of the story.
+Develop personal stakes through observable history and present behaviour. A
+teacher's precautions, an old promise, an abandoned tool or a request can give
+danger meaning. The player owns their character's feelings, conclusions and
+choices. An important NPC is not merely a quest dispenser or the source of every
+solution. Give the PC consequential work no one else is performing for them.
 
-So after you write a clue, say out loud what it is a clue **about**, and keep
-asking until the answer is the size of the setting:
+## 4. Map knowledge and evidence explicitly
 
-> The load bed has been re-balanced three times in thirty-one years, and twice
-> in the last two → somebody is driving that door harder than it was built for
-> → **a door that is driven to death does not come back, and there is no spare
-> and no second route** → that system has ONE door and ninety thousand people
-> behind it → *they all die, or they are alone for ever, and it is months away.*
+Separate world truth, each character's knowledge, their interpretation, and
+future intended outcomes. For every actionable secret, state who knows it,
+how they learned it, what evidence exists, and how another person could learn it.
+Record ignorance as carefully as knowledge: knowing a name is not knowing a
+hideout; a handler seeing the PC is not the captain receiving that report.
 
-That last line is the stake. The maintenance figure was the doorknob.
+Give important discoveries multiple independent routes through people, objects,
+places and enemy activity. Failed checks change cost, time or exposure without
+erasing every route. Obvious observations need no roll. Evidence must enable
+action rather than require an endless chain of explanatory conversations.
 
-### Count your conversations
+Ask what each discovery changes: the PC's understanding, target, danger, allies,
+available approach or leverage. A revelation should have consequences. Do not
+force a twist in every act or declare a prescribed belief the PC must adopt.
 
-Mechanical, like the roll test. **Go through the sequences and count how many
-are resolved by people talking in a room.** More than a third and you have
-written a political drama. Every other sequence should have at least one of:
+## 5. Shape acts around changes in the conflict
 
-- a body somewhere it could be hurt,
-- a physical thing to be taken, carried, broken or reached in time,
-- a place the PC could die in.
+Prepare a possible three-act development, adapted to genre:
 
-A scenario in which the player's hands never do anything is not an adventure
-however much is at stake in it.
+- Act I: establish the immediate objective, relationships and active opposition.
+  Provide a substantial achievable objective and evidence opening the wider
+  conflict. Preserve desired exploration or pursuit before spending its reveal.
+- Act II: discoveries expose purpose and dependencies. Opponents respond to
+  actual information and losses. Offer several physical objectives, conflicting
+  relationships, danger, preparation and recovery. Identify a meaningful change
+  of understanding or control, not merely a bigger enemy.
+- Act III: create decisive opportunities from surviving assets and earlier
+  choices. Define what can be seized, prevented, defended, exposed or settled,
+  the competing intentions, and concrete possible endings.
 
-### Danger means the PC can die, and they must be reachable
+For each act state its dramatic purpose, available player objectives, likely
+unopposed development, warnings, turning conditions and outcome range. Acts are
+opportunities, not appointments. Early success can shorten, replace or finish an
+act. No prescribed capture, betrayal, death, speech or compensating tragedy.
 
-Not "could theoretically". Name the thing that can kill this character, name
-the sequence where it gets its chance, and let the dice decide. If the PC has
-never been anywhere in an act that could have killed them, **there was no
-adventure in that act**, only a plot.
+### Start Act I at a playable point
 
-The player must be told, in the fiction, before they choose it (that is what a
-player is owed), and then it must be real.
+Before opening play, write the arrival or current position, immediate objective,
+commission and its authority limits, practical landing or base, first contact,
+and an actionable lead. Establish what the PC already knows and what they must
+discover. Put the first consequential action within reach: choose a route, inspect
+a room, approach a contact, follow a trail or deal with an obstacle.
 
-### Use the setting's own cruelty before you invent an enemy
+For a newcomer, let finding their way and deciding whom to trust introduce the
+city. A reliable contact can provide an address and useful help. Avoid dropping
+them beside the quarry with the central monster already on display when the
+player chose pursuit and discovery. An action opening remains appropriate if
+that is the desired experience. Never rewind another character's live campaign
+to make an opening convenient.
 
-Every setting has physical facts that are already lethal, and they are better
-threats than any villain because they cannot be reasoned with, do not need a
-motive, and are *true*. Catalogue them once and reach for them first.
+Glass Hounds gives a worked possible progression, not a fixed sequence:
 
-In this one: nothing crosses but a living thing, so **no rescue can ever be
-sent**; no signal crosses, so **nobody can be told**; a door can stray while
-you are standing on the far side of it, so **the way home can simply stop
-existing**; the far side is vacuum or cold enough to stop a heart in ninety
-seconds and nobody surveyed it first; only children can go, so the only person
-who can come for you is another child.
+| Act | Player objective and discovery | Active threat and possible turn |
+|---|---|---|
+| I — Find the teacher | Arrive in Purewater; reach Vey; follow Rennic's lodging and workshop contacts; find him and hear why he retained the book | Paid searchers are pursuing the same man; evidence and demonstrations can reveal the glass hunters. Finding Rennic changes the question from where he is to what should be done about the hunt |
+| II — Expose and interrupt the hunt | Test the hounds, reach Kest, obtain evidence and choose infiltration, official help, negotiation or direct action | Senn's finite company can use force and attempt capture if it has the means and information. Exposure, lost controllers or surrendered opponents materially change the conflict |
+| III — Settle what remains | Prevent any still-possible sale or capture; settle the teacher's return and manuscript custody | Confront only operations that still have people, instruments and access. An early surrender and successful referral may settle the threat without a buyer duel or export interception |
 
-A GM who has those on a list will never again write a scenario whose worst
-outcome is embarrassment.
+The relationship belongs throughout: the teacher has his own goal and knowledge,
+old professional habits provide usable clues, and an actual promise to return
+must remain available to fulfil. Never turn affection into immunity or an NPC
+promise into a new compulsory mission after its conditions have been met.
 
-### Escalate by rungs, and make the top rung visible from the bottom
+## 6. Write playable situations
 
-`TABLE.md` §2b.5 has the ladder — tolls, then a beating, then a death nobody
-answers for, then reprisal — and the addition is this: **the player should be
-able to see the top of the ladder from the first rung.** Not foreshadowed
-(`TABLE.md` §0, rule 8) — *inferred*, from a true thing they were shown. An
-enemy who puts a child in the dark on purpose, once, has told the player
-exactly what they are willing to do, and nothing further needs saying.
+Turn intentions into encounters and missions: a search of a missing person's
+room, a watched contact, an attempted ambush, a dangerous crossing, a workshop
+raid, a captive extraction, a convoy interception or a negotiated surrender.
+Choose situations appropriate to this premise rather than repeating that list.
 
-### The test
+Each card needs:
 
-Three questions, and a scenario that fails any of them goes back:
-
-1. **What can kill the PC in this act, and in which sequence does it get its
-   chance?**
-2. **How many people die if the antagonist simply wins?** If the answer is
-   nobody, raise it until it isn't.
-3. **Where does the PC have to GO, and why is going there worse than staying?**
-
----
-
-## 2. Plot in sequences
-
-A **beat** is a unit of catalog — one event, with a time and a trigger. A
-**sequence** is a unit of drama. Campaigns run out of drama while still having
-plenty of beats, which is how a GM ends up with a full catalog and an inert
-table.
-
-Every sequence gets four lines written down *before* it is run:
-
-| | |
+| Field | Required content |
 |---|---|
-| **Question** | the dramatic question this sequence exists to answer, phrased so it can be answered yes or no |
-| **Moves first** | who acts before the PC does, and what they do. Nearly always the antagonist |
-| **Reversal** | the thing that makes the obvious answer wrong halfway through |
-| **Cost** | what the PC loses whichever way it goes |
+| Dramatic function | What it reveals or changes; act it may serve |
+| Actor and objective | Who attempts what, and why |
+| Prerequisites | Actual information, access, people and resources required |
+| Place | Entrances, exits, distances, cover, hazards and usable objects |
+| Timing | Earliest attempt, dependencies, duration and actual deadline |
+| Warning and entrances | How the PC encounters or discovers it, with alternatives |
+| Opposition | Prepared capabilities, tactics, willingness to injure and limits |
+| Player opportunity | Something consequential to accomplish by chosen approaches |
+| Resolution | Relevant mechanics and success, partial, failure and retreat outcomes |
+| Consequences | Assets changed, knowledge transmitted and successors altered |
 
-**If you cannot fill in Cost, it is not a sequence.** It is a transition, and it
-gets compressed to one sentence or cut (`TABLE.md` §2a).
+These are situations a PC can walk into, interrupt, avoid, prepare for or change.
+Do not write their actions or successful NPC outcomes in advance. Give physical
+objectives and varied activities; a cast list, briefing sequence or abstract
+progress clock cannot substitute for encounters.
 
-### Shapes that work, and the reason they work
+## 7. Make peril real and playable
 
-- **Give the win, charge for it.** The PC succeeds completely and immediately,
-  and the success is what exposes them. This is the strongest opening sequence
-  there is, because it teaches the player that acting works and that acting
-  costs, in one move.
-- **The helpful thief.** An antagonist agrees with the PC entirely, takes the
-  thing, reports it accurately, and leaves the PC out. Nothing was stolen and
-  nothing was lied about. Rage with nowhere to go is the most motivating thing
-  you can hand a player.
-- **The ally who is the danger.** The one person who believes the PC is the one
-  who will do something terrible about it. An ally who is a danger is worth four
-  who are nice.
-- **The enemy who is not here for you.** The violent antagonist arrives for
-  somebody else — a minor NPC the PC met once and liked. Now the PC's choice is
-  whether to be there, and the stakes belong to somebody with no plot armour.
-- **The secret that is a weapon.** The violent antagonist is wrong about
-  something load-bearing in their own life, and the PC can find it out. The
-  truth works better than any skill on the sheet, and using it costs something
-  too.
+Enemies act for their goals and can win. They can attack, ambush, restrain,
+injure, capture or kill when their methods and circumstances warrant it. The PC
+can be hurt, defeated or forced to retreat. No predetermined harm does not mean
+guaranteed safety or passive opposition.
 
-### Sequence count
+Match threats to the party's capabilities while allowing credible overwhelming
+forces where players have ways to discover, avoid, divide or prepare against
+them. State relevant warning, counterplay and escape possibilities. Adjudicate
+honestly with the current system. Resource loss, injury and recovery change
+later opportunities. Let effective preparation and victories buy real safety.
 
-Six to eight per act. Fewer than six and the act has no middle; more than eight
-and it is two acts.
+## 8. Persist in the game's actual model
 
----
+Use the current game's approved tools and schema. The portable mapping is:
 
-## 3. Clocks, and the rule that makes it not boring
+| Design element | Persistent representation |
+|---|---|
+| Cast and capabilities | Character records and mechanical sheets |
+| Personality and intentions | Character score, current activity and agenda |
+| Truth and evidence | Fact/proposition records with provenance |
+| Knowledge and belief | Per-character edges with source, certainty and time |
+| Organisation and resources | Factions, relationships and finite asset inventory |
+| Spaces | Locations, staging cards and tactical connections |
+| Planned situations | Conditional operations/beats, prerequisites and branches |
+| Development | Act outline and dependencies; clocks for earned progress |
+| Actual play | Journal, state changes and established outcomes |
 
-Every antagonist gets an **agenda with a clock**, and the clock is the whole
-mechanism. A plan in your head decays; a clock in the save does not.
+For Mythras use TypeDB through the CLI: characters and scores/doing, facts and
+learn edges, agendas, locations, beats, GM lore and arc. Planned outcomes remain
+not-yet-true; future facts are never learned in advance. Keep proposals outside
+the live clock until selected. Do not copy Mythras terminology or mechanics into
+another system where its model differs.
 
-- **Size the clock to the act.** Four for a thing that should land inside this
-  act. Six to eight for a thing that should threaten for the whole of it.
-- **Name what fires at which segment** when you create it, not later. An agenda
-  with no beat hanging off it is a note, not a threat.
-- **Advance on a watch, not on a scene.** Every antagonist's clock moves when
-  the world's clock moves, whether or not the player was looking. `tick`.
-- **And answer within a watch.** Write the counters as *triggers* — when they do
-  this, he does that — and fire them while the party is still in the room, not
-  into the journal for later discovery.
+On a rebuild, checkpoint the save, retire obsolete events and facts, clear
+obsolete knowledge links, reconcile locations/resources and replace the scene.
+Read projections back: a superseded flag alone may not remove an old assertion
+from a character's view. Preserve the audit. OOC review advances no game time.
 
-Two or three clocks running at once is right. One is a timetable. Five is
-weather.
+## 9. Readiness check and ongoing revision
 
----
+Before opening play, verify the live starting state, cast, knowledge boundaries,
+actionable leads, act development, playable situation cards, mechanical sheets,
+finite resources and first meaningful player action. Test refusal, authorities,
+negotiation, allies, early antagonist defeat and out-of-order investigation.
+Resolve contradictory dependencies and read saved records back. Do not say an
+adventure is ready merely because prose exists or a database accepts writes.
 
-## 4. It is not built until it is in the save
-
-Your plan will drop out of context and nothing will tell you it has gone. This
-is not a theoretical risk; it is the single most common way a good scenario
-stops existing. So the work ends with the save, every time:
-
-1. **`add-agenda`** for each antagonist, with holder and clock size, and a
-   `--note` saying what fires where.
-2. **`add-beat`** for each sequence, with `--when` as the LATEST it can happen
-   and the real condition in `onscreen_if`. A `when` is a backstop; conditions
-   bring it forward.
-3. **Write the acts into `story.md`** — what each act is FOR and what it
-   **TAKES** — and push it with `update-campaign --arc-file`, because `arc`
-   rides on `get-context`, `forecast` and `tick`, and therefore cannot decay.
-4. **`add-fact --status established`** for anything the PC now holds, with
-   `--learned-by`, in the same call.
-5. **Keep the prose somewhere** — `docs/scenarios/<name>.md` in the campaign
-   repo — because the save holds the structure and not the argument.
-
-Then verify by reading it back **out of the graph**, not off your own notes.
-
----
-
-## 5. Every act takes something
-
-From `TABLE.md` §2b, restated here because it is the acceptance test for a
-scenario rather than for a scene:
-
-**An act in which the player only gains has not happened.** Name the loss in
-the act's `TAKES` line before you run a scene of it. Not a setback — something
-that does not come back: a person, a place, a standing, a route, a name.
-
-The best losses are **caused by the player being right.** That is not cruelty;
-it is what makes the next decision hard, and a campaign is a sequence of hard
-decisions or it is a travelogue.
-
----
-
-## 6. When a new PC arrives
-
-Do this then. It takes about twenty minutes and it is the cheapest it will ever
-be, because the sheet is in front of you and nothing has been established yet.
-
-1. Read the arc — what each act is FOR and what it TAKES.
-2. Read the PC's passions and their lowest skill, and write the engine sentence.
-3. Build the two antagonists by §1.
-4. Plot six to eight sequences by §2, and make at least two of them the PC's
-   angle on a beat that already exists, so the thread braids into the campaign
-   instead of running beside it.
-5. Put the clocks in the save by §4.
-
-A thread with no shared beats is a second campaign.
+When asked for a GM evaluation, show the entire design including secrets and
+weaknesses. Otherwise keep discoveries for play; do not require a spoiler review
+or extra approval. After sessions reconcile actual outcomes and ask what worked
+or dragged. Revise the situation instead of defending a failed premise.

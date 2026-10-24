@@ -156,6 +156,21 @@ Every token you load is re-sent on every turn. Load the minimum:
   Each of them says so when it finds nothing, rather than returning an empty
   success -- which is the failure that made them worth having.
 
+## Preparing or rebuilding an adventure
+
+Read [BRAINSTORMING.md](BRAINSTORMING.md) for proposals, then
+[SCENARIO.md](SCENARIO.md) after the player selects a premise. Briefly interview
+them about desired activities and tone, reusing answers already given. Prepare
+the active antagonist, motivating stake, credible peril, cast intentions and
+knowledge, possible three-act development and concrete playable situations.
+[CONSEQUENCES.md](CONSEQUENCES.md) governs operations and their outcomes.
+
+Use the readiness check before opening play. Persist through the current game's
+actual CLI and model; a pitch or clocks alone are insufficient. Hold play and
+the world clock during OOC design review. Give a spoiler walkthrough only when
+requested; otherwise preserve discoveries. These construction rules supersede
+older fixed-loss, villain-count and mandatory-sequence prescriptions.
+
 ## The world moves (agendas, clocks, beats)
 
 NPCs are not scenery waiting to be visited. Every significant NPC and faction
