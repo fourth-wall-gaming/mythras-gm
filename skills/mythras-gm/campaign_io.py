@@ -33,7 +33,7 @@ import sys
 import mythras_engine as eng
 import mythras_gm as gm
 
-FORMAT_VERSION = "1.1"
+FORMAT_VERSION = "1.2"
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +699,8 @@ Campaign id: `{campaign_id}`
 """
     _write(os.path.join(outdir, "CLAUDE.md"), claude_md)
 
+    import storyline_tools
+    storyline_tools.export_state(gm, campaign_id, outdir)
     gm.out({"success": True, "campaign": camp["name"], "output": outdir, **counts})
 
 
@@ -779,13 +781,17 @@ def import_campaign(path, new_name=None, new_ids=False):
     tree = _read_tree(path)
     man = tree["manifest"]
 
+    # Optional in pre-storyline exports. Keep old campaign packages readable.
+    temporal_path = os.path.join(path, "storylines.json")
+    temporal = json.load(open(temporal_path)) if os.path.exists(temporal_path) else {}
     # --- id mapping
     all_ids = ([man["id"]]
                + [r["id"] for key in ("lore", "locations", "factions",
                                       "characters", "templates", "encounters",
                                       "agendas", "beats", "facts")
                   for r in tree[key]]
-               + [e["id"] for e in tree["events"]])
+               + [e["id"] for e in tree["events"]]
+               + [r["id"] for r in temporal.get("storylines", [])])
     if new_ids:
         idmap = {old: gm.generate_id("-".join(old.split("-")[:-1])) for old in all_ids}
     else:
@@ -1108,6 +1114,8 @@ def import_campaign(path, new_name=None, new_ids=False):
                             insert (event: $e, participant: $p) isa myth-event-involvement;''')
                         break
 
+    import storyline_tools
+    storyline_tools.import_state(gm, temporal, cid, idmap)
     gm.out({"success": True, "id": cid, "name": name,
             "imported": {k: len(tree[k]) for k in
                          ("lore", "locations", "factions", "characters",

@@ -698,3 +698,13 @@ rebuilt). The round trip is lossless.
 Campaign settings are published as separate repos (e.g.
 [veilwrack-campaign](https://github.com/fourth-wall-gaming/veilwrack-campaign))
 and loaded with `import-campaign`.
+
+## Independent PC / party clocks
+
+See [STORYLINES.md](STORYLINES.md) for the complete migration, grouping, temporal
+knowledge, rest and effect workflow. In a campaign with multiple storylines,
+select `--pc ID` or `--storyline NAME/ID` on play commands, or set
+`MYTHRAS_STORYLINE`. `--storyline world` is explicit shared administration.
+`create-storyline`, `list-storylines`, `update-storyline` and `assign-storyline`
+manage local cursors; `assign-storyline-record` backfills existing records.
+The campaign high-water date never moves an inactive PC.

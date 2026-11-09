@@ -89,7 +89,7 @@ def test_every_handler_reads_only_flags_its_own_subparser_defines(cmd):
     fn = handler_for(cmd)
     if fn is None:
         pytest.skip("no handler")
-    src = re.sub(r'getattr\(\s*args\s*,[^)]*\)', '', inspect.getsource(fn))
+    src = re.sub(r'getattr\(\s*args\s*,[^)]*\)', '', inspect.getsource(inspect.unwrap(fn)))
     read = set(re.findall(r'\bargs\.([a-zA-Z_][a-zA-Z0-9_]*)', src))
     dests = {a.dest for a in _subparsers()[cmd]._actions} | {"command", "func"}
     missing = sorted(read - dests)

@@ -78,6 +78,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
 import mythras_effects as fx
 import world_tools as wt
+import storyline_tools as st
 from score_tools import deep_merge, validate_score
 
 try:
@@ -941,6 +942,9 @@ def _brief_location(driver, loc_id):
           $camp has myth-staging-notes $sn;
         fetch {{ "sn": $sn }};''')
 
+    projected_here = _storyline_present(driver, loc_id)
+    if projected_here is not None:
+        here = [{"cn": name} for name in projected_here]
     notes = l.get("myth-staging-notes")
     out({"success": True, "id": loc_id, "kind": "location", "name": l["name"],
          "type": l.get("myth-location-type"),
@@ -1075,6 +1079,9 @@ def cmd_brief(args):
               (located: $c, location: $l) isa myth-presence;
               $l has name $ln;
             fetch {{ "ln": $ln }};""")
+        if _current_storyline():
+            loc = _location_at(driver, args.id)
+            where = [{"ln": loc["name"]}] if loc else []
         agendas = _fetch(driver, f"""
             match
               $c isa myth-character, has id "{escape_string(args.id)}";
@@ -1309,7 +1316,8 @@ def _subject_knowledge_edges(driver, knower_id=None, subject_id=None):
           try {{ $r has myth-session-number $sess; }};
           try {{ $r has myth-knowledge-certainty $ct; }};
           try {{ $r has myth-knowledge-source $src; }};
-        fetch {{ "knower_id": $ki, "knower": $kn, "subject_id": $si,
+          try {{ $r has myth-knowledge-since $since; }};
+        fetch {{ "since": $since, "knower_id": $ki, "knower": $kn, "subject_id": $si,
                  "subject": $sn, "subject_desc": $sd, "depth": $d, "route": $ro,
                  "note": $no, "attitude": $at, "session": $sess,
                  "certainty": $ct, "source": $src }};''')
@@ -1327,6 +1335,9 @@ def cmd_get_knowledge(args):
             participants = _event_participants(driver, args.campaign)
             witnessed = [eid for eid, ps in participants.items()
                          if any(pid == args.knower for pid, _ in ps)]
+            if _current_storyline():
+                visible = {e["id"] for e in _scope_events(driver, [{"id": eid} for eid in witnessed], args.campaign)}
+                witnessed = [eid for eid in witnessed if eid in visible]
             explicit = {e["subject_id"] for e in edges}
             # Only list witnessed events that carry no edge of their own -- an
             # edge means we have recorded their particular reading of it.
@@ -2289,23 +2300,7 @@ def _place_character(driver, cid, loc_id):
 
 def cmd_move_character(args):
     with get_driver() as driver:
-        # remove any existing presence
-        existing = _fetch(driver, f'''
-            match
-              $c isa myth-character, has id "{escape_string(args.id)}";
-              $r isa myth-presence, links (located: $c);
-            fetch {{ "x": $c.id }};''')
-        if existing:
-            _write(driver, f'''
-                match
-                  $c isa myth-character, has id "{escape_string(args.id)}";
-                  $r isa myth-presence, links (located: $c);
-                delete $r;''')
-        _write(driver, f'''
-            match
-              $c isa myth-character, has id "{escape_string(args.id)}";
-              $l isa myth-location, has id "{escape_string(args.location)}";
-            insert (located: $c, location: $l) isa myth-presence;''')
+        _place_character(driver, args.id, args.location)
     out({"success": True})
 
 
@@ -2404,6 +2399,9 @@ def cmd_update_event(args):
         "myth-event-visibility": getattr(args, "visibility", None),
     }
     with get_driver() as driver:
+        if getattr(args, "when", None):
+            _set_attr(driver, "myth-game-event", args.id, "myth-time-index",
+                      eng.parse_time_key(args.when), quote=False)
         if not _fetch(driver, f'''
                 match $e isa myth-game-event, has id "{escape_string(args.id)}";
                 fetch {{ "id": $e.id }};'''):
@@ -2474,6 +2472,7 @@ def cmd_get_log(args):
                      "session": $sn{_optf(driver,
                          ("myth-event-visibility", "vis", "visibility"),
                          ("myth-canon-status", "cs", "canon"))} }};''')
+        rows = _scope_events(driver, rows, args.campaign)
         participants = _event_participants(driver, args.campaign)
     for r in rows:
         r["who"] = participants.get(r["id"], [])
@@ -5458,8 +5457,15 @@ def cmd_get_context(args):
               $c isa myth-character, has id $i, has name $n,
                  has myth-char-type $t, has myth-status $s;
             fetch {{ "id": $i, "name": $n, "type": $t, "status": $s }};''')
+        if _current_storyline():
+            for row in chars:
+                temporal = _get_entity(driver, "myth-character", row["id"], ["myth-status"])
+                row["status"] = temporal.get("myth-status") if temporal else row["status"]
         compact = getattr(args, "compact", False)
         active_pcs = [r for r in chars if r["type"] == "pc" and r["status"] == "active"]
+        if _current_storyline():
+            selected_ids = set(st.csv(_current_storyline().get("myth-played-pcs")))
+            active_pcs = [r for r in active_pcs if r["id"] in selected_ids]
         if compact:
             pcs = [_combat_card(_load_character(driver, r["id"])) for r in active_pcs]
         else:
@@ -5476,8 +5482,9 @@ def cmd_get_context(args):
                   (located: $c, location: $l) isa myth-presence;
                   $l has id $li, has name $ln;
                 fetch {{ "id": $li, "name": $ln }};""")
-            card["location"] = rows[0]["id"] if rows else None
-            card["location_name"] = rows[0]["name"] if rows else None
+            location = _location_at(driver, card["id"])
+            card["location"] = location["id"] if location else None
+            card["location_name"] = location["name"] if location else None
         # Only NPCs still in play. Without the status filter every NPC ever
         # spawned -- the dead, the one-scene guards -- stays in the save file
         # for good, which is both a token leak and a canon-confusion source.
@@ -5504,6 +5511,15 @@ def cmd_get_context(args):
               $e isa myth-encounter, has id $i, has name $n, has myth-encounter-status $s;
             fetch {{ "id": $i, "name": $n, "status": $s }};''')
 
+        if _current_storyline():
+            scoped = _current_storyline()
+            kept = []
+            for encounter in encounters:
+                meta = _storyline_store.raw_get(driver, "myth-encounter", encounter["id"],
+                                                ["myth-storyline-id", "myth-time-index"]) or {}
+                if meta.get("myth-storyline-id") in (None, scoped["id"]) and st.at_or_before(meta.get("myth-time-index"), scoped["myth-time-index"]):
+                    kept.append(encounter)
+            encounters = kept
         events = _fetch(driver, f'''
             match
               $camp isa myth-campaign, has id "{escape_string(args.campaign)}";
@@ -5517,6 +5533,7 @@ def cmd_get_context(args):
                      "session": $sn{_optf(driver,
                          ("myth-event-visibility", "vis", "visibility"),
                          ("myth-canon-status", "cs", "canon"))} }};''')
+        events = _scope_events(driver, events, args.campaign)
         participants = _event_participants(driver, args.campaign)
         recent_n = 5 if compact else 15
         # Bookkeeping notes are not play. Three of the last five events were GM
@@ -5638,6 +5655,7 @@ def cmd_import_campaign(args):
 # also removes the relations they play a role in, since a relation with no
 # remaining roleplayers does not survive.
 CAMPAIGN_MEMBER_TYPES = [
+    "myth-storyline",
     "myth-game-event", "myth-encounter", "myth-beat", "myth-agenda", "myth-fact",
     "myth-lore", "myth-character", "myth-creature-template", "myth-location",
     "myth-faction",
@@ -6192,6 +6210,7 @@ def build_parser():
                                "story order rather than wall-clock order.")
 
     s = sub.add_parser("update-event", help="Amend an already-logged event in place")
+    s.add_argument("--when", help="actual game date for temporal journal backfill")
     s.add_argument("--id", required=True)
     s.add_argument("--summary", help="one-line summary; also rewrites the name")
     s.add_argument("--narrative", help="full account (stored in content)")
@@ -6400,7 +6419,9 @@ def build_parser():
                        help="Advance world time; report what came due, onscreen or off")
     s.add_argument("--campaign", required=True,
                    help="defaults to $MYTHRAS_CAMPAIGN, or the only campaign in the database")
-    s.add_argument("--to", required=True, help="time key, e.g. 'd-2/dawn'")
+    group = s.add_mutually_exclusive_group(required=True)
+    group.add_argument("--to", help="time key, e.g. 'd-2/dawn'")
+    group.add_argument("--minutes", type=int, help="advance the selected storyline by minutes")
     s.add_argument("--set-date", dest="set_date",
                    help="also update the campaign's prose game-date")
     s.add_argument("--rewind", action="store_true",
@@ -6649,6 +6670,7 @@ def build_parser():
         for action in parser_._actions:
             if "--campaign" in action.option_strings:
                 action.required = False
+    st.add_parsers(sub)
     _install_aliases(sub)
     return p
 
@@ -6656,7 +6678,9 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    if hasattr(args, "campaign"):
+    if hasattr(args, "campaign") and (args.campaign or args.command in NEEDS_CAMPAIGN
+            or getattr(args, "pc", None) or getattr(args, "storyline", None)
+            or args.command in ("create-storyline", "list-storylines", "update-storyline", "assign-storyline", "split-storyline", "assign-storyline-record", "rest-character", "add-timed-effect")):
         args.campaign = resolve_campaign(args.campaign)
     if not args.command:
         parser.print_help()
@@ -6674,6 +6698,8 @@ def main():
         fail(f"Unknown command: {args.command}")
     fn(args)
 
+
+st.install(globals())
 
 if __name__ == "__main__":
     main()
