@@ -274,6 +274,86 @@
   .print-notes .pn .n { font-family: var(--mono); font-size: .62em; color: var(--muted); }
   .print-notes .pn p { font-size: .82em; margin: 0 0 .4em; max-width: none; }
 
+
+  /* ---------- narrated mode (?narrate=1) ---------- */
+  /* Hidden by default: the same file is the deck, the PDF source and the
+     narrated version, and only one of those wants a transport bar. */
+  #narrate-bar, #narrate-splash { display: none; }
+
+  html.narrating #narrate-bar {
+    display: flex; align-items: center; gap: 14px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    padding: 10px clamp(12px, 2vw, 22px);
+    background: rgba(23,28,38,.94);
+    border-top: 1px solid var(--line);
+    backdrop-filter: blur(8px);
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  html.narrating .deck { height: calc(100dvh - 52px); }
+
+  #narrate-play {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer;
+    background: var(--amber); color: var(--ground);
+    border: 0; padding: 0;
+  }
+  #narrate-play:hover { filter: brightness(1.1); }
+  #narrate-play svg { width: 15px; height: 15px; display: block; fill: currentColor; }
+
+  #narrate-track {
+    flex: 1 1 auto; position: relative; height: 22px; cursor: pointer;
+    display: flex; align-items: center;
+  }
+  #narrate-track::before {
+    content: ""; position: absolute; left: 0; right: 0; height: 3px;
+    background: rgba(237,231,218,.16); border-radius: 2px;
+  }
+  #narrate-fill {
+    position: absolute; left: 0; height: 3px; width: 0;
+    background: var(--amber); border-radius: 2px; pointer-events: none;
+  }
+  #narrate-track .tick {
+    position: absolute; top: 50%; width: 1px; height: 9px;
+    margin-top: -4.5px; background: rgba(237,231,218,.34);
+    pointer-events: none;
+  }
+  #narrate-track .tick.point { background: var(--teal); height: 13px; margin-top: -6.5px; }
+  #narrate-head {
+    position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px;
+    border-radius: 50%; background: var(--text-strong); pointer-events: none;
+  }
+  #narrate-time, #narrate-where { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #narrate-where { color: var(--text); }
+  #narrate-bar a { flex: 0 0 auto; font-size: 11px; border-bottom-color: transparent; }
+  #narrate-bar a:hover { border-bottom-color: var(--amber); }
+
+  /* The splash exists because browsers will not autoplay audio. It is also the
+     only place to say that this version runs itself. */
+  html.narrating #narrate-splash {
+    display: grid; place-items: center; position: fixed; inset: 0; z-index: 70;
+    background: rgba(15,18,24,.97); cursor: pointer; text-align: center;
+    padding: 24px;
+  }
+  html.narrating #narrate-splash.gone { display: none; }
+  #narrate-splash h1 {
+    font-family: var(--font); font-weight: 400; font-variation-settings: "opsz" 48;
+    font-size: clamp(1.6rem, 4vw, 2.6rem); line-height: 1.15; margin: 0 0 .5rem;
+    color: var(--text-strong); max-width: 24ch;
+  }
+  #narrate-splash p { margin: 0 0 1.8rem; color: var(--muted); max-width: 46ch; }
+  #narrate-splash .big {
+    width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--amber); color: var(--ground); margin: 0 auto 1.2rem;
+  }
+  #narrate-splash .big svg { width: 28px; height: 28px; fill: currentColor; margin-left: 4px; }
+  #narrate-splash .hint {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin: 0; max-width: none; letter-spacing: .02em;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    #narrate-splash { transition: opacity .35s ease; }
+    #narrate-splash.fading { opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -412,7 +492,7 @@
 </section>
 
 <!-- ===================================================== 8 · how things happen -->
-<section class="slide detail" data-budget="1:15">
+<section class="slide detail" data-budget="1:15" data-open="0">
   <div class="inner">
     <h2>How things happen in Mythras</h2>
     <div class="cols">
@@ -1036,7 +1116,10 @@
     var src = slides[idx].querySelector('.notes-src');
     notesBody.innerHTML = '<div class="budget">slide ' + (idx + 1) + ' · ' + (slides[idx].dataset.budget || '') + '<span class="cum">by ' + fmt(cum[idx]) + '</span></div>' + (src ? src.innerHTML : '');
     notes.scrollTop = 0;
-    try { location.hash = 's' + (idx + 1); } catch (e) {}
+    try {
+      if (history.replaceState) history.replaceState(null, '', '#s' + (idx + 1));
+      else location.hash = 's' + (idx + 1);
+    } catch (e) {}
     slides[idx].scrollTop = 0;
     document.dispatchEvent(new CustomEvent('slidechange', { detail: { index: idx, slide: slides[idx] } }));
   }
@@ -1074,6 +1157,7 @@
   });
   var swipedAt = 0;   // set by the swipe handler, so a swipe is not also a tap
   document.getElementById('deck').addEventListener('click', function (e) {
+    if (document.documentElement.classList.contains('narrating')) return;   // the audio is the clock
     if (e.target.closest('a, button, input, .replay')) return;
     if (Date.now() - swipedAt < 500) return;
     var r = document.getElementById('deck').getBoundingClientRect();
@@ -1095,6 +1179,7 @@
       x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
     }, { passive: true });
     deck.addEventListener('touchend', function (e) {
+      if (document.documentElement.classList.contains('narrating')) return; // the audio is the clock
       if (x0 === null) return;
       var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
       x0 = null;
@@ -1111,6 +1196,22 @@
     clock.textContent = fmt(el) + ' / ' + fmt(TALK);
     clock.classList.toggle('over', el > TALK);
   }, 500);
+
+  // ---- absolute positioning, used by the narrated mode (?narrate=1) ----
+  // The audio is the clock there, so the deck has to be positionable to an
+  // exact (slide, stepsShown) pair. A relative next() would drift the first
+  // time anybody scrubbed the audio and would never recover.
+  window.wmDeck = {
+    get total() { return total; },
+    get index() { return idx; },
+    goTo: function (i, stepsShown) {
+      var t = Math.max(0, Math.min(total - 1, i));
+      if (t !== idx) show(t);            // fires slidechange, which the replay widget needs
+      var st = steps(slides[t]);
+      st.forEach(function (el, k) { el.classList.toggle('shown', k < stepsShown); });
+      markStarted(slides[t]);
+    }
+  };
 
   var start = 0;
   try { var m = /s(\d+)/.exec(location.hash); if (m) start = (+m[1]) - 1; } catch (e) {}
@@ -1489,6 +1590,243 @@
   });
 
   // slides only -- no speaker notes in the PDF
+})();
+</script>
+
+<!-- ── narrated mode: transport + splash (shown only with ?narrate=1) ───────── -->
+<audio id="narration" preload="auto">
+  <source src="files/ElevenLabs_Mythras_GM_Presentation.mp3" type="audio/mpeg">
+</audio>
+
+<div id="narrate-splash" role="button" tabindex="0" aria-label="Start the narrated presentation">
+  <div>
+    <div class="big"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div>
+    <h1>Claude Opus as a Tabletop Gamesmaster</h1>
+    <p>The narrated version. The slides advance themselves, in time with the recording &mdash; about fourteen minutes.</p>
+    <p class="hint">click anywhere to begin &nbsp;·&nbsp; space pauses &nbsp;·&nbsp; arrows skip</p>
+  </div>
+</div>
+
+<div id="narrate-bar">
+  <button id="narrate-play" aria-label="Play or pause">
+    <svg id="narrate-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    <svg id="narrate-icon-pause" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+  </button>
+  <div id="narrate-track" role="slider" tabindex="0" aria-label="Seek the narration">
+    <div id="narrate-fill"></div>
+    <div id="narrate-head"></div>
+  </div>
+  <span id="narrate-time">0:00 / 0:00</span>
+  <span id="narrate-where"></span>
+  <a href="index.html" title="The deck without narration, advanced by hand">slides only</a>
+</div>
+
+
+<script>
+/* ---- narrated mode: the audio is the clock, the deck follows it ------------
+   Enabled with ?narrate=1. The cue table was generated from
+   files/Prez Timings - Sheet1.tsv by aligning each narration beat to the slide
+   its text describes; it is [seconds, slideIndex, stepsShown], absolute on
+   purpose so that scrubbing lands exactly rather than drifting.
+
+   Two cues do not map one-to-one onto a deck advance, and both are deliberate:
+     - slide 9 carries data-open="0", because its title is its own beat at 5:50
+       before the first bullet arrives at 5:56.
+     - cue 30 (8:06) holds position on slide 11. That slide is the live replay
+       widget, which starts itself on slidechange, so the narration there is
+       spoken over an animation that is already running.
+---------------------------------------------------------------------------- */
+(function () {
+  if (!/[?&]narrate=1/.test(location.search)) return;
+  if (/[?&]print=1/.test(location.search)) return;          // the PDF export wins
+
+  var CUES = [
+    [   0.0,  0, 0],   //  1  0:00  slide 1
+    [  25.0,  1, 0],   //  2  0:25  slide 2
+    [  41.0,  2, 0],   //  3  0:41  slide 3
+    [ 101.0,  3, 0],   //  4  1:41  slide 4
+    [ 110.0,  4, 1],   //  5  1:50  slide 5
+    [ 122.0,  4, 2],   //  6  2:02  slide 5
+    [ 136.0,  4, 3],   //  7  2:16  slide 5
+    [ 144.0,  4, 4],   //  8  2:24  slide 5
+    [ 156.0,  4, 5],   //  9  2:36  slide 5
+    [ 180.0,  5, 1],   // 10  3:00  slide 6
+    [ 204.0,  5, 2],   // 11  3:24  slide 6
+    [ 210.0,  5, 3],   // 12  3:30  slide 6
+    [ 229.0,  6, 0],   // 13  3:49  slide 7
+    [ 246.0,  7, 1],   // 14  4:06  slide 8
+    [ 262.0,  7, 2],   // 15  4:22  slide 8
+    [ 306.0,  7, 3],   // 16  5:06  slide 8
+    [ 321.0,  7, 4],   // 17  5:21  slide 8
+    [ 350.0,  8, 0],   // 18  5:50  slide 9
+    [ 356.0,  8, 1],   // 19  5:56  slide 9
+    [ 367.0,  8, 2],   // 20  6:07  slide 9
+    [ 379.0,  8, 3],   // 21  6:19  slide 9
+    [ 390.0,  8, 4],   // 22  6:30  slide 9
+    [ 397.0,  8, 5],   // 23  6:37  slide 9
+    [ 408.0,  8, 6],   // 24  6:48  slide 9
+    [ 415.0,  8, 7],   // 25  6:55  slide 9
+    [ 424.0,  8, 8],   // 26  7:04  slide 9
+    [ 432.0,  8, 9],   // 27  7:12  slide 9
+    [ 450.0,  9, 0],   // 28  7:30  slide 10
+    [ 462.0, 10, 0],   // 29  7:42  slide 11
+    [ 486.0, 10, 0],   // 30  8:06  slide 11
+    [ 526.0, 11, 1],   // 31  8:46  slide 12
+    [ 541.0, 11, 2],   // 32  9:01  slide 12
+    [ 551.0, 11, 3],   // 33  9:11  slide 12
+    [ 558.0, 11, 4],   // 34  9:18  slide 12
+    [ 566.0, 11, 5],   // 35  9:26  slide 12
+    [ 575.0, 11, 6],   // 36  9:35  slide 12
+    [ 584.0, 12, 0],   // 37  9:44  slide 13
+    [ 601.0, 13, 0],   // 38  10:01  slide 14
+    [ 633.0, 14, 0],   // 39  10:33  slide 15
+    [ 671.0, 15, 0],   // 40  11:11  slide 16
+    [ 688.0, 16, 0],   // 41  11:28  slide 17
+    [ 715.0, 17, 0],   // 42  11:55  slide 18
+    [ 718.0, 18, 1],   // 43  11:58  slide 19
+    [ 731.0, 18, 2],   // 44  12:11  slide 19
+    [ 749.0, 18, 3],   // 45  12:29  slide 19
+    [ 778.0, 18, 4],   // 46  12:58  slide 19
+    [ 790.0, 19, 0],   // 47  13:10  slide 20
+    [ 843.0, 20, 0],   // 48  14:03  slide 21
+  ];
+
+  var audio   = document.getElementById('narration');
+  var bar     = document.getElementById('narrate-bar');
+  var splash  = document.getElementById('narrate-splash');
+  var playBtn = document.getElementById('narrate-play');
+  var iPlay   = document.getElementById('narrate-icon-play');
+  var iPause  = document.getElementById('narrate-icon-pause');
+  var track   = document.getElementById('narrate-track');
+  var fill    = document.getElementById('narrate-fill');
+  var head    = document.getElementById('narrate-head');
+  var timeEl  = document.getElementById('narrate-time');
+  var whereEl = document.getElementById('narrate-where');
+  if (!audio || !window.wmDeck) return;
+
+  document.documentElement.classList.add('narrating');
+
+  var cur = -1;
+
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    var m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function cueAt(t) {
+    var lo = 0, hi = CUES.length - 1, best = 0;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (CUES[mid][0] <= t) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    return best;
+  }
+
+  function applyCue(i) {
+    if (i === cur) return;
+    cur = i;
+    window.wmDeck.goTo(CUES[i][1], CUES[i][2]);
+    whereEl.textContent = 'slide ' + (CUES[i][1] + 1) + ' / ' + window.wmDeck.total;
+  }
+
+  // The recording is 839.3s and the last cue is written at 843s, so the closing
+  // slide would never be reached on time alone. Treat the end of the audio as
+  // that cue's trigger.
+  function duration() {
+    var d = audio.duration;
+    return (isFinite(d) && d > 0) ? d : CUES[CUES.length - 1][0];
+  }
+
+  function paint(t) {
+    var d = duration(), pct = Math.max(0, Math.min(1, t / d)) * 100;
+    fill.style.width = pct + '%';
+    head.style.left = pct + '%';
+    timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+  }
+
+  function ticks() {
+    Array.prototype.forEach.call(track.querySelectorAll('.tick'), function (n) { n.remove(); });
+    var d = duration();
+    CUES.forEach(function (c, i) {
+      if (i === 0) return;
+      var el = document.createElement('div');
+      el.className = 'tick' + (c[2] === 0 ? ' point' : '');   // a new slide, vs a build step
+      el.style.left = (c[0] / d * 100) + '%';
+      track.appendChild(el);
+    });
+  }
+
+  function icon() {
+    iPlay.style.display  = audio.paused ? '' : 'none';
+    iPause.style.display = audio.paused ? 'none' : '';
+  }
+
+  function toggle() { if (audio.paused) audio.play().catch(function () {}); else audio.pause(); }
+
+  function seek(t) {
+    var d = duration();
+    audio.currentTime = Math.max(0, Math.min(d - 0.05, t));
+    applyCue(cueAt(audio.currentTime));
+    paint(audio.currentTime);
+  }
+
+  audio.addEventListener('timeupdate', function () {
+    paint(audio.currentTime);
+    applyCue(cueAt(audio.currentTime));
+  });
+  audio.addEventListener('loadedmetadata', function () { ticks(); paint(audio.currentTime); });
+  audio.addEventListener('durationchange', ticks);
+  audio.addEventListener('play', icon);
+  audio.addEventListener('pause', icon);
+  audio.addEventListener('ended', function () { applyCue(CUES.length - 1); icon(); });
+
+  playBtn.addEventListener('click', function (e) { e.stopPropagation(); toggle(); });
+
+  function fromEvent(e) {
+    var r = track.getBoundingClientRect();
+    var x = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width;
+    seek(Math.max(0, Math.min(1, x)) * duration());
+  }
+  var dragging = false;
+  track.addEventListener('pointerdown', function (e) { dragging = true; track.setPointerCapture(e.pointerId); fromEvent(e); });
+  track.addEventListener('pointermove', function (e) { if (dragging) fromEvent(e); });
+  track.addEventListener('pointerup',   function (e) { dragging = false; try { track.releasePointerCapture(e.pointerId); } catch (x) {} });
+
+  // Capture phase, so the deck's own Space/Arrow handling never runs here --
+  // stepping the deck by hand would put the slides out of step with the voice.
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (splash && !splash.classList.contains('gone')) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); start(); }
+      return;
+    }
+    switch (e.key) {
+      case ' ':          e.preventDefault(); e.stopPropagation(); toggle(); break;
+      case 'ArrowRight': case 'PageDown':
+        e.preventDefault(); e.stopPropagation();
+        seek(cur + 1 < CUES.length ? CUES[cur + 1][0] : duration()); break;
+      case 'ArrowLeft':  case 'PageUp':
+        e.preventDefault(); e.stopPropagation();
+        seek(cur - 1 >= 0 ? CUES[cur - 1][0] : 0); break;
+      case 'Home':       e.preventDefault(); e.stopPropagation(); seek(0); break;
+      case 'End':        e.preventDefault(); e.stopPropagation(); seek(duration()); break;
+    }
+  }, true);
+
+  function start() {
+    if (!splash || splash.classList.contains('gone')) return;
+    splash.classList.add('fading');
+    setTimeout(function () { splash.classList.add('gone'); }, 360);
+    applyCue(0);
+    audio.play().catch(function () {});
+  }
+  if (splash) splash.addEventListener('click', start);
+
+  applyCue(0);
+  paint(0);
+  ticks();
+  icon();
 })();
 </script>
 </body>

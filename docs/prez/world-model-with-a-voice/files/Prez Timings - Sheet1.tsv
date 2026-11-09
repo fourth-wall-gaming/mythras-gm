@@ -1,0 +1,136 @@
+0	Hi. I'm Gully Burns
+	This is an online version of a recent short presentation I gave at an LLMDay meetup in San Francisco. The subject of the talk is a Claude Skill I built that can gamemaster a tabletop roleplaying game based on the Mythras Imperative system. It's just super fun and I think provides a really interesting use case for agents with a number of quite deep implications.
+25s	
+	First off, nothing I talk about here has anything whatsoever to do with my work at Altos Labs. It was entirely developed in my own time, on my own resources, with my own accounts. This work is entirely a hobby project about running games.
+41s	
+	A little about me.
+	
+	I work as an AI engineer / researcher in the field of scientific knowledge engineering. The basic idea of this work is that scientists use structured notebooks for their work. Some of my recent professional work (from before I joined Altos Labs) involved developing a new form of database driven agentic memory which is the technical innovation the Mythras-GM work depends on.
+	
+	As a hobby, I've been playing roleplaying games since I was ten and it has always been a fantastic outlet for my imagination. I maintain a github repo for open source systems and material at the URL on the screen.
+	
+	I'm also immensely proud to report that as of August 25th, 2026, I am a published author. I wrote an adventure for the excellent Superhero roleplaying system based on Mythras called "Dreams of Lost Children". It's gritty, dark, has a 5 act dramatic structure, and is the culmination of a 30-year long process that finally took shape.
+1m41s	
+	So. Let's Begin.
+	
+	Stories transport us, but role-playing games transport us as a participant, rather than a passive audience member.
+1m50s	
+	There is a concept from psychology called 'Narrative Transportation' that, broadly speaking, measures how much stories move and engage us. It's a 15 item, self-reported questionnaire.
+2m02s	
+	It is increased by many of the primary aspects of playing RPGs - interactivity, control, perspective-taking, imagination... all of these things increase it and all of them are direct features of playing these games.
+2m16s	
+	I'm not a professional psychologist, so this is somewhat out of my area, but some work has been done on AI being involved in storytelling.
+2m24s	
+	Research on using AI for roleplaying games is also generally thin: some work has been done with a ChatGPT Dungeon Master playing through a translator into Thai in one example.
+2m36s	
+	Finally, I think it would be important to note that we should try to be careful about this. Using AI in a way that draws you into a compelling, vivid, storytelling experience could be upsetting or difficult for individuals that find it difficult to separate story from reality. It behooves us, ethically, to at least acknowledge some of the risks that could be present for vulnerable people if these games become really compelling.
+3m00s	
+	One of the coolest things I heard about in this field was when Steven Johnson, an author of some of the best popular science books around and an editorial lead on Google's NotebookLM Product, noticed that some users were using Gemini's million-token-length context window to just load a book into an LLM's context and then play an RPG in the world created there.
+	
+	How cool is that?
+3m24s	
+	He then built prompts for NotebookLM that turned any source document into a playable simulation
+3m30s	
+	He demoed this capability with three example - Two of his own books and wikipedia records of the Cuban Missile Crisis.
+	
+	I think this demonstrates that there's some really interesting characteristics of LLMs that permit a different kind of interface into storytelling than anything we've really previously explored
+3m49s	
+	A key part of this project was the use of the Mythras game system, so let me introduce you to that aspect. Mythras is a complete, mature, realistic and risky game system (risky for characters in the game itself, I should add, not for anyone just playing the game).
+4m06s	
+	Mythras has been around largely in current form since 2012, when it was first published as Runequest 6. It became its own system in 2016 but has a direct lineage to the original Runequest game that was published in 1978.
+4m22s	
+	It has supplements and systems across a great number of genres - a direct emulation of the original Advanced Dungeons and Dragons rules called 'Classic Fantasy'; semi historical settings for Babylon, Rome, Dark-ages Britain, even Constantinople just before its fall to the Ottoman Empire; really-faithful adaptations of novels translating the worlds of Luther Arkwright and Jack Vance's Lyonesse into games; some original fantasy settings and, of course, superheroes. The game's developers, The Design Mechanism will, on request, consider homebrew licensing where community members can publish derivative works based on the main game and they offer a trimmed down open-source version of the rules that anyone can use for any purpose.
+5m06s	
+	The game is quite realistic with a straightforward framework for resolving situations in the games. Characters take actions for which rules exist that can adjudicate whether those actions were, or were not successful. I'll walk through some examples in the next slide.
+5m21s	
+	Finally, combat and dangerous situations in the game are dangerous and it's very possible for characters to die if they take risks. For me, this increases the tension and enjoyment of playing.
+	
+	It's worth noting that The Design Mechanism (Mythras' owner company) is run by long-term hobbyists whose main motivation is improving the game itself. They provide two systems as completely open source vehicles to encourage people to write for the Mythras system.
+5m50s	
+	So, how do 'things happen' in the game?
+	
+	Like most RPGs, this involves rolling dice.
+5m56s	
+	Every character's capabilities are denoted by 'skills' - combat for fighting, brawn for feats of strength, deceit for lying, acrobatics for back flips.... you get the idea.
+6m07s	
+	Each skill is a number from one to one hundred, and for most simple tasks, when you want to accomplish something and if you try roll a random number from 1-100 to see if you succeed.
+6m19s	
+	If two people are working at crossed purposes to one another, we use a contested action where both people roll and the one who succeeds but rolls higher than the other wins the contest
+6m30s	
+	These relatively simple game mechanics permit the Gamesmaster to adjudicate most situations effectively.
+6m37s	
+	Why is this important? Well, the point is that the rules and rolls of the dice determine how actions translate into events. Life and death are a die roll away.
+6m48s	
+	Here's an example of how this works in a game situation. Magda attempts to watches a stranger walking by her without being seen.
+6m55s	
+	In the first example, Magda succeeds and the stranger fails, The stranger has no idea and Magda avoids being seen.
+7m04s	
+	Then, if they both succeed, if Magda rolls higher than the stranger, she still wins and remains hidden.
+7m12s	
+	In the final example, the stranger rolls higher than Magda and stops on the stair, looking straight at her.
+	
+	You can see that in the context of the game, it really matters if you win these contests. The story could go lots of different ways depending on whether your character wins or loses these contested rolls.
+7m30s	
+	What's interesting about this in the broader discussion of AI agents and world models, is that the Gamesmaster's job is to manifest a world model and make it real, and enjoyable to play in.
+7m42s	
+	So, what's it like to play? Here's an example from one of the games I played with Claude acting as a GM. I played Kag, a massive female half orc who worked for the main crime boss in the town of Purewater. The setting is that the town is full of strangers for an upcoming Tourney and Kag notices that traffic has completely stopped on one of the bridges she has to cross this morning.
+8m06s	
+	So, this kind of chatbot interaction is actually how you play with the agent acting as a GM. It describes the scene and then you tell it what you're doing.
+	
+	Kag goes up to the men who are chatting and asks them if she can pass
+	
+	One of them responds and there's a brief discussion, part of which is mediated by contested roll between my willpower and that of a guard to see if attempt at intimidation worked on him (it did).
+	
+	At the end of which Kag basically accuses them of being thieves which is noticed by members of the public... these scene actually was used by Claude later in the game to talk about Kag's evolving reputation by the townsfolk.
+	
+	So, you get the idea.
+8m46s	
+	It's important to note why playing with a language model who gets to adjudicate the actions taking place in the game will not work.
+	
+	You absolutely need to have a rules engine. Things have to have the potential of going wrong, otherwise it's just boring.
+9m01s	
+	Not only that, but it really needs to be able to show you what it rolled so that you can understand how the mechanics work and how they translate into real-game consequences.
+9m11s	
+	For the game to work, the world model actually has to carry real semantics, other wise nothing really makes any sense at all.
+9m18s	
+	There needs to be some elements to it that actually models how characters think, what they know, and what their goals are.
+9m26s	
+	It also can't just degrade into minutia. There's a pacing to stories and you have to be able to fast forward in the game to a situation where things are actually happening.
+9m35s	
+	Finally, an AI GM is highly creative, but still needs to write down what it creates in a way that can be reused elsewhere in the world of the game.
+9m44s	
+	I developed something called 'Ontological Notebook Memory' and wrote a demo paper for the inaugural conference for agents and agent systems last year. The core idea of this is really simply to provide a TypeDB database to an agent as the primary way that it stores its context.
+10m01s	
+	Building on this, the basic setup of the current system is as follows: the player interacts with the agent through a Mythras Gamesmastering skill. Within that skill the system runs functions as python scripts and accesses rules, lore, physical constraints such as placement in time and space of different characters. Finally, the key to building an effective world model for roleplaying games are the epistemics of individual characters - who knows what in relation to what is really happening.
+10m33s	
+	This really leads to the heart of this presentation: an Ontological Framework for Stories.
+	
+	The idea is that the story is a full script of what we expect to happen which is then loaded into the 'Campaign Arc' (which the GM must read frequently).
+	
+	The story consists of characters' agendas, which fire on predefined beats that we've woven into the story as events, which (if realized) become facts. Characters' knowledge of these facts live on edges and may or may not be accurate.
+	
+	This is the basis of a roleplaying game - what characters know, or think they know within the game universe.
+11m11s	
+	Clearly, an aspect of the game is that it is dynamic and our models of the story must update itself when players cause unexpected things to happen whilst playing.
+	
+	In this example, the whole planned fifth act had to be dropped. This is normal.
+11m28s	
+	Most interestingly, the schema we use for individual characters is very important. It goes beyond the standard entries we might see on a Mythras character sheet, but includes details that the AI needs to play the character effectively. We also need to model the characters plans and what they know about events that are relevant for the game. The AI tracks the epistemology of each character's knowledge - maybe even preserving errors or assumptions that the character might have made.
+11m55s	
+	Finally, Let's ask what we can do with this.
+11m58s	
+	Primarily, this work is only going to be of any use if we make the hobby better in some way. Either we improve the quality of game that people get to play or we find a way to bring more people into the community - or both.
+12m11s	
+	One obvious thing is that the system can 'remember' anything we can describe on disk, so there is a real opportunity of basically providing much more detail around specific settings. If we're able to fully populate these game-worlds, then anyone can do almost anything in the setting.
+12m29s	
+	As a writer playing around with these tools, it's immediately apparent to me that we have a massive, wide-open canvas to try anything we want. Text is an incredibly flexible, and compelling medium to create in. To many people, the written word is more engaging than any other forms of storytelling (simply because your brain fills in the details that otherwise would be supplied by graphics in video games or movies).
+12m58s	
+	Finally, one of hte most frustrating aspects of the hobby is that its often very challenging to get a group of players to find the time to play together. With an AI agent, you can play literally any time.
+13m10s	
+	So, finally, here is my website: Fourth-Wall Gaming. It is a Github organization with open source repos for the main game system and three playable campaigns. One is the Purewater campaign for classic fantasy that I've mentioned previously and another is the Veilwrack, a slightly weird fantasy idea set in a cloud city where all the characters have wings and can fly. A final game, not described here, is a science fiction game (still under development) called 'First Through', designed to introduce the hobby for teenagers.
+	
+	Another function of this system is that you can ask the engine to take the journal from a game you've played and 'novelize' it. The AI will then write up the experience you had in the game as a novel that you can reread after playing. A few examples of various these novelizations are also included on the website.
+14m03s	
+	Thank you for listening. Hope you try out the system.
+	
+	If you have any questions, please get in touch. I'd love to hear from you.
