@@ -200,6 +200,10 @@
   #hud { position: fixed; bottom: 10px; right: 14px; z-index: 20; display: flex; gap: 14px; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--muted); opacity: .7; }
   #hud.hidden, #progress.hidden { display: none; }
   #hud button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; cursor: pointer; }
+  #hud-narrate { font: inherit; color: inherit; border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; }
+  #hud-narrate:hover, #hud-narrate:focus-visible { border-color: var(--amber); color: var(--text); outline: none; }
+  /* no link to the narrated deck from the narrated deck; it offers "slides only" instead */
+  html.narrating #hud-narrate { display: none; }
   #hud button:hover, #hud button:focus-visible { border-color: var(--amber); color: var(--text); outline: none; }
   #clock.over { color: var(--amber); }
 
@@ -1058,6 +1062,7 @@
 </aside>
 
 <div id="hud">
+  <a id="hud-narrate" href="?narrate=1" title="Play the recorded narration and let the slides follow it">narrated</a>
   <span id="counter">1 / 21</span>
   <span id="clock" title="Elapsed since first advance">00:00 / 20:00</span>
 </div>
@@ -1624,10 +1629,19 @@
 
 <script>
 /* ---- narrated mode: the audio is the clock, the deck follows it ------------
-   Enabled with ?narrate=1. The cue table was generated from
-   files/Prez Timings - Sheet1.tsv by aligning each narration beat to the slide
-   its text describes; it is [seconds, slideIndex, stepsShown], absolute on
+   Enabled with ?narrate=1. [seconds, slideIndex, stepsShown], absolute on
    purpose so that scrubbing lands exactly rather than drifting.
+
+   THE TIMES COME FROM THE AUDIO, not from the sheet. The recording carries a
+   deliberate pause at every transition, so the envelope was measured at 10ms
+   resolution and each transition taken as the moment speech RESUMES. The sheet
+   (files/Prez Timings - Sheet1.tsv) decided which slide each beat belongs to;
+   an order-preserving alignment then snapped its 48 beats onto real pauses.
+
+   That alignment found the sheet runs a systematic 4.1s late -- median residual
+   -4.10s, stdev 1.39 -- which was the lag visible on screen. 46 of the 48 cues
+   now sit on a measured pause; cue 46 has no pause within 2.5s of where it
+   belongs and carries the measured shift instead; cue 1 is fixed at zero.
 
    Two cues do not map one-to-one onto a deck advance, and both are deliberate:
      - slide 9 carries data-open="0", because its title is its own beat at 5:50
@@ -1641,54 +1655,54 @@
   if (/[?&]print=1/.test(location.search)) return;          // the PDF export wins
 
   var CUES = [
-    [   0.0,  0, 0],   //  1  0:00  slide 1
-    [  25.0,  1, 0],   //  2  0:25  slide 2
-    [  41.0,  2, 0],   //  3  0:41  slide 3
-    [ 101.0,  3, 0],   //  4  1:41  slide 4
-    [ 110.0,  4, 1],   //  5  1:50  slide 5
-    [ 122.0,  4, 2],   //  6  2:02  slide 5
-    [ 136.0,  4, 3],   //  7  2:16  slide 5
-    [ 144.0,  4, 4],   //  8  2:24  slide 5
-    [ 156.0,  4, 5],   //  9  2:36  slide 5
-    [ 180.0,  5, 1],   // 10  3:00  slide 6
-    [ 204.0,  5, 2],   // 11  3:24  slide 6
-    [ 210.0,  5, 3],   // 12  3:30  slide 6
-    [ 229.0,  6, 0],   // 13  3:49  slide 7
-    [ 246.0,  7, 1],   // 14  4:06  slide 8
-    [ 262.0,  7, 2],   // 15  4:22  slide 8
-    [ 306.0,  7, 3],   // 16  5:06  slide 8
-    [ 321.0,  7, 4],   // 17  5:21  slide 8
-    [ 350.0,  8, 0],   // 18  5:50  slide 9
-    [ 356.0,  8, 1],   // 19  5:56  slide 9
-    [ 367.0,  8, 2],   // 20  6:07  slide 9
-    [ 379.0,  8, 3],   // 21  6:19  slide 9
-    [ 390.0,  8, 4],   // 22  6:30  slide 9
-    [ 397.0,  8, 5],   // 23  6:37  slide 9
-    [ 408.0,  8, 6],   // 24  6:48  slide 9
-    [ 415.0,  8, 7],   // 25  6:55  slide 9
-    [ 424.0,  8, 8],   // 26  7:04  slide 9
-    [ 432.0,  8, 9],   // 27  7:12  slide 9
-    [ 450.0,  9, 0],   // 28  7:30  slide 10
-    [ 462.0, 10, 0],   // 29  7:42  slide 11
-    [ 486.0, 10, 0],   // 30  8:06  slide 11
-    [ 526.0, 11, 1],   // 31  8:46  slide 12
-    [ 541.0, 11, 2],   // 32  9:01  slide 12
-    [ 551.0, 11, 3],   // 33  9:11  slide 12
-    [ 558.0, 11, 4],   // 34  9:18  slide 12
-    [ 566.0, 11, 5],   // 35  9:26  slide 12
-    [ 575.0, 11, 6],   // 36  9:35  slide 12
-    [ 584.0, 12, 0],   // 37  9:44  slide 13
-    [ 601.0, 13, 0],   // 38  10:01  slide 14
-    [ 633.0, 14, 0],   // 39  10:33  slide 15
-    [ 671.0, 15, 0],   // 40  11:11  slide 16
-    [ 688.0, 16, 0],   // 41  11:28  slide 17
-    [ 715.0, 17, 0],   // 42  11:55  slide 18
-    [ 718.0, 18, 1],   // 43  11:58  slide 19
-    [ 731.0, 18, 2],   // 44  12:11  slide 19
-    [ 749.0, 18, 3],   // 45  12:29  slide 19
-    [ 778.0, 18, 4],   // 46  12:58  slide 19
-    [ 790.0, 19, 0],   // 47  13:10  slide 20
-    [ 843.0, 20, 0],   // 48  14:03  slide 21
+    [   0.0,  0, 0],   //  1  0:00.00  slide 1
+    [  21.1,  1, 0],   //  2  0:21.10  slide 2
+    [ 37.27,  2, 0],   //  3  0:37.27  slide 3
+    [ 96.49,  3, 0],   //  4  1:36.49  slide 4
+    [106.32,  4, 1],   //  5  1:46.32  slide 5
+    [117.68,  4, 2],   //  6  1:57.68  slide 5
+    [132.14,  4, 3],   //  7  2:12.14  slide 5
+    [ 139.9,  4, 4],   //  8  2:19.90  slide 5
+    [151.94,  4, 5],   //  9  2:31.94  slide 5
+    [175.65,  5, 1],   // 10  2:55.65  slide 6
+    [199.64,  5, 2],   // 11  3:19.64  slide 6
+    [ 206.0,  5, 3],   // 12  3:26.00  slide 6
+    [ 225.4,  6, 0],   // 13  3:45.40  slide 7
+    [241.87,  7, 1],   // 14  4:01.87  slide 8
+    [257.46,  7, 2],   // 15  4:17.46  slide 8
+    [301.87,  7, 3],   // 16  5:01.87  slide 8
+    [317.27,  7, 4],   // 17  5:17.27  slide 8
+    [345.52,  8, 0],   // 18  5:45.52  slide 9
+    [351.49,  8, 1],   // 19  5:51.49  slide 9
+    [363.62,  8, 2],   // 20  6:03.62  slide 9
+    [374.77,  8, 3],   // 21  6:14.77  slide 9
+    [385.45,  8, 4],   // 22  6:25.45  slide 9
+    [392.52,  8, 5],   // 23  6:32.52  slide 9
+    [403.66,  8, 6],   // 24  6:43.66  slide 9
+    [411.24,  8, 7],   // 25  6:51.24  slide 9
+    [419.43,  8, 8],   // 26  6:59.43  slide 9
+    [428.44,  8, 9],   // 27  7:08.44  slide 9
+    [446.18,  9, 0],   // 28  7:26.18  slide 10
+    [458.27, 10, 0],   // 29  7:38.27  slide 11
+    [ 481.9, 10, 0],   // 30  8:01.90  slide 11
+    [522.07, 11, 1],   // 31  8:42.07  slide 12
+    [537.55, 11, 2],   // 32  8:57.55  slide 12
+    [547.11, 11, 3],   // 33  9:07.11  slide 12
+    [554.22, 11, 4],   // 34  9:14.22  slide 12
+    [561.44, 11, 5],   // 35  9:21.44  slide 12
+    [571.27, 11, 6],   // 36  9:31.27  slide 12
+    [ 579.9, 12, 0],   // 37  9:39.90  slide 13
+    [596.69, 13, 0],   // 38  9:56.69  slide 14
+    [629.14, 14, 0],   // 39  10:29.14  slide 15
+    [667.59, 15, 0],   // 40  11:07.59  slide 16
+    [683.35, 16, 0],   // 41  11:23.35  slide 17
+    [710.26, 17, 0],   // 42  11:50.26  slide 18
+    [713.34, 18, 1],   // 43  11:53.34  slide 19
+    [726.66, 18, 2],   // 44  12:06.66  slide 19
+    [744.38, 18, 3],   // 45  12:24.38  slide 19
+    [ 773.9, 18, 4],   // 46  12:53.90  slide 19
+    [784.49, 19, 0],   // 47  13:04.49  slide 20
+    [832.46, 20, 0],   // 48  13:52.46  slide 21
   ];
 
   var audio   = document.getElementById('narration');
@@ -1708,6 +1722,32 @@
 
   var cur = -1;
 
+  // A global nudge, in seconds, applied to every cue time. The timings in the
+  // sheet were written by hand against the recording, so they can sit a little
+  // ahead of or behind the voice; this makes that correctable while listening
+  // instead of by editing a table of forty-eight numbers.
+  //   ?narrate=1&offset=-4.5   or   [ and ] to nudge by 0.25s   or
+  //   wmNarrate.offset = -4.5  in the console
+  var offset = 0;
+  try {
+    var q = /[?&]offset=(-?\d*\.?\d+)/.exec(location.search);
+    if (q) offset = parseFloat(q[1]);
+    else {
+      var st = localStorage.getItem('wm-narrate-offset-v2');
+      if (st !== null) offset = parseFloat(st) || 0;
+    }
+  } catch (e) {}
+  var debug = /[?&]debug=1/.test(location.search);
+
+  function setOffset(v) {
+    offset = Math.round(v * 100) / 100;
+    try { localStorage.setItem('wm-narrate-offset-v2', String(offset)); } catch (e) {}
+    cur = -1;                              // force the current cue to re-evaluate
+    applyCue(cueAt(audio.currentTime - offset));
+    paint(audio.currentTime);
+    ticks();
+  }
+
   function fmt(s) {
     if (!isFinite(s) || s < 0) s = 0;
     var m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -1725,14 +1765,21 @@
 
   function applyCue(i) {
     if (i === cur) return;
+    if (debug) {
+      console.log('[narrate] cue ' + (i + 1) + '/' + CUES.length
+        + '  written ' + CUES[i][0].toFixed(2) + 's'
+        + '  fired at ' + audio.currentTime.toFixed(2) + 's'
+        + '  offset ' + offset + 's'
+        + '  -> slide ' + (CUES[i][1] + 1) + ' step ' + CUES[i][2]);
+    }
     cur = i;
     window.wmDeck.goTo(CUES[i][1], CUES[i][2]);
-    whereEl.textContent = 'slide ' + (CUES[i][1] + 1) + ' / ' + window.wmDeck.total;
+    whereEl.textContent = 'slide ' + (CUES[i][1] + 1) + ' / ' + window.wmDeck.total
+      + (offset ? '  ' + (offset > 0 ? '+' : '') + offset + 's' : '');
   }
 
-  // The recording is 839.3s and the last cue is written at 843s, so the closing
-  // slide would never be reached on time alone. Treat the end of the audio as
-  // that cue's trigger.
+  // The closing slide now sits on a real pause at 832.46s, inside the 839.3s
+  // recording, so it is reached on time. The ended listener stays as a backstop.
   function duration() {
     var d = audio.duration;
     return (isFinite(d) && d > 0) ? d : CUES[CUES.length - 1][0];
@@ -1752,7 +1799,7 @@
       if (i === 0) return;
       var el = document.createElement('div');
       el.className = 'tick' + (c[2] === 0 ? ' point' : '');   // a new slide, vs a build step
-      el.style.left = (c[0] / d * 100) + '%';
+      el.style.left = (Math.max(0, c[0] + offset) / d * 100) + '%';
       track.appendChild(el);
     });
   }
@@ -1767,13 +1814,13 @@
   function seek(t) {
     var d = duration();
     audio.currentTime = Math.max(0, Math.min(d - 0.05, t));
-    applyCue(cueAt(audio.currentTime));
+    applyCue(cueAt(audio.currentTime - offset));
     paint(audio.currentTime);
   }
 
   audio.addEventListener('timeupdate', function () {
     paint(audio.currentTime);
-    applyCue(cueAt(audio.currentTime));
+    applyCue(cueAt(audio.currentTime - offset));
   });
   audio.addEventListener('loadedmetadata', function () { ticks(); paint(audio.currentTime); });
   audio.addEventListener('durationchange', ticks);
@@ -1805,12 +1852,15 @@
       case ' ':          e.preventDefault(); e.stopPropagation(); toggle(); break;
       case 'ArrowRight': case 'PageDown':
         e.preventDefault(); e.stopPropagation();
-        seek(cur + 1 < CUES.length ? CUES[cur + 1][0] : duration()); break;
+        seek(cur + 1 < CUES.length ? CUES[cur + 1][0] + offset : duration()); break;
       case 'ArrowLeft':  case 'PageUp':
         e.preventDefault(); e.stopPropagation();
-        seek(cur - 1 >= 0 ? CUES[cur - 1][0] : 0); break;
+        seek(cur - 1 >= 0 ? CUES[cur - 1][0] + offset : 0); break;
       case 'Home':       e.preventDefault(); e.stopPropagation(); seek(0); break;
       case 'End':        e.preventDefault(); e.stopPropagation(); seek(duration()); break;
+      case '[':          e.preventDefault(); e.stopPropagation(); setOffset(offset - 0.25); break;
+      case ']':          e.preventDefault(); e.stopPropagation(); setOffset(offset + 0.25); break;
+      case '0':          e.preventDefault(); e.stopPropagation(); setOffset(0); break;
     }
   }, true);
 
@@ -1822,6 +1872,14 @@
     audio.play().catch(function () {});
   }
   if (splash) splash.addEventListener('click', start);
+
+  window.wmNarrate = {
+    cues: CUES,
+    get offset() { return offset; },
+    set offset(v) { setOffset(parseFloat(v) || 0); },
+    get cue() { return cur + 1; },
+    debug: function (on) { debug = (on !== false); return debug; }
+  };
 
   applyCue(0);
   paint(0);
