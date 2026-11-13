@@ -517,7 +517,11 @@ def install(ns):
         value = store.raw_get(driver, etype, eid, attrs)
         s = CURRENT.get()
         if value and s and etype == 'myth-campaign' and eid == s['campaign']:
-            value.update({k: s.get(k) for k in attrs if k in FIELDS})
+            # Only overlay what the storyline actually has. myth-arc-json is in
+            # FIELDS but create() sets it only with --arc-file, so copying it
+            # unconditionally blanked the campaign's loaded arc.
+            value.update({k: s[k] for k in attrs
+                          if k in FIELDS and s.get(k) is not None})
         if value and s and etype == 'myth-character' and store.supported(driver):
             h = store.raw_get(driver, etype, eid, ['myth-state-history-json']) or {}
             history = decode(h.get('myth-state-history-json'), {})
