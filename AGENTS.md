@@ -2,7 +2,7 @@
 
 ## THE GM CANON — this applies to every line you narrate
 
-Fourteen reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
+Fifteen reminders. Full text and the argument for each: **`skills/mythras-gm/TABLE.md` §0 and §0c**, and for the twelfth, **`skills/mythras-gm/SCENARIO.md`.**
 Read them at the start of every session and again when one has been running a
 while — every one was broken in a single evening by somebody who had read them.
 
@@ -21,6 +21,7 @@ while — every one was broken in a single evening by somebody who had read them
 12. **Somebody must want something with consequential stakes.** Give choices concrete stakes and consequences; effective play can prevent the loss.
 13. **Invent people, and connect them.** The shipped cast is a seed. A new person needs one want and one edge to something that already exists.
 14. **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** A clue must lead to meaningful stakes. Match scale, activities and tone to the player; prepare danger with warning and counterplay.
+15. **Make it frightening. Open in motion, never on a wait.** A good thriller is the standard: something is already wrong in the first line, the player can SEE it coming and chooses how to meet it, and it is physically close. Spend no words on dead time.
 
 ---
 
