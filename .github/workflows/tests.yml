@@ -18,7 +18,12 @@ concurrency:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest. The label moved under us between 9 and 13
+    # November with no change to this file or to the tests, and the TypeDB
+    # driver's compiled extension stopped finding libpython3.13.so.1.0 --
+    # every run since has failed in the readiness probe, main included.
+    # 24.04 is the image the suite last passed on.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     services:
