@@ -846,9 +846,31 @@ def test_the_gm_canon_is_at_the_front_of_every_entry_point():
         "One voice per NPC",
         "No procedural drift",
         "follow what the dice hand you",
+        "consequential stakes",
+        "Invent people, and connect them",
+        "Scale the stakes to the setting",
+        "Make it frightening",
     ]:
         assert rule in table, f"TABLE.md canon is missing: {rule}"
         assert rule in agents, f"AGENTS.md canon is missing: {rule}"
+
+    # The phrase list above is hand-maintained and had silently fallen three
+    # rules behind. Count the rules too, so adding one to either file without
+    # the other fails here rather than drifting quietly.
+    import re as _re
+    words = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+             "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17}
+    stated = _re.search(r"^(\w+) reminders\.", agents, _re.M)
+    assert stated, "AGENTS.md no longer states how many reminders there are"
+    claimed = words.get(stated.group(1).lower())
+    assert claimed, f"unrecognised count word {stated.group(1)!r}"
+
+    in_agents = len(_re.findall(r"^(\d+)\. \*\*", agents, _re.M))
+    canon = table[table.index("## 0. THE CANON"):table.index("## 1. Voice")]
+    in_table = len(_re.findall(r"^\| \*\*(\d+)\*\* \|", canon, _re.M))
+    assert claimed == in_agents == in_table, (
+        f"canon drift: AGENTS.md says {claimed}, lists {in_agents}; "
+        f"TABLE.md's table has {in_table}")
 
 
 def test_no_dialogue_the_player_did_not_write_is_in_the_canon():

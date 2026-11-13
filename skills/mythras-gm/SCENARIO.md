@@ -85,6 +85,39 @@ at stake. Nimras is pursuing his former teacher, so the commission and their
 relationship give him a personal reason to act. None of this makes the fellowship
 secretly evil or predetermines Rennic's death.
 
+## 1b. The thriller standard
+
+The measure of a prepared situation is not whether it is consequential. It is
+**whether it would hold an audience.** Good thrillers are frightening, and that
+is the product the player is buying.
+
+Four things make a scene tense, and they are all preparable:
+
+**Open in motion.** Never on a quiet post, a journey, a wait or an arrival.
+Start at the moment something is already wrong, already close, already moving.
+*"Nothing is happening"* is not an opening, and a scene whose honest summary is
+*"he waits for five hours"* has no first line worth writing. Find the moment
+forty minutes later and start there.
+
+**Suspense, not surprise.** Fear comes from the audience knowing something is
+coming and not knowing when or how it lands — not from an ambush they could not
+see. So give warning that is *visible and early*, and then let the player decide
+how to meet it. A threat the player watched approach and chose to stand in front
+of is frightening; the same threat sprung on them is merely an event. This is
+also why warning routes are required: they are not fairness machinery, they are
+the mechanism of dread.
+
+**Keep it physically close.** Danger reported is information. Danger in the room,
+at a stated distance, closing, is a scene. Prepare distances, exits and how long
+each takes, so proximity can be narrated exactly rather than vaguely.
+
+**Spend no words on dead time.** Procedure, travel and waiting compress to one
+sentence or to nothing. The length belongs where the risk is.
+
+The test, before running a prepared situation: **what is the first line, and is
+something already wrong in it?** If the honest answer is no, you are starting in
+the wrong place in your own scene.
+
 ## 2. Build an adversary who drives events
 
 For an adversarial adventure, identify the principal antagonist. Give them a

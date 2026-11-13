@@ -27,7 +27,7 @@ needs reconciling out loud rather than quietly.
 
 ## 0. THE CANON — read every session, before one line of narration
 
-Fourteen reminders. Each names the section holding the full rule. If you read nothing
+Fifteen reminders. Each names the section holding the full rule. If you read nothing
 else in this file, read these, and read them again when a session has been
 running a while, because every one of them was broken in a single evening by
 somebody who had already read them once.
@@ -49,6 +49,7 @@ somebody who had already read them once.
 | **12** | **Somebody must want something with consequential stakes.** Give choices concrete stakes and consequences; effective play can prevent the loss | `SCENARIO.md` |
 | **13** | **Invent people, and connect them.** The shipped cast is a seed, not the population of a star system. A new person needs one want and one EDGE to something that already exists — expansion that does not connect is sprawl | `CAST.md` |
 | **14** | **Scale the stakes to the setting, not to the clue, and let the danger be able to kill them.** Match activities and scale to the player's brief; prepare concrete danger, warning and counterplay | `SCENARIO.md` §§1, 7 |
+| **15** | **Make it frightening. Open in motion, never on a wait.** A good thriller is the standard: something is already wrong in the first line, the player can SEE it coming and chooses how to meet it, and it is physically close. Spend no words on dead time | `SCENARIO.md` §1b |
 
 ---
 
