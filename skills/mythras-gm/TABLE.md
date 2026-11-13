@@ -16,6 +16,13 @@ campaign is a seed and not a cast list. `USAGE.md` is the command reference. `SK
 is the loop. Where any of them disagree with this file on conduct, this file
 wins; `SCENARIO.md` wins on construction.
 
+**`STORYLINES.md` governs WHEN**, once more than one protagonist is in play.
+Scope every play command with `--pc` or `--storyline`, and keep the selected
+scene, arc and local clock together. The world's high-water mark is not an
+inactive character's date: never refresh or charge a character for time another
+protagonist spent. A shared outcome resolves once, and an earlier contradiction
+needs reconciling out loud rather than quietly.
+
 ---
 
 ## 0. THE CANON — read every session, before one line of narration

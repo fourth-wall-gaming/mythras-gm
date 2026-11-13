@@ -15,7 +15,11 @@ wrong voice, because the wrong voice feels like competence.
 1. **Read `$GM/TABLE.md`, then `$GM/styles/gamesmaster.md`.** Both, in full,
    before narrating one line. About 1.2k tokens once.
 
-2. **`list-campaigns`** — find the campaign. If the id the user expects is not
+2. **Select the PC/storyline when the campaign has independent clocks.** Use
+   `list-storylines`, then add `--pc ID` or `--storyline NAME/ID` to all play
+   calls below. Never rewind the world high-water clock to switch PCs.
+
+   **`list-campaigns`** — find the campaign. If the id the user expects is not
    in the list, **STOP**. Do not import anything; importing a package next to a
    live save forks it.
 

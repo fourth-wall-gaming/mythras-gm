@@ -51,3 +51,9 @@ is installed, so anything load-bearing that lives here reaches nobody. The style
 cards it depends on are `skills/mythras-gm/styles/gamesmaster.md` (the table's
 voice) and `skills/mythras-gm/styles/gully-burns.md` (the house voice it
 inherits from).
+
+## Parallel storyline clocks
+
+For independent protagonists use `--pc` or `--storyline` on play commands.
+Read `skills/mythras-gm/STORYLINES.md`; shared high-water time is not a PC's
+local date. Preserve each scene, arc, timed effect, rest and knowledge boundary.

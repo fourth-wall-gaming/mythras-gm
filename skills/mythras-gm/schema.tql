@@ -101,6 +101,10 @@ attribute myth-beat-trigger, value string;         # "time" | "clock>=N"
 attribute myth-beat-onscreen-if, value string;     # prose condition, e.g. "any PC at the Sylph's Embrace"
 attribute myth-beat-branches-json, value string;   # declared outcomes of a PIVOT beat: what each result does to the rest of the thread
 attribute myth-beat-result, value string;          # which declared branch actually happened
+attribute myth-clock-minutes, value integer;       # absolute local minutes; watches remain canonical display keys
+attribute myth-storyline-id, value string;        # owner of an operation/event; absent means shared
+attribute myth-storyline-state-json, value string; # storyline-specific supplemental state
+attribute myth-state-history-json, value string;  # dated mutable character state and presence versions
 attribute myth-time-index, value integer;          # ordinal world clock (campaign: now; beat: when it fires)
 
 # Epistemics (facts and who knows them). See entity myth-fact below.
@@ -274,7 +278,19 @@ entity myth-campaign sub alh-collection,
     owns myth-time-index,
     plays myth-campaign-membership:campaign;
 
+entity myth-storyline sub alh-domain-thing,
+    owns myth-time-index,
+    owns myth-clock-minutes,
+    owns myth-game-date,
+    owns myth-current-scene,
+    owns myth-session-number,
+    owns myth-played-pcs,
+    owns myth-arc-json,
+    owns myth-storyline-state-json,
+    plays myth-campaign-membership:element;
+
 entity myth-character sub alh-domain-thing,
+    owns myth-state-history-json,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-char-type,
@@ -352,6 +368,8 @@ entity myth-faction sub alh-domain-thing,
     plays myth-knows:subject;
 
 entity myth-encounter sub alh-domain-thing,
+    owns myth-storyline-id,
+    owns myth-time-index,
     owns myth-encounter-status,
     owns myth-round,
     owns myth-combatants-json,
@@ -361,6 +379,9 @@ entity myth-encounter sub alh-domain-thing,
     plays myth-event-involvement:participant;
 
 entity myth-game-event sub alh-note,
+    owns myth-clock-minutes,
+    owns myth-storyline-id,
+    owns myth-time-index,
     owns myth-canon-status,
     owns myth-superseded-by,
     owns myth-event-type,
@@ -386,6 +407,8 @@ entity myth-game-event sub alh-note,
 # becomes a fact they may later discover. Firing a beat links it to the
 # journal event it produced via myth-beat-outcome.
 entity myth-agenda sub alh-note,
+    owns myth-storyline-id,
+    owns myth-time-index,
     owns myth-agenda-status,
     owns myth-agenda-clock-size,
     owns myth-agenda-clock-filled,
@@ -402,6 +425,7 @@ entity myth-agenda sub alh-note,
     plays myth-knows:subject;
 
 entity myth-beat sub alh-note,
+    owns myth-storyline-id,
     owns myth-beat-status,
     owns myth-beat-when,
     owns myth-beat-trigger,
@@ -452,7 +476,8 @@ entity myth-lore sub alh-note,
 #
 # Character prose describes CHARACTER; facts carry SITUATION. A character sheet
 # that asserts what has happened cannot be reconciled against anything.
-entity myth-fact sub alh-note,          # description = the proposition itself
+entity myth-fact sub alh-note,
+    owns myth-storyline-id,          # description = the proposition itself
     owns myth-fact-status,
     owns myth-fact-truth,
     owns myth-time-index,               # when it became true

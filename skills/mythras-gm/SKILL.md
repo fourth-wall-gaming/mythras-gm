@@ -47,6 +47,17 @@ what is wrong in plain words. A session with no save file reads exactly like one
 that has it, right up to the moment the player comes back and finds the whole
 evening gone.
 
+## Parallel protagonists
+
+Read [STORYLINES.md](STORYLINES.md) when PCs are played at different dates.
+Use `--pc PC_ID` or `--storyline NAME/ID` consistently for context, tick, scenes,
+knowledge, encounters and journal calls. Each storyline owns its clock and arc;
+the campaign clock is only the high-water mark. Never rewind it to switch PCs.
+`get-context` returns the selected scene/date and only its party. `tick --minutes`
+tracks short spell durations. Use `add-timed-effect`, `dismiss-effect` and
+`rest-character` for timed effects and explicit recovery; Luck does not reset
+through rest. Unscoped ambiguous play commands refuse rather than guess.
+
 ## Before you narrate one line
 
 **Read `TABLE.md`, then `styles/gamesmaster.md`, then the campaign's
