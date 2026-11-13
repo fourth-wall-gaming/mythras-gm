@@ -6678,9 +6678,12 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    if hasattr(args, "campaign") and (args.campaign or args.command in NEEDS_CAMPAIGN
-            or getattr(args, "pc", None) or getattr(args, "storyline", None)
-            or args.command in ("create-storyline", "list-storylines", "update-storyline", "assign-storyline", "split-storyline", "assign-storyline-record", "rest-character", "add-timed-effect")):
+    # Unconditional on purpose. Gating this on the command name shipped once and
+    # silently handed campaign=None to six commands that take an optional
+    # --campaign -- escape_string(None) is "", so they matched no campaign and
+    # answered emptily instead of erroring, and Store.select bailed out before
+    # the storyline guard could refuse.
+    if hasattr(args, "campaign"):
         args.campaign = resolve_campaign(args.campaign)
     if not args.command:
         parser.print_help()

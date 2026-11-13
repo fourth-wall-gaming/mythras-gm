@@ -278,3 +278,48 @@ def test_split_retains_history_and_isolates_future(world):
     later = call('log-event', campaign=c, storyline=w['sa'], type='scene', summary='Other path', involves=w['a'])['id']
     call('tick', campaign=c, pc=w['a'], minutes=500)
     assert later not in [e['id'] for e in call('get-log', campaign=c, pc=w['a'], limit=10)['events']]
+
+
+# --- regressions found in review of #18 ------------------------------------
+
+def test_campaign_is_still_inferred_for_commands_outside_the_storyline_sets():
+    """#18 narrowed main()'s campaign resolution from unconditional to a gate on
+    the command name, and six commands with an optional --campaign fell outside
+    every branch of it. With MYTHRAS_CAMPAIGN set -- the normal play setup --
+    they received campaign=None, and escape_string(None) is "", so the query
+    matched no campaign and returned an empty answer instead of erroring. It
+    also bypassed Store.select, so `learn` without --pc wrote world-scoped
+    undated knowledge in a storyline campaign instead of refusing."""
+    import inspect
+    import mythras_gm as gm
+
+    parser = gm.build_parser()
+    choices = parser._subparsers._group_actions[0].choices
+    for cmd in ("get-character", "get-knowledge", "learn",
+                "set-knowledge", "set-doing", "sync-arc"):
+        dests = {a.dest for a in choices[cmd]._actions}
+        assert "campaign" in dests, f"{cmd} no longer takes --campaign"
+
+    src = inspect.getsource(gm.main)
+    head = src[src.index('hasattr(args, "campaign")'):]
+    condition = head[:head.index("args.campaign = resolve_campaign")]
+    assert "args.command in" not in condition, (
+        "main() gates campaign resolution on the command name. Any command with "
+        "an optional --campaign that is not listed silently gets campaign=None.")
+
+
+def test_storyline_overlay_does_not_mask_a_loaded_campaign_arc():
+    """myth-arc-json is in FIELDS and the overlay wrote it unconditionally, but
+    Store.create only sets an arc when --arc-file is given. So a storyline made
+    without one masked the campaign's loaded arc with None, and get-context,
+    tick and forecast all reported "NO ARC LOADED" for a campaign that had
+    one."""
+    import storyline_tools as st
+    import inspect
+    src = inspect.getsource(st.install)
+    line = [l for l in src.splitlines() if "k in FIELDS" in l]
+    assert line, "the campaign overlay changed shape; re-check this test"
+    assert "is not None" in line[0], (
+        "the storyline overlay copies absent fields over real campaign values; "
+        "a storyline with no arc blanks the campaign arc. Fall back when the "
+        "storyline's value is None.")
