@@ -70,6 +70,58 @@ only for their own PC's storyline history; undated NPC-only/offscreen entries
 are hidden from local context until their actual date is backfilled. Real-world
 write time is never used to guess a fictional date.
 
+## Sagas and adventures
+
+Every storyline, including a lone PC's, is played as a **saga** made of
+**adventures**. Give a new PC a storyline at the first session.
+
+- **Saga line.** One sentence, agreed with the player, saying what this
+  protagonist's story is about. Every adventure answers to it. `set-saga`
+  replaces it and keeps the earlier lines.
+- **Adventure.** The unit of play, moving through
+  `proposed -> chosen -> prepared -> active -> concluded` (or `abandoned`;
+  an unchosen pitch is `declined`). Only one is active per storyline. Activating
+  loads its outline as the storyline's arc. Concluding needs an `--outcome`,
+  keeps the outline as it stood at the end, and clears the arc. Between
+  adventures the storyline is in **downtime**: pitch the next one, and do not
+  improvise a plot into the gap.
+
+```bash
+gm set-saga --pc PC --line 'A tired knight looks for a crown worth serving.'
+gm add-adventure --pc PC --title 'The Long Shore' --pitch '...'   # one per pitch
+gm update-adventure --pc PC --id 'The Long Shore' --status chosen
+gm update-adventure --pc PC --id 'The Long Shore' --status prepared \
+  --arc-file /abs/long-shore-arc.md --plan LORE_ID
+gm update-adventure --pc PC --id 'The Long Shore' --status active
+gm update-adventure --pc PC --id 'The Long Shore' --status concluded \
+  --outcome 'Supplies crossed; Garr Hew is still loose.'
+gm list-adventures --pc PC [--full]
+```
+
+`get-context`, `forecast` and `tick` carry `saga` and `adventure` next to the
+arc, so the story's purpose stays in context. For a game already in progress,
+`add-adventure --status concluded --started D --ended D --outcome ...` backfills
+finished adventures, and `--status active --started D` adopts the one being
+played, keeping the arc already loaded. Splitting a party copies its saga and
+adventures to both halves.
+
+## Fixed history: clocks that trail other clocks
+
+A storyline behind another one is playing dates that are already partly
+written. `get-context` lists `clocks_ahead`. Before preparing an adventure or
+playing into those dates:
+
+```bash
+gm fixed-history --pc PC [--through d30/night]
+```
+
+The command lists the other storylines' live events and adventures in that
+window. It is for the GM only and grants no knowledge. `update-adventure
+--status prepared` runs the same check over the outline's dates, and `tick`
+reports `fixed_history` when it enters them. Those outcomes are canon: play
+into them or reconcile them explicitly, and never contradict them silently.
+When storylines will meet, let the trailing ones catch up first.
+
 ## Spells, rest and lodging
 
 After resolving a casting, record its **already paid** effect:

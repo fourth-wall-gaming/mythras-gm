@@ -708,3 +708,6 @@ select `--pc ID` or `--storyline NAME/ID` on play commands, or set
 `create-storyline`, `list-storylines`, `update-storyline` and `assign-storyline`
 manage local cursors; `assign-storyline-record` backfills existing records.
 The campaign high-water date never moves an inactive PC.
+`set-saga`, `add-adventure`, `update-adventure`, `list-adventures` and
+`fixed-history` hold each storyline's saga line and adventure lifecycle
+(STORYLINES.md, "Sagas and adventures").

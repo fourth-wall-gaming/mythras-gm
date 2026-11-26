@@ -58,6 +58,12 @@ tracks short spell durations. Use `add-timed-effect`, `dismiss-effect` and
 `rest-character` for timed effects and explicit recovery; Luck does not reset
 through rest. Unscoped ambiguous play commands refuse rather than guess.
 
+Every storyline, even a lone PC's, has a **saga line** and is played as a chain
+of **adventures** (`set-saga`, `add-adventure`, `update-adventure`,
+`list-adventures`). Each adventure is pitched, chosen, prepared, played and
+concluded, then followed by downtime. `fixed-history` shows what other clocks
+have already made true. See STORYLINES.md, "Sagas and adventures".
+
 ## Before you narrate one line
 
 **Read `TABLE.md`, then `styles/gamesmaster.md`, then the campaign's

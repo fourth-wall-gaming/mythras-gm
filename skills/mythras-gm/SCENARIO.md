@@ -7,7 +7,13 @@ Use it after pitch selection; use its questions to improve pitches beforehand.
 
 Workflow: live starting position → diverse seeds → public pitches → player
 selection → brief preference interview → cast and opposing plans → knowledge and evidence → act development
-→ playable situations → model and verify → play and revise.
+→ playable situations → model and verify → play and revise → conclude → downtime.
+
+Each step has a place in the save: the stages of an adventure record
+(`add-adventure`, `update-adventure`) and the storyline's saga line, described
+in [STORYLINES.md](STORYLINES.md#sagas-and-adventures). The adventure answers to
+the saga line. Before preparing dates another storyline has already played,
+run `fixed-history`; what it shows is fixed.
 
 Read alongside [BRAINSTORMING.md](BRAINSTORMING.md) and
 [CONSEQUENCES.md](CONSEQUENCES.md). The first governs
@@ -269,6 +275,12 @@ finite resources and first meaningful player action. Test refusal, authorities,
 negotiation, allies, early antagonist defeat and out-of-order investigation.
 Resolve contradictory dependencies and read saved records back. Do not say an
 adventure is ready merely because prose exists or a database accepts writes.
+Only then `update-adventure --status active`.
+
+**End adventures.** When the dramatic question is answered, conclude the
+adventure with its outcome, even if loose threads remain. They become
+material for pitches, not a reason to widen the adventure as you play.
+Play downtime, ask whether the saga line still holds, then pitch again.
 
 When asked for a GM evaluation, show the entire design including secrets and
 weaknesses. Otherwise keep discoveries for play; do not require a spoiler review

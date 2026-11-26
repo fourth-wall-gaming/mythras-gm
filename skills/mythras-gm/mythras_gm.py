@@ -78,6 +78,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import mythras_engine as eng
 import mythras_effects as fx
 import world_tools as wt
+import adventure_tools as at
 import storyline_tools as st
 from score_tools import deep_merge, validate_score
 
@@ -6670,6 +6671,7 @@ def build_parser():
         for action in parser_._actions:
             if "--campaign" in action.option_strings:
                 action.required = False
+    at.add_parsers(sub)
     st.add_parsers(sub)
     _install_aliases(sub)
     return p
@@ -6702,6 +6704,7 @@ def main():
     fn(args)
 
 
+at.install(globals())
 st.install(globals())
 
 if __name__ == "__main__":

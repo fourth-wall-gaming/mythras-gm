@@ -24,7 +24,11 @@ wrong voice, because the wrong voice feels like competence.
    live save forks it.
 
 3. **`get-context --campaign <id> --compact`** — the save file. Scene, PC combat
-   cards, NPCs, factions, recent events.
+   cards, NPCs, factions, recent events, the saga line and the adventure in
+   play. A new PC gets `create-storyline` first. With `NO SAGA LINE` or
+   `between adventures`, set the saga and pitch before opening a scene (the
+   `mythras-scenario` skill). With `clocks_ahead`, run `fixed-history` before
+   ticking.
 
 4. **`tick --campaign <id> --to "<time key>"`** if the clock has moved. Watches
    are `dawn / day / dusk / night`. Roll every beat that comes due, including
