@@ -13,10 +13,14 @@ precedence. This method is portable; use the current game's actual mechanics
 and persistence model. For Mythras use the GM CLI and TypeDB.
 
 1. **Load the real starting state.** Read context, arc, agendas, beats and the
-   PC sheet. Preserve established history and earned victories. Review existing
+   PC sheet, plus `list-adventures` (the saga line and what has been played).
+   If `clocks_ahead` is present, run `fixed-history` over the dates you plan to
+   use. Preserve established history and earned victories. Review existing
    cast before inventing; a new PC need not receive an unrelated side plot.
 2. **Select a premise.** Generate and present diverse pitches when requested;
    keep unchosen proposals outside live canon. If already selected, retain it.
+   Record each pitch with `add-adventure` and mark the choice `chosen`. No
+   saga line yet? Agree one sentence with the player and `set-saga`.
 3. **Briefly interview the player.** Establish the desired mix of magic, combat,
    intrigue, exploration and mystery, plus tone and danger where unclear.
    Reuse answers already given. Do this before deeper scenario preparation.
@@ -42,11 +46,16 @@ and persistence model. For Mythras use the GM CLI and TypeDB.
    establish intended future harm or grant knowledge of it. Advance agendas
    only for achieved steps and resolve uncertain attempts with actual rules.
    Read the saved state back and run the readiness check in `SCENARIO.md`.
+   `update-adventure --status prepared --arc-file ... --plan LORE_IDS`, then
+   `--status active` when it is ready.
 8. **Open or resume play.** Run the first playable situation with spoilers
    preserved. Provide a full GM walkthrough when requested. During OOC design
    review hold play and time, then incorporate feedback in documents and the
    live model before resuming. After play reconcile actual outcomes and retire
    operations made impossible by victory, surrender or lost resources.
+9. **Conclude.** When the adventure's question is answered,
+   `update-adventure --status concluded --outcome ...`. Then downtime and the
+   next pitch, never an unplanned extension.
 
 Keep the scenario prose in the campaign workspace and the live structure in
 the save. A successful database write is not sufficient evidence of readiness.

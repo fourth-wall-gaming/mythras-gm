@@ -266,6 +266,9 @@ class Store:
                 self.fail(f'PC {cid} is not in this campaign')
 
     def set_arc(self, driver, sid, path):
+        self.raw_set(driver, 'myth-storyline', sid, 'myth-arc-json', json.dumps(self.parse_arc(path)))
+
+    def parse_arc(self, path):
         acts = self.g['_parse_arc_acts'](path)
         eng = self.g['eng']
         for a in acts:
@@ -276,7 +279,7 @@ class Store:
                 a['index_to'] = eng.parse_time_key(keys[-1] if '/' in keys[-1] else keys[-1] + '/night')
             except (IndexError, ValueError):
                 a['index_from'] = a['index_to'] = None
-        self.raw_set(driver, 'myth-storyline', sid, 'myth-arc-json', json.dumps(acts))
+        return acts
 
     def list_command(self, args):
         with self.g['get_driver']() as driver:
@@ -490,6 +493,11 @@ def install(ns):
             with ns['get_driver']() as driver:
                 world = store.raw_get(driver, 'myth-campaign', s['campaign'], ['myth-time-index'])
             obj['world_high_water'] = ns['eng'].format_time_key(world['myth-time-index']) if world and world.get('myth-time-index') is not None else None
+            # The saga line and adventure ride wherever the arc does, for the
+            # arc's reason: what the story is FOR must not decay out of context.
+            if 'arc' in obj and '_adventure_summary' in ns:
+                with ns['get_driver']() as driver:
+                    obj.update(ns['_adventure_summary'](driver, s))
             cards = obj.get('player_characters', [])
             if 'character' in obj and isinstance(obj['character'], dict):
                 cards = cards + [obj['character']]
@@ -697,6 +705,15 @@ def install(ns):
                 for b in all_beats if b['status'] in ('played', 'narrated')
                 and b.get('time_index') is not None and old_minute // 360 < b['time_index'] <= minute // 360
                 and store.owns(driver, 'myth-beat', b['id']) is None]
+            # Entering dates another storyline has already played: what it made
+            # true is fixed, and the GM must see it before narrating them.
+            if '_fixed_history' in ns:
+                found = ns['_fixed_history'](driver, s, old_minute, minute)
+                if found:
+                    payload['fixed_history'] = {
+                        'entered': ns['_fixed_summary'](found),
+                        'guidance': 'Another storyline already played these dates. Its '
+                                    'outcomes are canon: run fixed-history for the detail.'}
         payload['expired_effects'] = expired
         payload['historical_camera'] = historical
         payload['minute_in_watch'] = minute % 360
