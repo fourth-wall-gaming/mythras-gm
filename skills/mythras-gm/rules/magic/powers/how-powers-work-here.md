@@ -24,7 +24,7 @@ the rule comes from.
   Points, **Limits** are disadvantages that buy more of both.
 
 Everything this world has that Classic Fantasy has no entry for is a power:
-Magda's rage, the binding school, the wild-elf line, the Order's rites. This is
+Magda's rage, the binding school, the wild-elf line, Spirit Walk, the Order's rites. This is
 not a workaround. Those things were never spells — none of them is one Action,
 one Cost and one target — and writing them as spells is what made them keep
 drifting.
@@ -42,6 +42,8 @@ like Purewater itself.
 1. **Core powers are free and need no roll to have.** Using one in a contested
    way rolls the skill it leans on — Willpower, Perception, Endurance — never a
    casting skill. A power is not cast and cannot be Counterspelled or Dispelled.
+   What a power *leaves behind* can be: a binding's seat and anchors are workings
+   with an Intensity (`magic/powers/spirits-and-demons`).
 2. **Boosts cost Power Points** and are declared before the roll. Power Points
    are a separate pool from Magic Points: **POW, recovering 1 per minute of
    rest**, or a Luck Point for 1d4+1 at once. A caster who is out of Magic
