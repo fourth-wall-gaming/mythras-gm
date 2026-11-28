@@ -460,6 +460,15 @@
         "Magda"
       ]
     },
+    "Spirit Walk": {
+      "source": "mythras-powers-chassis",
+      "licence": "ours",
+      "rule": "magic/powers/spirit-walk",
+      "used_by": [
+        "Gardwen",
+        "Hanzo di Teufel"
+      ]
+    },
     "The Binding": {
       "source": "mythras-powers-chassis",
       "licence": "ours",

@@ -7,7 +7,7 @@ topic: "powers"
 kind: "procedure"
 summary: "Core power: the wild-elf answer to the binding school. See the bound, speak to them, ward a doorway, and take a spirit off a person."
 facets: {"phase": ["casting"], "kind": ["procedure"], "magic-system": ["powers", "woodland"], "licence": ["ours"], "stat": ["power-points"]}
-links: ["magic/powers/how-powers-work-here", "magic/powers/the-binding", "magic/superpowers", "magic/binding-school"]
+links: ["magic/powers/how-powers-work-here", "magic/powers/the-binding", "magic/powers/spirit-walk", "magic/powers/spirits-and-demons", "magic/superpowers", "magic/binding-school"]
 licence: "ours"
 ---
 
@@ -43,6 +43,13 @@ it keeps working when her Magic Points are gone. It runs on **Power Points
   On success the spirit comes out **and is loose in the room**, which is why
   Sanctuary exists and why doing this alone is how people die. On a failure it
   stays and it now knows her.
+
+## Spirit Walk
+
+The Line walks the spirit world **as a guest** (`magic/powers/spirit-walk`),
+and spirits that hide from binders will talk to a guest. Sanctuary works there
+too. What comes out of a host when Unseat succeeds is described in
+`magic/powers/spirits-and-demons`.
 
 ## Limits
 
